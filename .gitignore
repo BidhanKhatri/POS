@@ -1,0 +1,17 @@
+# macOS
+.DS_Store
+
+# Documents
+AGENTS.md
+DATABASE_AGENT.md
+DESIGN.md
+POS_Production_Grade_Database_Architecture.pdf
+POS_System_Design_Document.pdf
+POS_System_design_Architecture.png
+
+# Design files
+.agents/
+desing-ui/
+
+# Optional
+skills-lock.json
