@@ -17,7 +17,7 @@ const managerOverrideSchema = new mongoose.Schema({
   },
   approvedBy: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Employee',
+    ref: 'User',
     required: true,
   },
   managerPinVerified: {
@@ -27,7 +27,7 @@ const managerOverrideSchema = new mongoose.Schema({
   },
   employeeId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Employee',
+    ref: 'User',
     required: true,
   },
 }, {

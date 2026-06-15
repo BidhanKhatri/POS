@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 import mongoose from 'mongoose';
 import connectDB from './config/db.js';
-import Employee from './models/Employee.js';
+import User from './models/User.js';
 import Product from './models/Product.js';
 
 // Prevent running in production
@@ -15,10 +15,10 @@ const seedData = async () => {
   try {
     await connectDB();
 
-    await Employee.deleteMany();
+    await User.deleteMany();
     await Product.deleteMany();
 
-    const admin = new Employee({
+    const admin = new User({
       employeeCode: 'ADMIN123',
       name: 'System Admin',
       role: 'Admin',

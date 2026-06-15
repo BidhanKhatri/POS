@@ -45,7 +45,7 @@ const saleSchema = new mongoose.Schema({
   },
   employeeId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Employee',
+    ref: 'User',
     required: true,
   },
   items: [saleItemSchema],
@@ -74,7 +74,6 @@ const saleSchema = new mongoose.Schema({
   timestamps: true,
 });
 
-saleSchema.index({ invoiceNo: 1 });
 saleSchema.index({ shiftId: 1 });
 saleSchema.index({ employeeId: 1 });
 saleSchema.index({ createdAt: 1 });

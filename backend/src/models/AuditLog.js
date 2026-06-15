@@ -21,7 +21,7 @@ const auditLogSchema = new mongoose.Schema({
   },
   performedBy: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Employee',
+    ref: 'User',
     required: true,
   },
   role: {

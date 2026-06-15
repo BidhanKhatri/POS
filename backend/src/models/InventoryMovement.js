@@ -36,7 +36,7 @@ const inventoryMovementSchema = new mongoose.Schema({
   },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Employee',
+    ref: 'User',
     required: true,
   },
 }, {

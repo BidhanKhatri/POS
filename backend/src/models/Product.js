@@ -45,8 +45,6 @@ const productSchema = new mongoose.Schema({
 });
 
 // Indexes based on Database_Agent.md
-productSchema.index({ sku: 1 }, { unique: true });
-productSchema.index({ barcode: 1 }, { unique: true, sparse: true });
 productSchema.index({ quickSlot: 1 });
 
 export default mongoose.model('Product', productSchema);

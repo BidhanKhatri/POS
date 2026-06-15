@@ -26,7 +26,7 @@ const dailyReportSchema = new mongoose.Schema({
   employeePerformance: [{
     employeeId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Employee',
+      ref: 'User',
     },
     totalSales: Number,
     transactionCount: Number,
