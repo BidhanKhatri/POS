@@ -14,6 +14,7 @@ import ManagerShiftPage from './ManagerPages/ManagerShiftPage';
 import ManagerDashboardPage from './ManagerPages/ManagerDashboardPage';
 import ManagerInventoryPage from './ManagerPages/ManagerInventoryPage';
 import ManagerOverridePage from './ManagerPages/ManagerOverridePage';
+import ManagerReportPage   from './ManagerPages/ManagerReportPage';
 import useAuthStore from './store/useAuthStore';
 import PointOfSaleIcon from '@mui/icons-material/PointOfSale';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
@@ -192,6 +193,7 @@ function LocalAuthRoutes({ role }) {
       <Route path="/manager" element={<ManagerLayout />}>
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<ManagerDashboardPage />} />
+        <Route path="reports"   element={<ManagerReportPage />} />
         <Route path="shift"     element={<ManagerShiftPage />} />
         <Route path="overrides" element={<ManagerOverridePage />} />
         <Route path="inventory" element={<ManagerInventoryPage />} />

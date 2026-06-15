@@ -90,7 +90,7 @@ export default function EmployeeLayout() {
               {user?.name || 'Employee'}
             </p>
             <p style={{ fontSize: 11, fontWeight: 500, color: 'rgba(255,255,255,0.55)', margin: 0, letterSpacing: '0.04em' }}>
-              {user?.employeeCode} · {user?.role}
+              {user?.employeeCode}
             </p>
           </div>
         </div>

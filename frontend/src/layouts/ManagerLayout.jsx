@@ -4,12 +4,13 @@ import AccessTimeOutlinedIcon            from '@mui/icons-material/AccessTimeOut
 import GridViewOutlinedIcon              from '@mui/icons-material/GridViewOutlined';
 import Inventory2OutlinedIcon            from '@mui/icons-material/Inventory2Outlined';
 import AdminPanelSettingsOutlinedIcon    from '@mui/icons-material/AdminPanelSettingsOutlined';
+import BarChartOutlinedIcon              from '@mui/icons-material/BarChartOutlined';
 import LogoutOutlinedIcon                from '@mui/icons-material/LogoutOutlined';
 import useAuthStore from '../store/useAuthStore';
 
 const NAV_ITEMS = [
   { label: 'Dashboard', path: '/manager/dashboard', icon: GridViewOutlinedIcon           },
-  { label: 'Shift',     path: '/manager/shift',     icon: AccessTimeOutlinedIcon          },
+  { label: 'Reports',   path: '/manager/reports',   icon: BarChartOutlinedIcon            },
   { label: 'Overrides', path: '/manager/overrides', icon: AdminPanelSettingsOutlinedIcon  },
   { label: 'Inventory', path: '/manager/inventory', icon: Inventory2OutlinedIcon          },
 ];
@@ -75,24 +76,11 @@ export default function ManagerLayout() {
             </div>
           )}
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-              <p style={{ fontSize: 13, fontWeight: 700, color: '#fff', lineHeight: '17px', margin: 0 }}>
-                {user?.name || 'Manager'}
-              </p>
-              {/* Manager role badge */}
-              <span style={{
-                fontSize: 9, fontWeight: 800, letterSpacing: '0.1em',
-                padding: '2px 6px', borderRadius: 4,
-                background: 'rgba(212,163,115,0.20)',
-                border: '1px solid rgba(212,163,115,0.40)',
-                color: '#D4A373',
-                textTransform: 'uppercase',
-              }}>
-                MGR
-              </span>
-            </div>
+            <p style={{ fontSize: 13, fontWeight: 700, color: '#fff', lineHeight: '17px', margin: 0 }}>
+              {user?.name || 'Manager'}
+            </p>
             <p style={{ fontSize: 11, fontWeight: 500, color: 'rgba(255,255,255,0.50)', margin: 0, letterSpacing: '0.04em' }}>
-              {user?.employeeCode} · Manager Portal
+              {user?.employeeCode}
             </p>
           </div>
         </div>
