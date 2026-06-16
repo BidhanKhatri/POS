@@ -5,16 +5,12 @@ const processSale = async (req, res, next) => {
   try {
     const { items, payments, discountTotal } = req.body;
 
-    // Validate shift
+    // Shift is optional for now — sales are allowed without an open shift.
     const shift = await shiftService.getActiveShift(req.user._id);
-    if (!shift) {
-      res.status(400);
-      throw new Error('You must have an open shift to process a sale');
-    }
 
     const sale = await saleService.processSale(
       req.user._id,
-      shift._id,
+      shift ? shift._id : null,
       items,
       payments,
       discountTotal || 0
@@ -27,4 +23,28 @@ const processSale = async (req, res, next) => {
   }
 };
 
-export { processSale, };
+const searchSales = async (req, res, next) => {
+  try {
+    const { invoiceNo, buyerPhone, productName, amount } = req.query;
+    if (!invoiceNo && !buyerPhone && !productName && !amount) {
+      res.status(400);
+      throw new Error('Provide an invoice number, buyer phone, product, or amount to search');
+    }
+    const sales = await saleService.searchSales(req.user._id, { invoiceNo, buyerPhone, productName, amount });
+    res.status(200).json(sales);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getSaleDetail = async (req, res, next) => {
+  try {
+    const detail = await saleService.getSaleDetail(req.params.id);
+    res.status(200).json(detail);
+  } catch (error) {
+    res.status(404);
+    next(error);
+  }
+};
+
+export { processSale, searchSales, getSaleDetail, };

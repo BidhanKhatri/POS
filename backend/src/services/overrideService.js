@@ -1,0 +1,244 @@
+import mongoose from 'mongoose';
+import ManagerOverride from '../models/ManagerOverride.js';
+import Product from '../models/Product.js';
+import Sale from '../models/Sale.js';
+import Payment from '../models/Payment.js';
+import InventoryMovement from '../models/InventoryMovement.js';
+import AuditLog from '../models/AuditLog.js';
+import User from '../models/User.js';
+
+const PAYMENT_METHODS = ['CASH', 'CREDIT', 'DEBIT', 'MISC'];
+
+// Employee-initiated, invoice-linked refund request — created PENDING, requires
+// manager PIN to act on. Every refund must reference a real sale + line item;
+// there is no "freestanding amount" path.
+const createRefundRequest = async (employeeId, {
+  saleId, saleItemId, quantity, paymentMethod, buyer, card, reason, buyerVerified, idempotencyKey,
+}) => {
+  if (!saleId || !saleItemId) throw new Error('A sale and sale item must be selected for a refund');
+  const qty = Number(quantity);
+  if (!qty || qty <= 0) throw new Error('A valid refund quantity is required');
+  if (!PAYMENT_METHODS.includes(paymentMethod)) throw new Error('A valid refund method is required');
+  if (!buyer || !buyer.name || !buyer.name.trim()) throw new Error('Buyer name is required for a refund request');
+
+  const sale = await Sale.findById(saleId);
+  if (!sale) throw new Error('Original sale not found');
+  if (!['PAID', 'PARTIAL'].includes(sale.paymentStatus)) {
+    throw new Error('This sale is not in a refundable state');
+  }
+
+  const item = sale.items.find((i) => String(i._id) === String(saleItemId));
+  if (!item) throw new Error('Sale item not found on this invoice');
+
+  const remainingQty = item.quantity - item.refundedQty;
+  if (qty > remainingQty) {
+    throw new Error(`Only ${remainingQty} unit(s) of this item remain refundable`);
+  }
+
+  const product = await Product.findById(item.productId);
+
+  // Proportional amount so partial refunds split discounts/totals fairly.
+  const amount = Math.round(((item.total / item.quantity) * qty) * 100) / 100;
+
+  const originalPayment = await Payment.findOne({ saleId: sale._id, direction: { $ne: 'REFUND' } });
+  const methodOverridden = !!originalPayment && originalPayment.method !== paymentMethod;
+
+  const existingPending = await ManagerOverride.findOne({ originalSaleItemId: item._id, status: 'PENDING' });
+  if (existingPending) {
+    throw new Error('A refund request for this item is already pending manager approval');
+  }
+
+  try {
+    return await ManagerOverride.create({
+      actionType: 'REFUND',
+      status: 'PENDING',
+      reason: reason || 'Refund requested at POS terminal',
+      employeeId,
+      originalSaleId: sale._id,
+      originalSaleItemId: item._id,
+      originalPaymentId: originalPayment ? originalPayment._id : undefined,
+      invoiceNo: sale.invoiceNo,
+      requestedQty: qty,
+      amount,
+      productId: item.productId,
+      productName: item.productName,
+      sku: item.sku,
+      paymentMethod,
+      methodOverridden,
+      buyerVerified: !!buyerVerified,
+      buyer: {
+        name: buyer.name.trim(),
+        phone: buyer.phone || undefined,
+        email: buyer.email || undefined,
+      },
+      card: card && card.last4 ? { brand: card.brand || 'OTHER', last4: card.last4 } : undefined,
+      idempotencyKey: idempotencyKey || undefined,
+    });
+  } catch (error) {
+    if (error.code === 11000) {
+      if (error.message.includes('idempotencyKey')) {
+        throw new Error('This refund request was already submitted');
+      }
+      throw new Error('A refund request for this item is already pending manager approval');
+    }
+    throw error;
+  }
+};
+
+const getOverrides = async (status) => {
+  // Validate against the allowlist before using it in a Mongo filter — an
+  // unchecked query param here would otherwise be a NoSQL-injection vector.
+  const filter = ['PENDING', 'APPROVED', 'DENIED'].includes(status) ? { status } : {};
+  return await ManagerOverride.find(filter)
+    .populate('employeeId', 'name employeeCode')
+    .populate('approvedBy', 'name employeeCode')
+    .sort({ createdAt: -1 });
+};
+
+const getMyOverrides = async (employeeId) => {
+  return await ManagerOverride.find({ employeeId })
+    .populate('approvedBy', 'name employeeCode')
+    .sort({ createdAt: -1 });
+};
+
+const approveOverride = async (overrideId, managerId, pin) => {
+  const manager = await User.findById(managerId).select('+pinHash');
+  if (!manager || !(await manager.matchPin(pin))) {
+    throw new Error('Invalid manager PIN');
+  }
+
+  // Separation of duties — the approving manager cannot be the person who
+  // requested the refund.
+  const pending = await ManagerOverride.findById(overrideId);
+  if (!pending) throw new Error('Override request not found');
+  if (String(pending.employeeId) === String(managerId)) {
+    throw new Error('You cannot approve your own refund request');
+  }
+
+  if (pending.actionType !== 'REFUND') {
+    const result = await ManagerOverride.findOneAndUpdate(
+      { _id: overrideId, status: 'PENDING' },
+      { $set: { status: 'APPROVED', approvedBy: managerId, managerPinVerified: true, resolvedAt: new Date() } },
+      { new: true }
+    );
+    if (!result) throw new Error('Override request already resolved');
+    return result;
+  }
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  try {
+    // Atomic compare-and-swap — eliminates the double-approve race. If another
+    // request already resolved this override, matchedCount is 0 and we abort.
+    const override = await ManagerOverride.findOneAndUpdate(
+      { _id: overrideId, status: 'PENDING' },
+      {
+        $set: {
+          status: 'APPROVED',
+          approvedBy: managerId,
+          managerPinVerified: true,
+          resolvedAt: new Date(),
+        },
+      },
+      { new: true, session }
+    );
+    if (!override) throw new Error('Override request already resolved');
+
+    const sale = await Sale.findById(override.originalSaleId).session(session);
+    if (!sale) throw new Error('Original sale no longer exists');
+    if (!['PAID', 'PARTIAL'].includes(sale.paymentStatus)) {
+      throw new Error('Original sale is no longer in a refundable state');
+    }
+
+    const item = sale.items.find((i) => String(i._id) === String(override.originalSaleItemId));
+    if (!item) throw new Error('Original sale item no longer exists');
+
+    // Re-validate at execution time — closes the race window between request
+    // submission and manager approval (e.g. another refund completed meanwhile).
+    const remainingQty = item.quantity - item.refundedQty;
+    if (override.requestedQty > remainingQty) {
+      throw new Error('Refund no longer valid — remaining refundable quantity changed');
+    }
+
+    item.refundedQty += override.requestedQty;
+    item.refundedAmount += override.amount;
+    sale.refundedAmount += override.amount;
+    sale.paymentStatus = sale.refundedAmount >= sale.grandTotal ? 'REFUNDED' : 'PARTIAL';
+    await sale.save({ session });
+
+    const product = await Product.findById(item.productId).session(session);
+    let beforeQty = null;
+    let afterQty = null;
+    if (product) {
+      beforeQty = product.stockQty;
+      product.stockQty += override.requestedQty;
+      afterQty = product.stockQty;
+      await product.save({ session });
+    }
+
+    const refundPayment = new Payment({
+      saleId: sale._id,
+      method: override.paymentMethod,
+      amount: override.amount,
+      status: 'REFUNDED',
+      direction: 'REFUND',
+      reversedPaymentId: override.originalPaymentId,
+      buyer: override.buyer,
+      card: override.card,
+    });
+    await refundPayment.save({ session });
+
+    if (product) {
+      await InventoryMovement.create([{
+        productId: product._id,
+        movementType: 'REFUND',
+        quantity: override.requestedQty,
+        beforeQty,
+        afterQty,
+        referenceId: sale._id,
+        referenceType: 'Refund',
+        remarks: `Refund approved for override ${override._id} (invoice ${sale.invoiceNo})`,
+        createdBy: managerId,
+      }], { session });
+    }
+
+    await AuditLog.create([{
+      action: 'REFUND_APPROVED',
+      entity: 'ManagerOverride',
+      entityId: override._id,
+      afterData: { invoiceNo: sale.invoiceNo, amount: override.amount, qty: override.requestedQty },
+      performedBy: managerId,
+      role: 'Manager',
+    }], { session });
+
+    await session.commitTransaction();
+    session.endSession();
+    return override;
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+    throw error;
+  }
+};
+
+const denyOverride = async (overrideId, managerId) => {
+  const override = await ManagerOverride.findOneAndUpdate(
+    { _id: overrideId, status: 'PENDING' },
+    { $set: { status: 'DENIED', approvedBy: managerId, resolvedAt: new Date() } },
+    { new: true }
+  );
+  if (!override) throw new Error('Override request already resolved');
+
+  await AuditLog.create({
+    action: 'REFUND_DENIED',
+    entity: 'ManagerOverride',
+    entityId: override._id,
+    afterData: { reason: override.reason },
+    performedBy: managerId,
+    role: 'Manager',
+  });
+
+  return override;
+};
+
+export { createRefundRequest, getOverrides, getMyOverrides, approveOverride, denyOverride };

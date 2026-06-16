@@ -1,15 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent } from '@mui/material';
 import AdminPanelSettingsOutlinedIcon from '@mui/icons-material/AdminPanelSettingsOutlined';
 import CancelOutlinedIcon            from '@mui/icons-material/CancelOutlined';
 import LocalOfferOutlinedIcon        from '@mui/icons-material/LocalOfferOutlined';
-import HistoryOutlinedIcon           from '@mui/icons-material/HistoryOutlined';
 import PersonOutlinedIcon            from '@mui/icons-material/PersonOutlined';
 import LockOutlinedIcon              from '@mui/icons-material/LockOutlined';
 import KeyOutlinedIcon               from '@mui/icons-material/KeyOutlined';
 import BackspaceOutlinedIcon         from '@mui/icons-material/BackspaceOutlined';
 import ErrorOutlineOutlinedIcon      from '@mui/icons-material/ErrorOutlineOutlined';
 import CheckCircleOutlinedIcon       from '@mui/icons-material/CheckCircleOutlined';
+import CloseOutlinedIcon             from '@mui/icons-material/CloseOutlined';
+import useAuthStore from '../store/useAuthStore';
+
+const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
 
 /* ─────────────────────────────────────────────
    Design tokens — AGENTS.md
@@ -30,73 +33,38 @@ const C = {
   elevated: '#EFE7E2',
 };
 
-/* ─────────────────────────────────────────────
-   Priority config
-───────────────────────────────────────────── */
+const TYPE_META = {
+  REFUND:   { icon: AdminPanelSettingsOutlinedIcon, label: 'Refund Request',   actionLabel: 'Verify & Authorize', priority: 'HIGH' },
+  VOID:     { icon: CancelOutlinedIcon,             label: 'Void Request',     actionLabel: 'Confirm Void',        priority: 'STANDARD' },
+  DISCOUNT: { icon: LocalOfferOutlinedIcon,          label: 'Discount Request', actionLabel: 'Approve Discount',    priority: 'LOYALTY' },
+};
+
 const PRIORITY = {
-  HIGH:     { label: 'HIGH PRIORITY',  leftBorder: C.error,   badgeBg: 'rgba(183,28,28,0.09)', badgeColor: C.error   },
-  STANDARD: { label: 'STANDARD',       leftBorder: C.textDim, badgeBg: C.elevated,             badgeColor: C.textSec },
+  HIGH:     { label: 'HIGH PRIORITY',  leftBorder: C.error,   badgeBg: 'rgba(183,28,28,0.09)',   badgeColor: C.error   },
+  STANDARD: { label: 'STANDARD',       leftBorder: C.textDim, badgeBg: C.elevated,               badgeColor: C.textSec },
   LOYALTY:  { label: 'LOYALTY ACTION', leftBorder: C.accent,  badgeBg: 'rgba(212,163,115,0.15)', badgeColor: C.warning },
 };
 
-const TYPE_META = {
-  REFUND:   { icon: AdminPanelSettingsOutlinedIcon, label: 'Refund Request'   },
-  VOID:     { icon: CancelOutlinedIcon,             label: 'Void Request'     },
-  DISCOUNT: { icon: LocalOfferOutlinedIcon,         label: 'Discount Request' },
+const formatMoney = (n) => `$${Number(n ?? 0).toFixed(2)}`;
+
+const timeAgo = (dateStr) => {
+  const diffMs = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return new Date(dateStr).toLocaleDateString();
 };
-
-/* ─────────────────────────────────────────────
-   Mock pending overrides
-───────────────────────────────────────────── */
-const PENDING = [
-  {
-    id: '#8921', type: 'REFUND', priority: 'HIGH',
-    employee: { name: 'Sarah Jenkins', code: '402' },
-    details: [
-      { label: 'Amount', value: '$42.50',          errorColor: true },
-      { label: 'Items',  value: 'Heritage Roast (1)' },
-    ],
-    logs: ['Initiated 4m 12s ago', 'Requires PIN authorization'],
-    actionLabel: 'Verify & Authorize',
-  },
-  {
-    id: '#8922', type: 'VOID', priority: 'STANDARD',
-    employee: { name: 'Michael Chen', code: '305' },
-    details: [
-      { label: 'Total',  value: '$125.00' },
-      { label: 'Reason', value: 'Change of Mind' },
-    ],
-    quote: 'Customer realized they forgot their wallet and preferred to restart the transaction later.',
-    actionLabel: 'Confirm Void',
-  },
-  {
-    id: '#8923', type: 'DISCOUNT', priority: 'LOYALTY',
-    employee: { name: 'Elena Rodriguez', code: '412' },
-    details: [
-      { label: 'Original', value: '$210.00' },
-      { label: 'Proposed', value: '25% OFF', accentColor: true },
-    ],
-    reason: 'VIP Loyalty',
-    actionLabel: 'Approve Discount',
-  },
-];
-
-/* ─────────────────────────────────────────────
-   Mock history
-───────────────────────────────────────────── */
-const HISTORY = [
-  { time: '10:45 AM', type: 'Manager Sale Entry', employee: 'Kevin S. (09)',   amount: '$450.00', status: 'APPROVED' },
-  { time: '10:32 AM', type: 'Price Override',      employee: 'Sarah J. (402)',  amount: '$12.99',  status: 'DENIED'   },
-  { time: '09:58 AM', type: 'Void Request',         employee: 'James K. (211)', amount: '$89.00',  status: 'APPROVED' },
-  { time: '09:14 AM', type: 'Refund',               employee: 'Amy L. (307)',   amount: '$34.50',  status: 'APPROVED' },
-];
 
 /* ─────────────────────────────────────────────
    PIN Dialog
 ───────────────────────────────────────────── */
-function PinDialog({ open, override, onClose, onConfirm }) {
+function PinDialog({ open, override, error, submitting, onClose, onConfirm }) {
   const [pin, setPin] = useState('');
   const [shake, setShake] = useState(false);
+
+  useEffect(() => { if (open) setPin(''); }, [open]);
 
   const push = (d) => {
     if (pin.length < 4) setPin((p) => p + d);
@@ -111,7 +79,6 @@ function PinDialog({ open, override, onClose, onConfirm }) {
       return;
     }
     onConfirm(pin);
-    setPin('');
   };
 
   const handleClose = () => {
@@ -147,12 +114,12 @@ function PinDialog({ open, override, onClose, onConfirm }) {
           <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: C.textPri }}>Manager PIN</p>
           <p style={{ margin: '4px 0 0', fontSize: 12, fontWeight: 500, color: C.textSec, lineHeight: '18px' }}>
             Enter your PIN to authorize<br />
-            <strong style={{ color: C.textPri }}>{override?.id} — {TYPE_META[override?.type]?.label}</strong>
+            <strong style={{ color: C.textPri }}>{TYPE_META[override?.actionType]?.label}</strong>
           </p>
         </div>
 
         {/* PIN dots */}
-        <div className={shake ? 'pin-shake' : ''} style={{ display: 'flex', justifyContent: 'center', gap: 12, marginBottom: 20 }}>
+        <div className={shake ? 'pin-shake' : ''} style={{ display: 'flex', justifyContent: 'center', gap: 12, marginBottom: 12 }}>
           {[0,1,2,3].map((i) => (
             <div key={i} style={{
               width: 14, height: 14, borderRadius: '50%',
@@ -162,6 +129,12 @@ function PinDialog({ open, override, onClose, onConfirm }) {
             }} />
           ))}
         </div>
+
+        {error && (
+          <p style={{ margin: '0 0 12px', fontSize: 12, fontWeight: 700, color: C.error, textAlign: 'center' }}>
+            {error}
+          </p>
+        )}
 
         {/* Numpad */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 16 }}>
@@ -213,14 +186,16 @@ function PinDialog({ open, override, onClose, onConfirm }) {
           }}>
             Cancel
           </button>
-          <button onClick={handleConfirm} style={{
+          <button onClick={handleConfirm} disabled={submitting} style={{
             flex: 2, height: 44, borderRadius: 10,
             border: 'none', background: C.primary,
             fontSize: 13, fontWeight: 700, color: '#fff',
-            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+            cursor: submitting ? 'not-allowed' : 'pointer',
+            opacity: submitting ? 0.6 : 1,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
           }}>
             <KeyOutlinedIcon sx={{ fontSize: 16 }} />
-            Authorize
+            {submitting ? 'Verifying…' : 'Authorize'}
           </button>
         </div>
 
@@ -232,10 +207,15 @@ function PinDialog({ open, override, onClose, onConfirm }) {
 /* ─────────────────────────────────────────────
    Override Card
 ───────────────────────────────────────────── */
-function OverrideCard({ item, onAction }) {
-  const p = PRIORITY[item.priority];
-  const meta = TYPE_META[item.type];
+function OverrideCard({ item, onAuthorize, onDeny, denying }) {
+  const meta = TYPE_META[item.actionType] || TYPE_META.REFUND;
+  const p = PRIORITY[meta.priority];
   const Icon = meta.icon;
+
+  const details = [
+    { label: 'Amount', value: formatMoney(item.amount), errorColor: true },
+    { label: 'Item', value: `${item.productName || ''}${item.sku ? ` (${item.sku})` : ''}${item.requestedQty ? ` ×${item.requestedQty}` : ''}` },
+  ];
 
   return (
     <div style={{
@@ -257,8 +237,13 @@ function OverrideCard({ item, onAction }) {
           <Icon sx={{ fontSize: 16, color: C.textDim }} />
         </div>
         <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: C.textPri, letterSpacing: '-0.2px' }}>
-          {meta.label} <span style={{ color: C.textDim, fontWeight: 600 }}>{item.id}</span>
+          {meta.label} <span style={{ color: C.textDim, fontWeight: 600 }}>#{String(item._id).slice(-6).toUpperCase()}</span>
         </p>
+        {item.invoiceNo && (
+          <p style={{ margin: '2px 0 0', fontSize: 11, fontWeight: 700, color: C.textSec }}>
+            Invoice <span style={{ color: C.primary }}>{item.invoiceNo}</span>
+          </p>
+        )}
       </div>
 
       {/* Employee row */}
@@ -272,45 +257,64 @@ function OverrideCard({ item, onAction }) {
         <div>
           <p style={{ margin: 0, fontSize: 11, fontWeight: 500, color: C.textDim, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Employee</p>
           <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri }}>
-            {item.employee.name} <span style={{ color: C.textDim, fontWeight: 500 }}>(ID: {item.employee.code})</span>
+            {item.employeeId?.name || 'Unknown'} <span style={{ color: C.textDim, fontWeight: 500 }}>(ID: {item.employeeId?.employeeCode || '—'})</span>
           </p>
         </div>
       </div>
 
       {/* Detail rows */}
       <div style={{ padding: '10px 14px', borderBottom: `1px solid ${C.border}` }}>
-        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${item.details.length}, 1fr)`, gap: 8 }}>
-          {item.details.map(({ label, value, errorColor, accentColor }) => (
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${details.length}, 1fr)`, gap: 8 }}>
+          {details.map(({ label, value, errorColor }) => (
             <div key={label} style={{
-              background: accentColor ? 'rgba(212,163,115,0.12)' : C.bg,
-              border: `1px solid ${accentColor ? 'rgba(212,163,115,0.35)' : C.border}`,
+              background: C.bg,
+              border: `1px solid ${C.border}`,
               borderRadius: 8, padding: '8px 10px',
             }}>
               <p style={{ margin: '0 0 3px', fontSize: 9, fontWeight: 700, color: C.textDim, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
                 {label}
               </p>
-              <p style={{ margin: 0, fontSize: 15, fontWeight: 800, letterSpacing: '-0.2px', color: errorColor ? C.error : accentColor ? C.warning : C.textPri }}>
+              <p style={{ margin: 0, fontSize: 15, fontWeight: 800, letterSpacing: '-0.2px', color: errorColor ? C.error : C.textPri }}>
                 {value}
               </p>
             </div>
           ))}
         </div>
 
-        {/* Customer quote */}
-        {item.quote && (
-          <div style={{
-            marginTop: 8, padding: '8px 12px',
-            borderLeft: `3px solid ${C.accent}`,
-            background: 'rgba(212,163,115,0.08)',
-            borderRadius: '0 6px 6px 0',
-          }}>
-            <p style={{ margin: 0, fontSize: 12, fontStyle: 'italic', color: C.textSec, lineHeight: '18px' }}>
-              "{item.quote}"
-            </p>
+        {/* Buyer + payment method */}
+        <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: C.textSec }}>
+            Buyer: <strong style={{ color: C.textPri }}>{item.buyer?.name || '—'}</strong>
+            {item.buyer?.phone ? ` · ${item.buyer.phone}` : ''}
+          </p>
+          <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: C.textSec }}>
+            Refund via: <strong style={{ color: C.textPri }}>{item.paymentMethod}</strong>
+            {item.card?.last4 ? ` •••• ${item.card.last4}` : ''}
+          </p>
+        </div>
+
+        {/* Fraud-review signals */}
+        {(item.methodOverridden || !item.buyerVerified) && (
+          <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {item.methodOverridden && (
+              <span style={{
+                fontSize: 10, fontWeight: 800, padding: '3px 9px', borderRadius: 20,
+                background: 'rgba(183,28,28,0.09)', border: '1px solid rgba(183,28,28,0.25)', color: C.error,
+              }}>
+                ⚠ Refund method differs from original payment
+              </span>
+            )}
+            {!item.buyerVerified && (
+              <span style={{
+                fontSize: 10, fontWeight: 800, padding: '3px 9px', borderRadius: 20,
+                background: 'rgba(178,106,0,0.10)', border: '1px solid rgba(178,106,0,0.30)', color: C.warning,
+              }}>
+                ⚠ Buyer not verified against invoice
+              </span>
+            )}
           </div>
         )}
 
-        {/* Reason chip */}
         {item.reason && (
           <div style={{ marginTop: 8 }}>
             <p style={{ margin: '0 0 4px', fontSize: 9, fontWeight: 700, color: C.textDim, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Reason</p>
@@ -326,38 +330,51 @@ function OverrideCard({ item, onAction }) {
       </div>
 
       {/* Audit logs */}
-      {item.logs && (
-        <div style={{ padding: '8px 14px', borderBottom: `1px solid ${C.border}` }}>
-          <p style={{ margin: '0 0 5px', fontSize: 9, fontWeight: 700, color: C.textDim, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-            Audit Log
-          </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            {item.logs.map((log, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                <span style={{ width: 5, height: 5, borderRadius: '50%', background: C.textDim, flexShrink: 0 }} />
-                <span style={{ fontSize: 12, fontWeight: 500, color: C.textSec }}>{log}</span>
-              </div>
-            ))}
+      <div style={{ padding: '8px 14px', borderBottom: `1px solid ${C.border}` }}>
+        <p style={{ margin: '0 0 5px', fontSize: 9, fontWeight: 700, color: C.textDim, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+          Audit Log
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+            <span style={{ width: 5, height: 5, borderRadius: '50%', background: C.textDim, flexShrink: 0 }} />
+            <span style={{ fontSize: 12, fontWeight: 500, color: C.textSec }}>Initiated {timeAgo(item.createdAt)}</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+            <span style={{ width: 5, height: 5, borderRadius: '50%', background: C.textDim, flexShrink: 0 }} />
+            <span style={{ fontSize: 12, fontWeight: 500, color: C.textSec }}>Requires PIN authorization</span>
           </div>
         </div>
-      )}
+      </div>
 
-      {/* Action button */}
-      <div style={{ padding: '12px 14px' }}>
+      {/* Action buttons */}
+      <div style={{ padding: '12px 14px', display: 'flex', gap: 8 }}>
         <button
-          onClick={() => onAction(item)}
+          onClick={() => onDeny(item)}
+          disabled={denying}
           style={{
-            width: '100%', height: 44, borderRadius: 10,
-            border: item.priority === 'STANDARD' ? `1.5px solid ${C.primary}` : 'none',
-            background: item.priority === 'STANDARD' ? C.surface : C.primary,
-            color: item.priority === 'STANDARD' ? C.primary : '#fff',
+            height: 44, borderRadius: 10, padding: '0 16px',
+            border: `1.5px solid ${C.border}`, background: C.surface,
+            color: C.error, fontSize: 13, fontWeight: 700,
+            cursor: denying ? 'not-allowed' : 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+          }}
+        >
+          <CloseOutlinedIcon sx={{ fontSize: 15 }} />
+          Deny
+        </button>
+        <button
+          onClick={() => onAuthorize(item)}
+          style={{
+            flex: 1, height: 44, borderRadius: 10,
+            border: 'none', background: C.primary,
+            color: '#fff',
             fontSize: 13, fontWeight: 700, letterSpacing: '0.04em',
             cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
           }}
         >
           <LockOutlinedIcon sx={{ fontSize: 15 }} />
-          {item.actionLabel}
+          {meta.actionLabel}
         </button>
       </div>
     </div>
@@ -369,6 +386,7 @@ function OverrideCard({ item, onAction }) {
 ───────────────────────────────────────────── */
 function HistoryRow({ item, last }) {
   const approved = item.status === 'APPROVED';
+  const meta = TYPE_META[item.actionType] || TYPE_META.REFUND;
   return (
     <div style={{
       display: 'grid',
@@ -378,10 +396,14 @@ function HistoryRow({ item, last }) {
       padding: '11px 14px',
       borderBottom: last ? 'none' : `1px solid ${C.border}`,
     }}>
-      <span style={{ fontSize: 11, fontWeight: 600, color: C.textDim }}>{item.time}</span>
+      <span style={{ fontSize: 11, fontWeight: 600, color: C.textDim }}>
+        {new Date(item.resolvedAt || item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+      </span>
       <div>
-        <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri }}>{item.type}</p>
-        <p style={{ margin: '1px 0 0', fontSize: 11, fontWeight: 500, color: C.textSec }}>{item.employee} · {item.amount}</p>
+        <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri }}>{meta.label}</p>
+        <p style={{ margin: '1px 0 0', fontSize: 11, fontWeight: 500, color: C.textSec }}>
+          {item.employeeId?.name || 'Unknown'} ({item.employeeId?.employeeCode || '—'}) · {formatMoney(item.amount)}
+        </p>
       </div>
       <span style={{
         fontSize: 10, fontWeight: 700, letterSpacing: '0.08em',
@@ -401,16 +423,62 @@ function HistoryRow({ item, last }) {
    Main Page
 ───────────────────────────────────────────── */
 export default function ManagerOverridePage() {
+  const token = useAuthStore((s) => s.token);
+  const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+
+  const [overrides, setOverrides] = useState([]);
+  const [loading, setLoading]     = useState(true);
   const [pinTarget, setPinTarget] = useState(null);
-  const [resolved, setResolved]   = useState([]);
+  const [pinError, setPinError]   = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [denyingId, setDenyingId] = useState(null);
 
-  const pending = PENDING.filter((o) => !resolved.includes(o.id));
+  const loadOverrides = useCallback(() => {
+    setLoading(true);
+    fetch(`${API}/api/overrides`, { headers })
+      .then((r) => r.json())
+      .then((data) => setOverrides(Array.isArray(data) ? data : []))
+      .finally(() => setLoading(false));
+  }, [token]);
 
-  const handleAction = (item) => setPinTarget(item);
+  useEffect(() => { loadOverrides(); }, [loadOverrides]);
 
-  const handlePinConfirm = () => {
-    if (pinTarget) setResolved((p) => [...p, pinTarget.id]);
-    setPinTarget(null);
+  const pending = overrides.filter((o) => o.status === 'PENDING');
+  const history = overrides.filter((o) => o.status !== 'PENDING');
+
+  const handleAuthorize = (item) => {
+    setPinError('');
+    setPinTarget(item);
+  };
+
+  const handlePinConfirm = async (pin) => {
+    setSubmitting(true);
+    setPinError('');
+    try {
+      const res = await fetch(`${API}/api/overrides/${pinTarget._id}/approve`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ pin }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Authorization failed');
+      setPinTarget(null);
+      loadOverrides();
+    } catch (e) {
+      setPinError(e.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeny = async (item) => {
+    setDenyingId(item._id);
+    try {
+      await fetch(`${API}/api/overrides/${item._id}/deny`, { method: 'POST', headers });
+      loadOverrides();
+    } finally {
+      setDenyingId(null);
+    }
   };
 
   return (
@@ -434,56 +502,47 @@ export default function ManagerOverridePage() {
       </div>
 
       {/* ── Queue summary ── */}
-      {(() => {
-        const activeColor   = pending.length > 0 ? C.error   : C.success;
-        const resolvedColor = C.success;
-        const cards = [
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 20 }}>
+        {[
           {
-            label: 'Active',
-            value: pending.length,
-            color: activeColor,
+            label: 'Active', value: pending.length,
+            color: pending.length > 0 ? C.error : C.success,
             Icon: ErrorOutlineOutlinedIcon,
             iconBg: pending.length > 0 ? 'rgba(183,28,28,0.10)' : 'rgba(46,125,79,0.10)',
           },
           {
-            label: 'Resolved',
-            value: HISTORY.length + resolved.length,
-            color: resolvedColor,
+            label: 'Resolved', value: history.length,
+            color: C.success,
             Icon: CheckCircleOutlinedIcon,
             iconBg: 'rgba(46,125,79,0.10)',
           },
-        ];
-        return (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 20 }}>
-            {cards.map(({ label, value, color, Icon, iconBg }) => (
-              <div key={label} style={{
-                background: C.surface,
-                border: `1px solid ${C.border}`,
-                borderLeft: `2px solid ${color}`,
-                borderRadius: 10,
-                padding: '11px 14px',
-                display: 'flex', alignItems: 'center', gap: 10,
-              }}>
-                <div style={{
-                  width: 34, height: 34, borderRadius: 9,
-                  background: iconBg, flexShrink: 0,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                  <Icon sx={{ fontSize: 18, color }} />
-                </div>
-                <div>
-                  <p style={{ margin: 0, fontSize: 20, fontWeight: 800, color: C.textPri, lineHeight: 1, letterSpacing: '-0.4px' }}>
-                    {String(value).padStart(2, '0')}
-                  </p>
-                  <p style={{ margin: '3px 0 0', fontSize: 10, fontWeight: 600, color: C.textDim, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                    {label}
-                  </p>
-                </div>
-              </div>
-            ))}
+        ].map(({ label, value, color, Icon, iconBg }) => (
+          <div key={label} style={{
+            background: C.surface,
+            border: `1px solid ${C.border}`,
+            borderLeft: `2px solid ${color}`,
+            borderRadius: 10,
+            padding: '11px 14px',
+            display: 'flex', alignItems: 'center', gap: 10,
+          }}>
+            <div style={{
+              width: 34, height: 34, borderRadius: 9,
+              background: iconBg, flexShrink: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Icon sx={{ fontSize: 18, color }} />
+            </div>
+            <div>
+              <p style={{ margin: 0, fontSize: 20, fontWeight: 800, color: C.textPri, lineHeight: 1, letterSpacing: '-0.4px' }}>
+                {String(value).padStart(2, '0')}
+              </p>
+              <p style={{ margin: '3px 0 0', fontSize: 10, fontWeight: 600, color: C.textDim, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                {label}
+              </p>
+            </div>
           </div>
-        );
-      })()}
+        ))}
+      </div>
 
       {/* ── Pending overrides ── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
@@ -494,7 +553,11 @@ export default function ManagerOverridePage() {
         <div style={{ flex: 1, height: 1, background: C.border }} />
       </div>
 
-      {pending.length === 0 ? (
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: '24px 0', fontSize: 12, fontWeight: 600, color: C.textDim }}>
+          Loading overrides…
+        </div>
+      ) : pending.length === 0 ? (
         <div style={{
           background: C.surface, border: `1px solid ${C.border}`,
           borderRadius: 12, padding: '36px 24px',
@@ -509,7 +572,13 @@ export default function ManagerOverridePage() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
           {pending.map((item) => (
-            <OverrideCard key={item.id} item={item} onAction={handleAction} />
+            <OverrideCard
+              key={item._id}
+              item={item}
+              onAuthorize={handleAuthorize}
+              onDeny={handleDeny}
+              denying={denyingId === item._id}
+            />
           ))}
         </div>
       )}
@@ -536,15 +605,23 @@ export default function ManagerOverridePage() {
             </span>
           ))}
         </div>
-        {HISTORY.map((item, i) => (
-          <HistoryRow key={i} item={item} last={i === HISTORY.length - 1} />
-        ))}
+        {history.length === 0 ? (
+          <div style={{ padding: '24px 14px', textAlign: 'center', fontSize: 12, fontWeight: 500, color: C.textDim }}>
+            No resolved overrides yet.
+          </div>
+        ) : (
+          history.map((item, i) => (
+            <HistoryRow key={item._id} item={item} last={i === history.length - 1} />
+          ))
+        )}
       </div>
 
       {/* PIN dialog */}
       <PinDialog
         open={!!pinTarget}
         override={pinTarget}
+        error={pinError}
+        submitting={submitting}
         onClose={() => setPinTarget(null)}
         onConfirm={handlePinConfirm}
       />

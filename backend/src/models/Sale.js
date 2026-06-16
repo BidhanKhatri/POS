@@ -30,6 +30,17 @@ const saleItemSchema = new mongoose.Schema({
     type: Number,
     required: true,
   },
+  // Rollup of how much of this line item has already been refunded —
+  // incremented atomically on refund approval. The original total/quantity
+  // above are never edited; this is how partial/duplicate refunds are capped.
+  refundedQty: {
+    type: Number,
+    default: 0,
+  },
+  refundedAmount: {
+    type: Number,
+    default: 0,
+  },
 });
 
 const saleSchema = new mongoose.Schema({
@@ -41,7 +52,7 @@ const saleSchema = new mongoose.Schema({
   shiftId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Shift',
-    required: true,
+    required: false,
   },
   employeeId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -69,6 +80,12 @@ const saleSchema = new mongoose.Schema({
     type: String,
     enum: ['PENDING', 'PAID', 'PARTIAL', 'REFUNDED', 'VOIDED'],
     default: 'PENDING',
+  },
+  // Sale-level rollup, kept in sync with the sum of item.refundedAmount.
+  // The Sale document itself is otherwise immutable — only these counters move.
+  refundedAmount: {
+    type: Number,
+    default: 0,
   },
 }, {
   timestamps: true,

@@ -6,9 +6,13 @@ import SignupPage from './AuthPages/SignupPage';
 import EmployeeLayout from './layouts/EmployeeLayout';
 import TerminalPage from './EmployeePages/TerminalPage';
 import TenderPage from './EmployeePages/TenderPage';
+import RefundFlowPage from './EmployeePages/RefundFlowPage';
 import ShiftPage from './EmployeePages/ShiftPage';
 import DashboardPage from './EmployeePages/DashboardPage';
 import InventoryPage from './EmployeePages/InventoryPage';
+import OverridesPage from './EmployeePages/OverridesPage';
+import SettingsPage from './EmployeePages/SettingsPage';
+import ProfilePage from './EmployeePages/ProfilePage';
 import ManagerLayout from './layouts/ManagerLayout';
 import ManagerShiftPage from './ManagerPages/ManagerShiftPage';
 import ManagerDashboardPage from './ManagerPages/ManagerDashboardPage';
@@ -184,9 +188,13 @@ function LocalAuthRoutes({ role }) {
         <Route index element={<Navigate to="terminal" replace />} />
         <Route path="terminal"  element={<TerminalPage />} />
         <Route path="tender"    element={<TenderPage />} />
+        <Route path="refund"    element={<RefundFlowPage />} />
         <Route path="shift"     element={<ShiftPage />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="inventory" element={<InventoryPage />} />
+        <Route path="overrides" element={<OverridesPage />} />
+        <Route path="settings"  element={<SettingsPage />} />
+        <Route path="profile"   element={<ProfilePage />} />
       </Route>
 
       {/* Manager routes */}

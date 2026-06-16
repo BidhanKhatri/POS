@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
@@ -7,31 +7,445 @@ import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import BlockIcon from '@mui/icons-material/Block';
+import useAuthStore from '../store/useAuthStore';
+
+const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
 
 const PAYMENT_METHODS = [
-  { id: 'cash',   label: 'Cash',        icon: AttachMoneyIcon },
-  { id: 'credit', label: 'Credit Card', icon: CreditCardIcon },
-  { id: 'debit',  label: 'Debit Card',  icon: PaymentIcon },
-  { id: 'misc',   label: 'Misc',        icon: MoreHorizIcon },
+  { id: 'CASH',   label: 'Cash',        icon: AttachMoneyIcon },
+  { id: 'CREDIT', label: 'Credit Card', icon: CreditCardIcon },
+  { id: 'DEBIT',  label: 'Debit Card',  icon: PaymentIcon },
+  { id: 'MISC',   label: 'Misc',        icon: MoreHorizIcon },
 ];
+
+const CARD_BRANDS = ['VISA', 'MASTERCARD', 'AMEX', 'DISCOVER', 'OTHER'];
+
+const fieldLabel = {
+  fontSize: 11, fontWeight: 700, color: '#A09490', letterSpacing: '0.07em',
+  textTransform: 'uppercase', display: 'block', marginBottom: 5,
+};
+const fieldInput = {
+  width: '100%', padding: '10px 12px', borderRadius: 8,
+  border: '1px solid #DDD2CC', fontSize: 14, color: '#2B1D1A',
+  background: '#fff', outline: 'none', boxSizing: 'border-box',
+  fontFamily: "'Plus Jakarta Sans', sans-serif",
+};
 
 export default function TenderPage() {
   const navigate              = useNavigate();
   const location              = useLocation();
   const { amount, product, transactionType } = location.state || {};
   const terminalPath          = location.pathname.startsWith('/manager') ? '/manager/terminal' : '/employee/terminal';
+  const token                 = useAuthStore((s) => s.token);
 
   const [selectedMethod, setSelectedMethod] = useState(null);
+  const [processing, setProcessing]         = useState(false);
+  const [error, setError]                   = useState('');
+  const [completedSale, setCompletedSale]   = useState(null);
+  const [pendingOverride, setPendingOverride] = useState(null);
 
-  const isRefund = transactionType === 'RF';
+  // Buyer details — collected for every tender type so a refund can be traced back
+  // to the person. Card payments only ever capture a masked reference (brand + last
+  // 4 digits) from the terminal/processor — never the full PAN, expiry, or CVV.
+  const [buyerName, setBuyerName]   = useState('');
+  const [buyerPhone, setBuyerPhone] = useState('');
+  const [buyerEmail, setBuyerEmail] = useState('');
+  const [cardBrand, setCardBrand]   = useState('VISA');
+  const [cardLast4, setCardLast4]   = useState('');
 
-  const handleCancel = () => navigate(terminalPath);
+  const isRefund   = transactionType === 'RF';
+  const isCardTender = selectedMethod === 'CREDIT' || selectedMethod === 'DEBIT';
 
-  const handleProcess = () => {
-    if (!selectedMethod) return;
-    // TODO: submit sale to backend
+  const buyerNameValid = buyerName.trim().length > 0;
+  const cardLast4Valid = !isCardTender || /^\d{4}$/.test(cardLast4.trim());
+  const canSubmit = !!selectedMethod && buyerNameValid && cardLast4Valid && !processing;
+
+  const audioCtx = useRef(null);
+
+  /* ── Web Audio beep generator — same register-terminal feel as TerminalPage ── */
+  const beep = useCallback((freq = 880, durationMs = 55, type = 'square', gain = 0.12) => {
+    try {
+      if (!audioCtx.current) {
+        audioCtx.current = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      const ctx = audioCtx.current;
+      const osc = ctx.createOscillator();
+      const vol = ctx.createGain();
+      osc.connect(vol);
+      vol.connect(ctx.destination);
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, ctx.currentTime);
+      vol.gain.setValueAtTime(gain, ctx.currentTime);
+      vol.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + durationMs / 1000);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + durationMs / 1000);
+    } catch { /* audio not supported */ }
+  }, []);
+
+  const handleCancel = () => {
+    beep(300, 130, 'sawtooth', 0.11);         // low buzz — cancel/reset
     navigate(terminalPath);
   };
+
+  const handleProcess = async () => {
+    if (!canSubmit) return;
+    beep(1318, 90, 'sine', 0.13);             // high confirm chime
+    setTimeout(() => beep(1567, 70, 'sine', 0.09), 80); // two-tone ding
+
+    setProcessing(true);
+    setError('');
+    try {
+      const payment = {
+        method: selectedMethod,
+        amount,
+        buyer: {
+          name: buyerName.trim(),
+          phone: buyerPhone.trim() || undefined,
+          email: buyerEmail.trim() || undefined,
+        },
+      };
+      if (isCardTender) {
+        payment.card = { brand: cardBrand, last4: cardLast4.trim() };
+      }
+
+      if (isRefund) {
+        // Refunds aren't processed directly by the employee — they're sent to the
+        // manager's Overrides queue and only take effect once PIN-authorized there.
+        const res = await fetch(`${API}/api/overrides`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            amount,
+            productId: product.productId,
+            paymentMethod: selectedMethod,
+            buyer: payment.buyer,
+            card: payment.card,
+            reason: `Refund requested at terminal for ${product.code} — ${product.name}`,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || 'Failed to submit refund request');
+
+        setPendingOverride({
+          id: data._id,
+          createdAt: data.createdAt,
+          amount,
+          product,
+          method: selectedMethod,
+          buyer: payment.buyer,
+          card: payment.card || null,
+        });
+        return;
+      }
+
+      const res = await fetch(`${API}/api/sales`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          items: [{
+            productId: product.productId,
+            quantity: 1,
+            unitPrice: amount,
+            discount: 0,
+          }],
+          payments: [payment],
+          discountTotal: 0,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to process sale');
+
+      setCompletedSale({
+        invoiceNo: data.invoiceNo,
+        createdAt: data.createdAt,
+        grandTotal: data.grandTotal,
+        amount,
+        product,
+        transactionType,
+        method: selectedMethod,
+        buyer: payment.buyer,
+        card: payment.card || null,
+      });
+    } catch (e) {
+      setError(e.message || 'Failed to process sale');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleNextSale = () => {
+    beep(784, 80, 'sine', 0.12);
+    setTimeout(() => beep(1046, 110, 'sine', 0.10), 75);
+    navigate(terminalPath, { replace: true });
+  };
+
+  if (pendingOverride) {
+    const methodLabel = PAYMENT_METHODS.find((m) => m.id === pendingOverride.method)?.label || pendingOverride.method;
+
+    return (
+      <div style={{
+        padding: '16px 16px 24px',
+        maxWidth: 480,
+        margin: '0 auto',
+        fontFamily: "'Plus Jakarta Sans', sans-serif",
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: 'calc(100dvh - 132px)',
+      }}>
+
+        {/* ── Pending header ── */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '12px 0 22px' }}>
+          <div style={{
+            width: 56, height: 56, borderRadius: '50%',
+            background: 'rgba(178,106,0,0.10)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <CheckCircleOutlinedIcon sx={{ fontSize: 30, color: '#B26A00' }} />
+          </div>
+          <p style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#2B1D1A' }}>
+            Refund Request Submitted
+          </p>
+          <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: '#A09490', letterSpacing: '0.04em', textAlign: 'center', maxWidth: 320, lineHeight: '18px' }}>
+            A manager must verify their PIN in the Overrides queue before this refund is finalized.
+          </p>
+        </div>
+
+        {/* ── Request card ── */}
+        <div style={{
+          background: '#ffffff',
+          border: '1px solid #DDD2CC',
+          borderRadius: 14,
+          overflow: 'hidden',
+          marginBottom: 20,
+          boxShadow: '0 4px 0 #c8bdb8, 0 8px 20px rgba(62,39,35,0.08)',
+        }}>
+          <div style={{
+            background: 'linear-gradient(135deg, #3E2723 0%, #5D4037 100%)',
+            padding: '12px 18px',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.55)', letterSpacing: '0.14em', textTransform: 'uppercase' }}>
+              Refund Request
+            </span>
+            <span style={{
+              fontSize: 11, fontWeight: 800, letterSpacing: '0.1em',
+              padding: '3px 11px', borderRadius: 20,
+              background: 'rgba(178,106,0,0.20)',
+              border: '1px solid rgba(178,106,0,0.40)',
+              color: '#ffcc80',
+            }}>
+              PENDING
+            </span>
+          </div>
+
+          <div style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: '#A09490', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+              Refund Amount
+            </span>
+            <span style={{ fontSize: 28, fontWeight: 800, color: '#2B1D1A', letterSpacing: '-0.8px', fontVariantNumeric: 'tabular-nums' }}>
+              <span style={{ fontSize: 16, fontWeight: 700, color: '#D4A373', marginRight: 1 }}>$</span>
+              {pendingOverride.amount}
+            </span>
+          </div>
+
+          <div style={{ margin: '0 20px', borderTop: '1.5px dashed #E6DAD5' }} />
+
+          <div style={{ padding: '14px 20px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: '#A09490', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Product</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ padding: '2px 10px', borderRadius: 6, background: '#3E2723', color: '#D4A373', fontSize: 12, fontWeight: 800, letterSpacing: '0.06em' }}>
+                  {pendingOverride.product.code}
+                </span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: '#2B1D1A' }}>{pendingOverride.product.name}</span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: '#A09490', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Payment Method</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#2B1D1A' }}>
+                {methodLabel}{pendingOverride.card ? ` •••• ${pendingOverride.card.last4}` : ''}
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: '#A09490', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Buyer</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#2B1D1A' }}>{pendingOverride.buyer?.name}</span>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ flex: 1, minHeight: 12 }} />
+
+        {/* ── Next Sale ── */}
+        <button
+          onClick={handleNextSale}
+          style={{
+            height: 56,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            borderRadius: 12,
+            border: '2px solid #D4A373',
+            background: 'linear-gradient(180deg, #5D4037 0%, #3E2723 100%)',
+            color: '#fff',
+            fontSize: 15, fontWeight: 800, letterSpacing: '0.06em',
+            boxShadow: '0 4px 0 #2A1715, 0 6px 14px rgba(42,23,21,0.28), 0 0 0 1px #D4A373',
+            cursor: 'pointer',
+          }}
+        >
+          Next Sale
+        </button>
+      </div>
+    );
+  }
+
+  if (completedSale) {
+    const methodLabel = PAYMENT_METHODS.find((m) => m.id === completedSale.method)?.label || completedSale.method;
+    const completedIsRefund = completedSale.transactionType === 'RF';
+
+    return (
+      <div style={{
+        padding: '16px 16px 24px',
+        maxWidth: 480,
+        margin: '0 auto',
+        fontFamily: "'Plus Jakarta Sans', sans-serif",
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: 'calc(100dvh - 132px)',
+      }}>
+
+        {/* ── Success header ── */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '12px 0 22px' }}>
+          <div style={{
+            width: 56, height: 56, borderRadius: '50%',
+            background: 'rgba(46,125,79,0.10)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <CheckCircleOutlinedIcon sx={{ fontSize: 30, color: '#2E7D4F' }} />
+          </div>
+          <p style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#2B1D1A' }}>
+            {completedIsRefund ? 'Refund Processed' : 'Payment Successful'}
+          </p>
+          <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: '#A09490', letterSpacing: '0.04em' }}>
+            Invoice {completedSale.invoiceNo}
+          </p>
+        </div>
+
+        {/* ── Receipt card ── */}
+        <div style={{
+          background: '#ffffff',
+          border: '1px solid #DDD2CC',
+          borderRadius: 14,
+          overflow: 'hidden',
+          marginBottom: 20,
+          boxShadow: '0 4px 0 #c8bdb8, 0 8px 20px rgba(62,39,35,0.08)',
+        }}>
+          <div style={{
+            background: 'linear-gradient(135deg, #3E2723 0%, #5D4037 100%)',
+            padding: '12px 18px',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.55)', letterSpacing: '0.14em', textTransform: 'uppercase' }}>
+              Receipt
+            </span>
+            <span style={{
+              fontSize: 11, fontWeight: 800, letterSpacing: '0.1em',
+              padding: '3px 11px', borderRadius: 20,
+              background: completedIsRefund ? 'rgba(183,28,28,0.22)' : 'rgba(46,125,79,0.22)',
+              border: `1px solid ${completedIsRefund ? 'rgba(183,28,28,0.40)' : 'rgba(46,125,79,0.40)'}`,
+              color: completedIsRefund ? '#ff8a80' : '#69f0ae',
+            }}>
+              {completedIsRefund ? 'REFUND' : 'SALE'}
+            </span>
+          </div>
+
+          <div style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: '#A09490', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+              Total {completedIsRefund ? 'Refunded' : 'Paid'}
+            </span>
+            <span style={{ fontSize: 28, fontWeight: 800, color: '#2B1D1A', letterSpacing: '-0.8px', fontVariantNumeric: 'tabular-nums' }}>
+              <span style={{ fontSize: 16, fontWeight: 700, color: '#D4A373', marginRight: 1 }}>$</span>
+              {completedSale.grandTotal ?? completedSale.amount}
+            </span>
+          </div>
+
+          <div style={{ margin: '0 20px', borderTop: '1.5px dashed #E6DAD5' }} />
+
+          <div style={{ padding: '14px 20px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: '#A09490', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Product</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ padding: '2px 10px', borderRadius: 6, background: '#3E2723', color: '#D4A373', fontSize: 12, fontWeight: 800, letterSpacing: '0.06em' }}>
+                  {completedSale.product.code}
+                </span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: '#2B1D1A' }}>{completedSale.product.name}</span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: '#A09490', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Payment Method</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#2B1D1A' }}>
+                {methodLabel}{completedSale.card ? ` •••• ${completedSale.card.last4}` : ''}
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: '#A09490', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Buyer</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#2B1D1A' }}>{completedSale.buyer?.name}</span>
+            </div>
+
+            {completedSale.buyer?.phone && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: '#A09490', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Phone</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: '#6B5B57' }}>{completedSale.buyer.phone}</span>
+              </div>
+            )}
+
+            {completedSale.buyer?.email && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: '#A09490', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Email</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: '#6B5B57' }}>{completedSale.buyer.email}</span>
+              </div>
+            )}
+
+            {completedSale.createdAt && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: '#A09490', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Date</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: '#6B5B57' }}>
+                  {new Date(completedSale.createdAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div style={{ flex: 1, minHeight: 12 }} />
+
+        {/* ── Next Sale ── */}
+        <button
+          onClick={handleNextSale}
+          style={{
+            height: 56,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            borderRadius: 12,
+            border: '2px solid #D4A373',
+            background: 'linear-gradient(180deg, #5D4037 0%, #3E2723 100%)',
+            color: '#fff',
+            fontSize: 15, fontWeight: 800, letterSpacing: '0.06em',
+            boxShadow: '0 4px 0 #2A1715, 0 6px 14px rgba(42,23,21,0.28), 0 0 0 1px #D4A373',
+            cursor: 'pointer',
+          }}
+        >
+          Next Sale
+        </button>
+      </div>
+    );
+  }
 
   if (!amount || !product) {
     return (
@@ -207,7 +621,10 @@ export default function TenderPage() {
           return (
             <button
               key={id}
-              onClick={() => setSelectedMethod(id)}
+              onClick={() => {
+                beep(987, 65, 'sine', 0.10); // mid ping — payment method selected
+                setSelectedMethod(id);
+              }}
               className="active:translate-y-[4px]"
               style={{
                 height: 96,
@@ -243,6 +660,106 @@ export default function TenderPage() {
         })}
       </div>
 
+      {/* ── Buyer details ── */}
+      {selectedMethod && (
+        <div style={{
+          marginTop: 18,
+          background: '#ffffff',
+          border: '1px solid #DDD2CC',
+          borderRadius: 14,
+          padding: '16px 18px',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: '#A09490', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+              Buyer Details
+            </span>
+          </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <label style={fieldLabel}>Name *</label>
+            <input
+              type="text"
+              value={buyerName}
+              onChange={(e) => setBuyerName(e.target.value)}
+              placeholder="Buyer's full name"
+              style={fieldInput}
+            />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: isCardTender ? 12 : 0 }}>
+            <div>
+              <label style={fieldLabel}>Phone</label>
+              <input
+                type="tel"
+                value={buyerPhone}
+                onChange={(e) => setBuyerPhone(e.target.value)}
+                placeholder="Optional"
+                style={fieldInput}
+              />
+            </div>
+            <div>
+              <label style={fieldLabel}>Email</label>
+              <input
+                type="email"
+                value={buyerEmail}
+                onChange={(e) => setBuyerEmail(e.target.value)}
+                placeholder="Optional"
+                style={fieldInput}
+              />
+            </div>
+          </div>
+
+          {isCardTender && (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '4px 0 12px' }}>
+                <div style={{ flex: 1, height: 1, background: '#EDE5E0' }} />
+                <span style={{ fontSize: 10, fontWeight: 600, color: '#C4B5B0', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                  Card Reference (from terminal)
+                </span>
+                <div style={{ flex: 1, height: 1, background: '#EDE5E0' }} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div>
+                  <label style={fieldLabel}>Card Brand</label>
+                  <select
+                    value={cardBrand}
+                    onChange={(e) => setCardBrand(e.target.value)}
+                    style={fieldInput}
+                  >
+                    {CARD_BRANDS.map((b) => <option key={b} value={b}>{b}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={fieldLabel}>Last 4 Digits *</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={4}
+                    value={cardLast4}
+                    onChange={(e) => setCardLast4(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                    placeholder="1234"
+                    style={fieldInput}
+                  />
+                </div>
+              </div>
+              <p style={{ margin: '10px 0 0', fontSize: 11, fontWeight: 500, color: '#A09490', lineHeight: '16px' }}>
+                Only the masked card reference is stored — never the full card number, expiry, or CVV.
+              </p>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ── Error message ── */}
+      {error && (
+        <p style={{
+          margin: '14px 0 0', fontSize: 13, fontWeight: 600, color: '#B71C1C',
+          textAlign: 'center', lineHeight: '18px',
+        }}>
+          {error}
+        </p>
+      )}
+
       {/* ── Spacer — pushes actions to bottom ── */}
       <div style={{ flex: 1, minHeight: 28 }} />
 
@@ -252,24 +769,24 @@ export default function TenderPage() {
         {/* Process Payment */}
         <button
           onClick={handleProcess}
-          disabled={!selectedMethod}
+          disabled={!canSubmit}
           style={{
             height: 56,
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
             borderRadius: 12,
-            border: selectedMethod ? '2px solid #D4A373' : '1px solid #4a3329',
+            border: canSubmit ? '2px solid #D4A373' : '1px solid #4a3329',
             background: 'linear-gradient(180deg, #5D4037 0%, #3E2723 100%)',
             color: '#fff',
             fontSize: 15, fontWeight: 800, letterSpacing: '0.06em',
-            boxShadow: selectedMethod
+            boxShadow: canSubmit
               ? '0 4px 0 #2A1715, 0 6px 14px rgba(42,23,21,0.28), 0 0 0 1px #D4A373'
               : '0 4px 0 #2A1715, 0 6px 14px rgba(42,23,21,0.16)',
-            opacity: selectedMethod ? 1 : 0.42,
-            cursor: selectedMethod ? 'pointer' : 'not-allowed',
+            opacity: canSubmit ? 1 : 0.42,
+            cursor: canSubmit ? 'pointer' : 'not-allowed',
           }}
         >
           <CheckCircleOutlinedIcon sx={{ fontSize: 20 }} />
-          Process Payment
+          {processing ? 'Processing…' : 'Process Payment'}
         </button>
 
         {/* Divider with label */}

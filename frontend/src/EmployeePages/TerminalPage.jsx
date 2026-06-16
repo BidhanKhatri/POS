@@ -5,12 +5,9 @@ import BackspaceOutlinedIcon from '@mui/icons-material/BackspaceOutlined';
 import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined';
 import ShoppingCartCheckoutIcon from '@mui/icons-material/ShoppingCartCheckout';
 import SwapHorizRoundedIcon from '@mui/icons-material/SwapHorizRounded';
+import useAuthStore from '../store/useAuthStore';
 
-/* ── Static product list (will come from backend later) ── */
-const PRODUCTS = Array.from({ length: 9 }, (_, i) => ({
-  code: `P${i + 1}`,
-  name: `Product ${i + 1}`,
-}));
+const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
 
 const NUM_KEY =
   'flex items-center justify-center select-none cursor-pointer rounded-xl ' +
@@ -27,14 +24,44 @@ export default function TerminalPage() {
   const navigate              = useNavigate();
   const { pathname }          = useLocation();
   const tenderPath            = pathname.startsWith('/manager') ? '/manager/tender' : '/employee/tender';
+  const refundPath            = pathname.startsWith('/manager') ? '/manager/refund' : '/employee/refund';
+  const token                 = useAuthStore((s) => s.token);
 
   const [amountRaw, setAmountRaw]             = useState('');
   const [transactionType, setTransactionType] = useState(null); // 'RF' | 'SL' | null
   const [confirmedAmount, setConfirmedAmount] = useState(null);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [toast, setToast]                     = useState(null); // { message, key }
+  const [products, setProducts]               = useState([]);
+  const [productsLoading, setProductsLoading] = useState(true);
   const toastTimer                            = useRef(null);
   const audioCtx                              = useRef(null);
+
+  /* ── Load quick-slot products (P1-P9) from backend ── */
+  useEffect(() => {
+    let cancelled = false;
+    setProductsLoading(true);
+    fetch(`${API}/api/products`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        const list = Array.isArray(data) ? data : [];
+        const quickSlots = list
+          .filter((p) => p.quickSlot >= 1 && p.quickSlot <= 9)
+          .sort((a, b) => a.quickSlot - b.quickSlot)
+          .map((p) => ({
+            code: `P${p.quickSlot}`,
+            name: p.name,
+            productId: p._id,
+            sku: p.sku,
+            price: p.price,
+            stockQty: p.stockQty,
+          }));
+        setProducts(quickSlots);
+      })
+      .finally(() => { if (!cancelled) setProductsLoading(false); });
+    return () => { cancelled = true; };
+  }, [token]);
 
   /* ── Web Audio beep generator ── */
   const beep = useCallback((freq = 880, durationMs = 55, type = 'square', gain = 0.12) => {
@@ -116,12 +143,15 @@ export default function TerminalPage() {
     setSelectedProduct(product);
   };
 
-  /* ── Navigate to tender / payment page ── */
+  const isRefundMode = transactionType === 'RF';
+
+  /* ── Navigate to tender (sale) or refund flow, carrying the confirmed
+     amount + selected product as the starting context for either page ── */
   const handleCheckout = () => {
     if (!canCheckout) return;
     beep(784, 80, 'sine', 0.12);
     setTimeout(() => beep(1046, 110, 'sine', 0.10), 75);
-    navigate(tenderPath, {
+    navigate(isRefundMode ? refundPath : tenderPath, {
       state: {
         amount: confirmedAmount,
         product: selectedProduct,
@@ -345,10 +375,21 @@ export default function TerminalPage() {
 
       {/* ── Product grid ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 20 }}>
-        {PRODUCTS.map(({ code, name }) => {
+        {productsLoading && (
+          <div style={{ gridColumn: 'span 3', textAlign: 'center', padding: '16px 0', fontSize: 12, fontWeight: 600, color: '#A09490' }}>
+            Loading products…
+          </div>
+        )}
+        {!productsLoading && products.length === 0 && (
+          <div style={{ gridColumn: 'span 3', textAlign: 'center', padding: '16px 0', fontSize: 12, fontWeight: 600, color: '#A09490' }}>
+            No quick-slot products configured.
+          </div>
+        )}
+        {products.map((product) => {
+          const { code, name } = product;
           const isSelected = selectedProduct?.code === code;
           return (
-            <button key={code} onClick={() => handleProduct({ code, name })}
+            <button key={code} onClick={() => handleProduct(product)}
               className="flex flex-col items-center justify-center select-none rounded-xl border transition-all duration-75"
               style={{
                 height: 66,
@@ -373,7 +414,7 @@ export default function TerminalPage() {
         })}
       </div>
 
-      {/* ── Checkout button ── */}
+      {/* ── Checkout button — label switches to "Refund Product" in RF mode ── */}
       <button
         onClick={handleCheckout}
         className="w-full flex items-center justify-center gap-2 rounded-xl transition-all duration-75 active:translate-y-[4px]"
@@ -390,7 +431,7 @@ export default function TerminalPage() {
         }}
       >
         <ShoppingCartCheckoutIcon sx={{ fontSize: 20 }} />
-        Check Out
+        {isRefundMode ? 'Refund Product' : 'Check Out'}
       </button>
 
     </div>

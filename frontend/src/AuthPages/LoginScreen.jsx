@@ -148,11 +148,11 @@ const LoginScreen = () => {
 
   /* ── Numpad key style ── */
   const numKey =
-    'flex items-center justify-center rounded-2xl select-none transition-all duration-150 text-primary ' +
-    'bg-surface/60 backdrop-blur-xl border border-white/80 ' +
-    'shadow-[0_4px_0_var(--color-divider-tone),0_8px_16px_rgba(0,0,0,0.05)] ' +
-    'hover:bg-surface-variant/70 hover:brightness-105 ' +
-    'active:translate-y-[4px] active:shadow-[0_0px_0_var(--color-divider-tone),0_2px_4px_rgba(0,0,0,0.05)]';
+    'flex items-center justify-center rounded-2xl select-none transition-all duration-150 ' +
+    'bg-white border border-divider-tone ' +
+    'shadow-[0_4px_0_#c4b8b2,0_6px_12px_rgba(0,0,0,0.06)] ' +
+    'hover:bg-surface-variant/70 ' +
+    'active:translate-y-[4px] active:shadow-[0_0px_0_#c4b8b2,0_2px_4px_rgba(0,0,0,0.04)]';
 
   const disabledKey = 'opacity-40 pointer-events-none';
 
@@ -164,7 +164,7 @@ const LoginScreen = () => {
           key={n}
           onClick={() => handleNumber(n.toString())}
           className={`${numKey} ${isLocked || loading ? disabledKey : 'cursor-pointer'}`}
-          style={{ height: keyH, fontSize: 32, fontWeight: 700, lineHeight: '36px' }}
+          style={{ height: keyH, fontSize: 32, fontWeight: 700, color: '#2B1D1A', lineHeight: '36px' }}
         >
           {n}
         </button>
@@ -172,8 +172,8 @@ const LoginScreen = () => {
 
       <button
         onClick={handleClear}
-        className={`flex items-center justify-center rounded-2xl select-none transition-all duration-150 backdrop-blur-xl border border-white/30 hover:brightness-110 active:translate-y-[4px] bg-error/80 text-white shadow-[0_4px_0_#7f1313,0_8px_16px_rgba(183,28,28,0.2)] active:shadow-[0_0px_0_#7f1313,0_2px_4px_rgba(183,28,28,0.2)] ${isLocked || loading ? disabledKey : 'cursor-pointer'}`}
-        style={{ height: keyH, fontSize: 13, fontWeight: 700, lineHeight: '16px', letterSpacing: '0.1em' }}
+        className={`flex items-center justify-center rounded-2xl select-none transition-all duration-150 active:translate-y-[4px] ${isLocked || loading ? disabledKey : 'cursor-pointer'}`}
+        style={{ height: keyH, fontSize: 13, fontWeight: 700, lineHeight: '16px', letterSpacing: '0.1em', background: '#B71C1C', color: '#fff', border: '1px solid #991717', boxShadow: '0 4px 0 #7a1111, 0 6px 12px rgba(183,28,28,0.22)' }}
       >
         CLR
       </button>
@@ -181,15 +181,15 @@ const LoginScreen = () => {
       <button
         onClick={() => handleNumber('0')}
         className={`${numKey} ${isLocked || loading ? disabledKey : 'cursor-pointer'}`}
-        style={{ height: keyH, fontSize: 32, fontWeight: 700, lineHeight: '36px' }}
+        style={{ height: keyH, fontSize: 32, fontWeight: 700, color: '#2B1D1A', lineHeight: '36px' }}
       >
         0
       </button>
 
       <button
         onClick={handleBackspace}
-        className={`flex items-center justify-center rounded-2xl select-none transition-all duration-150 text-on-surface-variant bg-surface/60 backdrop-blur-xl border border-white/80 shadow-[0_4px_0_var(--color-divider-tone),0_8px_16px_rgba(0,0,0,0.05)] hover:bg-surface-variant/70 hover:brightness-105 active:translate-y-[4px] active:shadow-[0_0px_0_var(--color-divider-tone),0_2px_4px_rgba(0,0,0,0.05)] ${isLocked || loading ? disabledKey : 'cursor-pointer'}`}
-        style={{ height: keyH }}
+        className={`flex items-center justify-center rounded-2xl select-none transition-all duration-150 active:translate-y-[4px] ${isLocked || loading ? disabledKey : 'cursor-pointer'}`}
+        style={{ height: keyH, background: '#F5F0EC', color: '#3E2723', border: '1px solid #DDD2CC', boxShadow: '0 4px 0 #c4b8b2, 0 6px 12px rgba(0,0,0,0.06)' }}
       >
         <BackspaceOutlinedIcon sx={{ fontSize: 20 }} />
       </button>
