@@ -117,33 +117,112 @@ export default function ManagerDashboardPage() {
         </button>
       </div>
 
-      {/* ── Metric cards — 2×2 ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, marginBottom: 16 }}>
-        {METRICS.map(({ label, value, icon: Icon, color, iconBg }) => (
-          <div key={label} style={{
-            background: COLOR.surface,
-            border: `1px solid ${COLOR.border}`,
-            borderLeft: `2px solid ${color}`,
-            borderRadius: 10, padding: '12px 14px',
-            display: 'flex', alignItems: 'center', gap: 12,
-          }}>
-            <div style={{
-              width: 34, height: 34, borderRadius: 9, background: iconBg,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-            }}>
-              <Icon sx={{ fontSize: 17, color }} />
-            </div>
-            <div style={{ minWidth: 0 }}>
-              <p style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#2B1D1A', letterSpacing: '-0.3px', lineHeight: 1 }}>
-                {value}
-              </p>
-              <p style={{ margin: '4px 0 0', fontSize: 10, fontWeight: 600, color: '#A09490', letterSpacing: '0.05em', textTransform: 'uppercase', lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {label}
-              </p>
-            </div>
-          </div>
-        ))}
+{/* ── Metric cards — 2×2 ── */}
+<div
+  style={{
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, 1fr)',
+    gap: 8,
+    marginBottom: 16,
+  }}
+>
+  {METRICS.map(({ label, value, icon: Icon, color, iconBg }) => (
+    <div
+      key={label}
+      style={{
+        position: 'relative',
+        background: COLOR.surface,
+        border: `1px solid ${COLOR.border}`,
+        borderRadius: 10,
+        padding: '12px 14px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        transition: 'all 0.2s ease',
+      }}
+    >
+      {/* Top Left Corner Accent */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: 24,
+          height: 24,
+          borderTop: `1px solid ${color}`,
+          borderLeft: `1px solid ${color}`,
+          borderTopLeftRadius: 8,
+          pointerEvents: 'none',
+        }}
+      />
+
+      {/* Bottom Right Corner Accent */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 0,
+          right: 0,
+          width: 24,
+          height: 24,
+          borderBottom: `1px solid ${color}`,
+          borderRight: `1px solid ${color}`,
+          borderBottomRightRadius: 8,
+          pointerEvents: 'none',
+        }}
+      />
+
+      {/* Icon */}
+      <div
+        style={{
+          width: 34,
+          height: 34,
+          borderRadius: 9,
+          background: iconBg,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+          boxShadow: `0 0 0 1px ${color}20`,
+        }}
+      >
+        <Icon sx={{ fontSize: 17, color }} />
       </div>
+
+      {/* Content */}
+      <div style={{ minWidth: 0 }}>
+        <p
+          style={{
+            margin: 0,
+            fontSize: 17,
+            fontWeight: 800,
+            color: '#2B1D1A',
+            letterSpacing: '-0.3px',
+            lineHeight: 1,
+          }}
+        >
+          {value}
+        </p>
+
+        <p
+          style={{
+            margin: '4px 0 0',
+            fontSize: 10,
+            fontWeight: 600,
+            color: '#A09490',
+            letterSpacing: '0.05em',
+            textTransform: 'uppercase',
+            lineHeight: 1,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {label}
+        </p>
+      </div>
+    </div>
+  ))}
+</div>
 
       {/* ── Sales line chart card ── */}
       <div style={{
