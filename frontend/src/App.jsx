@@ -22,6 +22,8 @@ import ManagerReportPage           from './ManagerPages/ManagerReportPage';
 import ManagerOverallReportPage    from './ManagerPages/ManagerOverallReportPage';
 import ManagerIndividualReportPage from './ManagerPages/ManagerIndividualReportPage';
 import ManagerGroupReportPage      from './ManagerPages/ManagerGroupReportPage';
+import TransactionsPage       from './EmployeePages/TransactionsPage';
+import TransactionDetailPage  from './EmployeePages/TransactionDetailPage';
 import useAuthStore from './store/useAuthStore';
 import PointOfSaleIcon from '@mui/icons-material/PointOfSale';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
@@ -196,8 +198,10 @@ function LocalAuthRoutes({ role }) {
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="inventory" element={<InventoryPage />} />
         <Route path="overrides" element={<OverridesPage />} />
-        <Route path="settings"  element={<SettingsPage />} />
-        <Route path="profile"   element={<ProfilePage />} />
+        <Route path="settings"      element={<SettingsPage />} />
+        <Route path="profile"       element={<ProfilePage />} />
+        <Route path="transactions"  element={<TransactionsPage />} />
+        <Route path="transactions/:id" element={<TransactionDetailPage />} />
       </Route>
 
       {/* Manager routes */}
@@ -211,6 +215,8 @@ function LocalAuthRoutes({ role }) {
         <Route path="shift"     element={<ManagerShiftPage />} />
         <Route path="overrides" element={<ManagerOverridePage />} />
         <Route path="inventory" element={<ManagerInventoryPage />} />
+        <Route path="transactions"     element={<TransactionsPage />} />
+        <Route path="transactions/:id" element={<TransactionDetailPage />} />
       </Route>
 
       <Route path="/login"  element={<Navigate to={home} replace />} />

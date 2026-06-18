@@ -223,4 +223,117 @@ const getSaleDetail = async (saleId) => {
   return { sale, payments };
 };
 
-export { processSale, searchSales, getSaleDetail, };
+/**
+ * Paginated transaction list, role-aware.
+ * - Employees: see only their own sales.
+ * - Managers / Admins: see all sales, can filter by employeeId.
+ *
+ * Returned shape per record:
+ *   { sale fields… , primaryPayment: { method, buyer, card } | null, employee: { name, employeeCode } | null }
+ */
+const listTransactions = async (requestingUser, {
+  page = 1,
+  limit = 20,
+  search = '',       // matches invoiceNo OR buyer name (via Payment join)
+  method = '',       // CASH | CREDIT | DEBIT | MISC
+  status = '',       // PAID | PARTIAL | REFUNDED | VOIDED
+  startDate = '',
+  endDate = '',
+  employeeId = '',   // manager only — filter by a specific employee
+} = {}) => {
+  const isPrivileged = requestingUser.role === 'Manager' || requestingUser.role === 'Admin';
+
+  // ── Build sale-level filter ──────────────────────────────────────────────
+  const saleFilter = {};
+
+  if (!isPrivileged) {
+    // Employees always scoped to their own sales
+    saleFilter.employeeId = requestingUser._id;
+  } else if (employeeId) {
+    saleFilter.employeeId = new mongoose.Types.ObjectId(employeeId);
+  }
+
+  if (status) saleFilter.paymentStatus = status;
+
+  if (startDate || endDate) {
+    saleFilter.createdAt = {};
+    if (startDate) saleFilter.createdAt.$gte = new Date(startDate);
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      saleFilter.createdAt.$lte = end;
+    }
+  }
+
+  // ── Invoice-number search (direct on sale) ───────────────────────────────
+  let saleIdSubset = null;
+  if (search.trim()) {
+    // Check if the search string could be a buyer-name match (join through Payment)
+    const matchingPayments = await Payment.find({
+      'buyer.name': { $regex: search.trim(), $options: 'i' },
+    }).select('saleId').lean();
+    const paymentSaleIds = matchingPayments.map((p) => p.saleId.toString());
+
+    // Sales matching the invoice search
+    const invoiceSales = await Sale.find({
+      invoiceNo: { $regex: search.trim(), $options: 'i' },
+    }).select('_id').lean();
+    const invoiceSaleIds = invoiceSales.map((s) => s._id.toString());
+
+    // Union of both, deduplicated
+    const unionIds = [...new Set([...paymentSaleIds, ...invoiceSaleIds])];
+    if (unionIds.length === 0) return { transactions: [], total: 0, page, pages: 0 };
+    saleIdSubset = unionIds.map((id) => new mongoose.Types.ObjectId(id));
+  }
+
+  if (saleIdSubset) saleFilter._id = { $in: saleIdSubset };
+
+  // ── Method filter requires joining through Payment ───────────────────────
+  if (method) {
+    const methodPayments = await Payment.find({
+      method,
+      direction: { $ne: 'REFUND' },
+      ...(saleIdSubset ? { saleId: { $in: saleIdSubset } } : {}),
+    }).select('saleId').lean();
+    const methodSaleIds = [...new Set(methodPayments.map((p) => p.saleId.toString()))];
+    if (methodSaleIds.length === 0) return { transactions: [], total: 0, page, pages: 0 };
+    saleFilter._id = { $in: methodSaleIds.map((id) => new mongoose.Types.ObjectId(id)) };
+  }
+
+  const skip = (page - 1) * limit;
+  const [total, sales] = await Promise.all([
+    Sale.countDocuments(saleFilter),
+    Sale.find(saleFilter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate('employeeId', 'name employeeCode')
+      .lean(),
+  ]);
+
+  if (sales.length === 0) return { transactions: [], total, page, pages: Math.ceil(total / limit) };
+
+  // ── Attach primary payment (one query for all fetched sales) ─────────────
+  const saleIds = sales.map((s) => s._id);
+  const payments = await Payment.find({
+    saleId: { $in: saleIds },
+    direction: { $ne: 'REFUND' },
+  }).lean();
+
+  const paymentBySale = {};
+  for (const p of payments) {
+    const key = p.saleId.toString();
+    if (!paymentBySale[key]) paymentBySale[key] = p; // first payment wins
+  }
+
+  const transactions = sales.map((s) => ({
+    ...s,
+    primaryPayment: paymentBySale[s._id.toString()] ?? null,
+    employee: s.employeeId ?? null,
+    employeeId: s.employeeId?._id ?? s.employeeId,
+  }));
+
+  return { transactions, total, page, pages: Math.ceil(total / limit) };
+};
+
+export { processSale, searchSales, getSaleDetail, listTransactions };

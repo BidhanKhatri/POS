@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "seed": "node src/seeder.js"
+    "seed": "node src/seeder.js",
+    "test:report": "node src/cron/testReport.js"
   },
   "keywords": [],
   "author": "",
@@ -23,6 +24,8 @@
     "helmet": "^8.2.0",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.7.0",
+    "node-cron": "^4.4.1",
+    "nodemailer": "^9.0.1",
     "svix": "^1.95.2"
   },
   "devDependencies": {

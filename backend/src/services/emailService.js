@@ -1,0 +1,147 @@
+import nodemailer from 'nodemailer';
+
+function getTransporter() {
+  const host = process.env.SMTP_HOST;
+  if (!host) return null;
+
+  return nodemailer.createTransport({
+    host,
+    port: Number(process.env.SMTP_PORT) || 587,
+    secure: process.env.SMTP_SECURE === 'true',
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+  });
+}
+
+function buildReceiptHtml(sale) {
+  const dateStr = sale.createdAt
+    ? new Date(sale.createdAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
+    : new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
+
+  const isRefund = sale.transactionType === 'RF';
+  const methodLabels = { CASH: 'Cash', CREDIT: 'Credit Card', DEBIT: 'Debit Card', MISC: 'Miscellaneous' };
+  const methodLabel = methodLabels[sale.method] || sale.method || 'N/A';
+  const cardRef = sale.card ? ` •••• ${sale.card.last4}` : '';
+  const total = sale.grandTotal ?? sale.amount ?? 0;
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Receipt — ${sale.invoiceNo}</title>
+  <style>
+    body { margin: 0; padding: 0; background: #f5f3f1; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; }
+    .wrap { max-width: 520px; margin: 32px auto; background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(62,39,35,0.10); }
+    .header { background: linear-gradient(135deg, #3E2723 0%, #5D4037 100%); padding: 24px 28px; }
+    .header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+    .brand { font-size: 20px; font-weight: 800; color: #fff; letter-spacing: -0.3px; }
+    .badge { font-size: 11px; font-weight: 800; padding: 3px 12px; border-radius: 20px; letter-spacing: 0.1em;
+      background: ${isRefund ? 'rgba(183,28,28,0.25)' : 'rgba(46,125,79,0.25)'};
+      border: 1px solid ${isRefund ? 'rgba(183,28,28,0.45)' : 'rgba(46,125,79,0.45)'};
+      color: ${isRefund ? '#ff8a80' : '#69f0ae'}; }
+    .invoice-label { font-size: 12px; color: rgba(255,255,255,0.55); font-weight: 500; letter-spacing: 0.04em; }
+    .body { padding: 24px 28px; }
+    .amount-row { display: flex; align-items: baseline; justify-content: space-between; padding: 14px 0; border-bottom: 1.5px dashed #E6DAD5; margin-bottom: 16px; }
+    .amount-label { font-size: 12px; font-weight: 600; color: #A09490; text-transform: uppercase; letter-spacing: 0.07em; }
+    .amount-value { font-size: 32px; font-weight: 800; color: #2B1D1A; letter-spacing: -1px; }
+    .amount-currency { font-size: 18px; font-weight: 700; color: #D4A373; margin-right: 2px; }
+    .row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #F0E8E3; }
+    .row:last-child { border-bottom: none; }
+    .row-label { font-size: 12px; font-weight: 600; color: #A09490; text-transform: uppercase; letter-spacing: 0.06em; }
+    .row-value { font-size: 13px; font-weight: 600; color: #2B1D1A; }
+    .product-code { display: inline-block; padding: 2px 10px; border-radius: 6px; background: #3E2723; color: #D4A373; font-size: 12px; font-weight: 800; letter-spacing: 0.06em; margin-right: 6px; }
+    .footer { background: #F5F0EC; border-top: 1px solid #DDD2CC; padding: 14px 28px; text-align: center; }
+    .footer p { margin: 0; font-size: 12px; color: #A09490; line-height: 18px; }
+    .footer strong { color: #6B5B57; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="header">
+      <div class="header-top">
+        <span class="brand">POS System</span>
+        <span class="badge">${isRefund ? 'REFUND' : 'SALE'}</span>
+      </div>
+      <div class="invoice-label">Invoice ${sale.invoiceNo} &nbsp;·&nbsp; ${dateStr}</div>
+    </div>
+    <div class="body">
+      <div class="amount-row">
+        <span class="amount-label">Total ${isRefund ? 'Refunded' : 'Paid'}</span>
+        <span class="amount-value"><span class="amount-currency">$</span>${total}</span>
+      </div>
+
+      <div class="row">
+        <span class="row-label">Product</span>
+        <span class="row-value">
+          <span class="product-code">${sale.product?.code ?? ''}</span>
+          ${sale.product?.name ?? ''}
+        </span>
+      </div>
+
+      <div class="row">
+        <span class="row-label">Payment</span>
+        <span class="row-value">${methodLabel}${cardRef}</span>
+      </div>
+
+      ${sale.buyer?.name ? `
+      <div class="row">
+        <span class="row-label">Buyer</span>
+        <span class="row-value">${sale.buyer.name}</span>
+      </div>` : ''}
+
+      ${sale.buyer?.phone ? `
+      <div class="row">
+        <span class="row-label">Phone</span>
+        <span class="row-value">${sale.buyer.phone}</span>
+      </div>` : ''}
+
+      <div class="row">
+        <span class="row-label">Date</span>
+        <span class="row-value">${dateStr}</span>
+      </div>
+    </div>
+    <div class="footer">
+      <p>Thank you for your purchase!</p>
+      <p style="margin-top:4px">Keep this receipt for your records. &nbsp;<strong>Invoice ${sale.invoiceNo}</strong></p>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
+// Generic low-level send — accepts pre-built HTML and a custom subject.
+// Used by cronReportService to deliver scheduled reports.
+export async function sendReportEmail({ to, subject, html }) {
+  const transporter = getTransporter();
+  if (!transporter) {
+    const err = new Error('Email service is not configured (SMTP_HOST missing).');
+    err.statusCode = 503;
+    throw err;
+  }
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM || 'POS System <noreply@pos.local>',
+    to,
+    subject,
+    html,
+  });
+}
+
+export async function sendReceiptEmail({ to, sale }) {
+  const transporter = getTransporter();
+  if (!transporter) {
+    const err = new Error('Email service is not configured on this server.');
+    err.statusCode = 503;
+    throw err;
+  }
+
+  const html = buildReceiptHtml(sale);
+
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM || 'POS System <noreply@pos.local>',
+    to,
+    subject: `Your Receipt — Invoice ${sale.invoiceNo}`,
+    html,
+  });
+}

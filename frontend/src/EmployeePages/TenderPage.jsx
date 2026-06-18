@@ -7,6 +7,12 @@ import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import BlockIcon from '@mui/icons-material/Block';
+import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
+import EmailOutlinedIcon from '@mui/icons-material/EmailOutlined';
+import DownloadOutlinedIcon from '@mui/icons-material/DownloadOutlined';
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutlineOutlined';
+import SendOutlinedIcon from '@mui/icons-material/SendOutlined';
+import { printReceipt, downloadPDF } from '../utils/receiptUtils';
 import useAuthStore from '../store/useAuthStore';
 
 const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
@@ -30,6 +36,258 @@ const fieldInput = {
   background: '#fff', outline: 'none', boxSizing: 'border-box',
   fontFamily: "'Plus Jakarta Sans', sans-serif",
 };
+
+// ── Shared receipt row helper ───────────────────────────────────────────────
+function ReceiptRow({ label, children, mono }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 0', borderBottom: '1px solid #F0E8E3' }}>
+      <span style={{ fontSize: 11, fontWeight: 600, color: '#A09490', letterSpacing: '0.06em', textTransform: 'uppercase', flexShrink: 0 }}>{label}</span>
+      <span style={{ fontSize: 13, fontWeight: 600, color: '#2B1D1A', textAlign: 'right', maxWidth: '62%', fontFamily: mono ? 'monospace' : "'Plus Jakarta Sans', sans-serif" }}>{children}</span>
+    </div>
+  );
+}
+
+// ── Action button ─────────────────────────────────────────────────────────────
+function ActionBtn({ onClick, Icon, label, loading, filled }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={!!loading}
+      style={{
+        flex: 1, minWidth: 0,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 5,
+        padding: '13px 6px', borderRadius: 12,
+        border: `1px solid ${filled ? '#3E2723' : '#DDD2CC'}`,
+        background: filled ? '#3E2723' : '#ffffff',
+        color: filled ? '#D4A373' : '#3E2723',
+        cursor: loading ? 'wait' : 'pointer',
+        opacity: loading ? 0.6 : 1,
+        boxShadow: filled ? '0 3px 0 #2A1715' : '0 2px 0 #ddd0c8',
+        transition: 'opacity 0.15s',
+        fontFamily: "'Plus Jakarta Sans', sans-serif",
+      }}
+    >
+      <Icon sx={{ fontSize: 22 }} />
+      <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', textAlign: 'center', lineHeight: '14px' }}>
+        {label}
+      </span>
+    </button>
+  );
+}
+
+// ── Sale-complete screen with receipt actions ────────────────────────────────
+function CompletedSaleScreen({ sale, token, API, onNewSale, paymentMethods }) {
+  const isRefund = sale.transactionType === 'RF';
+  const mLabel = paymentMethods.find((m) => m.id === sale.method)?.label || sale.method;
+  const total = sale.grandTotal ?? sale.amount;
+  const dateStr = sale.createdAt
+    ? new Date(sale.createdAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
+    : '';
+
+  const statusBg    = isRefund ? 'rgba(183,28,28,0.10)' : 'rgba(46,125,79,0.10)';
+  const statusColor = isRefund ? '#B71C1C' : '#2E7D4F';
+  const statusLabel = isRefund ? 'REFUNDED' : 'PAID';
+
+  // Email state
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [emailAddr, setEmailAddr] = useState(sale.buyer?.email || '');
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailResult, setEmailResult] = useState(null);
+
+  // PDF state
+  const [pdfLoading, setPdfLoading] = useState(false);
+
+  const handleEmail = async () => {
+    if (!emailAddr.trim()) return;
+    setEmailSending(true);
+    setEmailResult(null);
+    try {
+      const res = await fetch(`${API}/api/sales/${sale.invoiceNo}/email-receipt`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ email: emailAddr.trim(), sale }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to send email');
+      setEmailResult({ ok: true, msg: `Receipt sent to ${emailAddr.trim()}` });
+    } catch (e) {
+      setEmailResult({ ok: false, msg: e.message });
+    } finally {
+      setEmailSending(false);
+    }
+  };
+
+  const handleDownloadPDF = async () => {
+    setPdfLoading(true);
+    try { await downloadPDF(sale); }
+    catch { /* silent */ }
+    finally { setPdfLoading(false); }
+  };
+
+  return (
+    <div style={{
+      padding: '20px 16px 28px',
+      maxWidth: 480,
+      margin: '0 auto',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      paddingBottom: 80,
+    }}>
+
+      {/* ── Receipt card ── */}
+      <div style={{
+        background: '#ffffff', border: '1px solid #DDD2CC', borderRadius: 14,
+        overflow: 'hidden', marginBottom: 16,
+        boxShadow: '0 4px 0 #c8bdb8, 0 8px 20px rgba(62,39,35,0.07)',
+      }}>
+        {/* Dark header strip */}
+        <div style={{
+          background: 'linear-gradient(135deg, #3E2723 0%, #5D4037 100%)',
+          padding: '10px 16px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.50)', letterSpacing: '0.14em', textTransform: 'uppercase' }}>
+            Receipt
+          </span>
+        </div>
+
+        <div style={{ padding: '4px 16px 12px' }}>
+          {/* Product row (acts as the "item" row) */}
+          <ReceiptRow label={sale.product?.code || 'Item'}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
+              <span>{sale.product?.name}</span>
+              <span style={{ fontSize: 11, color: '#A09490', fontWeight: 500 }}>
+                1 × ${total}
+              </span>
+            </div>
+          </ReceiptRow>
+
+          {/* Dashed divider */}
+          <div style={{ borderTop: '1.5px dashed #E6DAD5', margin: '8px 0' }} />
+
+          {/* Total paid */}
+          <ReceiptRow label={isRefund ? 'Total Refunded' : 'Total Paid'}>
+            <span style={{ fontSize: 15, fontWeight: 800, color: '#2B1D1A' }}>${total}</span>
+          </ReceiptRow>
+
+          {/* Status badge row */}
+          <ReceiptRow label="Status">
+            <span style={{
+              fontSize: 11, fontWeight: 800, padding: '3px 10px', borderRadius: 10,
+              background: statusBg, color: statusColor,
+              border: `1px solid ${statusColor}33`,
+              letterSpacing: '0.06em', textTransform: 'uppercase',
+            }}>
+              {statusLabel}
+            </span>
+          </ReceiptRow>
+
+          {/* Dashed divider */}
+          <div style={{ borderTop: '1.5px dashed #E6DAD5', margin: '8px 0' }} />
+
+          {/* Payment + buyer details */}
+          <ReceiptRow label="Payment">
+            {mLabel}{sale.card ? ` •••• ${sale.card.last4}` : ''}
+          </ReceiptRow>
+          {sale.buyer?.name  && <ReceiptRow label="Buyer">{sale.buyer.name}</ReceiptRow>}
+          {sale.buyer?.phone && <ReceiptRow label="Phone">{sale.buyer.phone}</ReceiptRow>}
+          {sale.buyer?.email && <ReceiptRow label="Email">{sale.buyer.email}</ReceiptRow>}
+          <ReceiptRow label="Invoice" mono>{sale.invoiceNo}</ReceiptRow>
+          {dateStr && <ReceiptRow label="Date"><span style={{ color: '#6B5B57' }}>{dateStr}</span></ReceiptRow>}
+        </div>
+      </div>
+
+      {/* ── Receipt actions ── */}
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+          <div style={{ flex: 1, height: 1, background: '#DDD2CC' }} />
+          <span style={{ fontSize: 10, fontWeight: 700, color: '#A09490', letterSpacing: '0.12em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+            Receipt Actions
+          </span>
+          <div style={{ flex: 1, height: 1, background: '#DDD2CC' }} />
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+          <ActionBtn onClick={() => printReceipt(sale)} Icon={PrintOutlinedIcon} label="Print" />
+          <ActionBtn
+            onClick={() => { setEmailOpen((o) => !o); setEmailResult(null); }}
+            Icon={EmailOutlinedIcon}
+            label="Email"
+          />
+          <ActionBtn
+            onClick={handleDownloadPDF}
+            Icon={DownloadOutlinedIcon}
+            label={pdfLoading ? 'Wait…' : 'PDF'}
+            loading={pdfLoading}
+          />
+        </div>
+
+        {/* Email panel */}
+        {emailOpen && (
+          <div style={{
+            background: '#ffffff', border: '1px solid #DDD2CC', borderRadius: 12,
+            padding: '12px 14px', marginBottom: 10,
+          }}>
+            <p style={{ margin: '0 0 8px', fontSize: 12, fontWeight: 700, color: '#2B1D1A' }}>Send receipt by email</p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                type="email"
+                value={emailAddr}
+                onChange={(e) => { setEmailAddr(e.target.value); setEmailResult(null); }}
+                placeholder="customer@example.com"
+                style={{
+                  flex: 1, padding: '8px 11px', borderRadius: 8,
+                  border: '1px solid #DDD2CC', fontSize: 13, color: '#2B1D1A',
+                  background: '#fff', outline: 'none', boxSizing: 'border-box',
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                }}
+              />
+              <button
+                onClick={handleEmail}
+                disabled={emailSending || !emailAddr.trim()}
+                style={{
+                  padding: '8px 14px', borderRadius: 8, flexShrink: 0,
+                  background: emailSending || !emailAddr.trim() ? '#EFE7E2' : '#3E2723',
+                  color: emailSending || !emailAddr.trim() ? '#A09490' : '#fff',
+                  border: 'none', fontSize: 13, fontWeight: 700,
+                  cursor: emailSending ? 'wait' : 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                }}
+              >
+                <SendOutlinedIcon sx={{ fontSize: 15 }} />
+                {emailSending ? '…' : 'Send'}
+              </button>
+            </div>
+            {emailResult && (
+              <p style={{ margin: '6px 0 0', fontSize: 11, fontWeight: 600, color: emailResult.ok ? '#2E7D4F' : '#B71C1C' }}>
+                {emailResult.msg}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── New Sale ── */}
+      <button
+        onClick={onNewSale}
+        style={{
+          width: '100%', height: 56,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          borderRadius: 12,
+          border: '2px solid #D4A373',
+          background: 'linear-gradient(180deg, #5D4037 0%, #3E2723 100%)',
+          color: '#fff',
+          fontSize: 15, fontWeight: 800, letterSpacing: '0.06em',
+          boxShadow: '0 4px 0 #2A1715, 0 6px 14px rgba(42,23,21,0.28), 0 0 0 1px #D4A373',
+          cursor: 'pointer',
+        }}
+      >
+        <AddCircleOutlineIcon sx={{ fontSize: 20 }} />
+        New Sale
+      </button>
+    </div>
+  );
+}
 
 export default function TenderPage() {
   const navigate              = useNavigate();
@@ -162,6 +420,7 @@ export default function TenderPage() {
       if (!res.ok) throw new Error(data.message || 'Failed to process sale');
 
       setCompletedSale({
+        saleId: data._id,
         invoiceNo: data.invoiceNo,
         createdAt: data.createdAt,
         grandTotal: data.grandTotal,
@@ -305,145 +564,14 @@ export default function TenderPage() {
   }
 
   if (completedSale) {
-    const methodLabel = PAYMENT_METHODS.find((m) => m.id === completedSale.method)?.label || completedSale.method;
-    const completedIsRefund = completedSale.transactionType === 'RF';
-
     return (
-      <div style={{
-        padding: '16px 16px 24px',
-        maxWidth: 480,
-        margin: '0 auto',
-        fontFamily: "'Plus Jakarta Sans', sans-serif",
-        display: 'flex',
-        flexDirection: 'column',
-        minHeight: 'calc(100dvh - 132px)',
-      }}>
-
-        {/* ── Success header ── */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '12px 0 22px' }}>
-          <div style={{
-            width: 56, height: 56, borderRadius: '50%',
-            background: 'rgba(46,125,79,0.10)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <CheckCircleOutlinedIcon sx={{ fontSize: 30, color: '#2E7D4F' }} />
-          </div>
-          <p style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#2B1D1A' }}>
-            {completedIsRefund ? 'Refund Processed' : 'Payment Successful'}
-          </p>
-          <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: '#A09490', letterSpacing: '0.04em' }}>
-            Invoice {completedSale.invoiceNo}
-          </p>
-        </div>
-
-        {/* ── Receipt card ── */}
-        <div style={{
-          background: '#ffffff',
-          border: '1px solid #DDD2CC',
-          borderRadius: 14,
-          overflow: 'hidden',
-          marginBottom: 20,
-          boxShadow: '0 4px 0 #c8bdb8, 0 8px 20px rgba(62,39,35,0.08)',
-        }}>
-          <div style={{
-            background: 'linear-gradient(135deg, #3E2723 0%, #5D4037 100%)',
-            padding: '12px 18px',
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          }}>
-            <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.55)', letterSpacing: '0.14em', textTransform: 'uppercase' }}>
-              Receipt
-            </span>
-            <span style={{
-              fontSize: 11, fontWeight: 800, letterSpacing: '0.1em',
-              padding: '3px 11px', borderRadius: 20,
-              background: completedIsRefund ? 'rgba(183,28,28,0.22)' : 'rgba(46,125,79,0.22)',
-              border: `1px solid ${completedIsRefund ? 'rgba(183,28,28,0.40)' : 'rgba(46,125,79,0.40)'}`,
-              color: completedIsRefund ? '#ff8a80' : '#69f0ae',
-            }}>
-              {completedIsRefund ? 'REFUND' : 'SALE'}
-            </span>
-          </div>
-
-          <div style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: '#A09490', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-              Total {completedIsRefund ? 'Refunded' : 'Paid'}
-            </span>
-            <span style={{ fontSize: 28, fontWeight: 800, color: '#2B1D1A', letterSpacing: '-0.8px', fontVariantNumeric: 'tabular-nums' }}>
-              <span style={{ fontSize: 16, fontWeight: 700, color: '#D4A373', marginRight: 1 }}>$</span>
-              {completedSale.grandTotal ?? completedSale.amount}
-            </span>
-          </div>
-
-          <div style={{ margin: '0 20px', borderTop: '1.5px dashed #E6DAD5' }} />
-
-          <div style={{ padding: '14px 20px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 11, fontWeight: 600, color: '#A09490', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Product</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ padding: '2px 10px', borderRadius: 6, background: '#3E2723', color: '#D4A373', fontSize: 12, fontWeight: 800, letterSpacing: '0.06em' }}>
-                  {completedSale.product.code}
-                </span>
-                <span style={{ fontSize: 13, fontWeight: 600, color: '#2B1D1A' }}>{completedSale.product.name}</span>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 11, fontWeight: 600, color: '#A09490', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Payment Method</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: '#2B1D1A' }}>
-                {methodLabel}{completedSale.card ? ` •••• ${completedSale.card.last4}` : ''}
-              </span>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 11, fontWeight: 600, color: '#A09490', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Buyer</span>
-              <span style={{ fontSize: 13, fontWeight: 600, color: '#2B1D1A' }}>{completedSale.buyer?.name}</span>
-            </div>
-
-            {completedSale.buyer?.phone && (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 11, fontWeight: 600, color: '#A09490', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Phone</span>
-                <span style={{ fontSize: 13, fontWeight: 600, color: '#6B5B57' }}>{completedSale.buyer.phone}</span>
-              </div>
-            )}
-
-            {completedSale.buyer?.email && (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 11, fontWeight: 600, color: '#A09490', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Email</span>
-                <span style={{ fontSize: 13, fontWeight: 600, color: '#6B5B57' }}>{completedSale.buyer.email}</span>
-              </div>
-            )}
-
-            {completedSale.createdAt && (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 11, fontWeight: 600, color: '#A09490', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Date</span>
-                <span style={{ fontSize: 13, fontWeight: 600, color: '#6B5B57' }}>
-                  {new Date(completedSale.createdAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div style={{ flex: 1, minHeight: 12 }} />
-
-        {/* ── Next Sale ── */}
-        <button
-          onClick={handleNextSale}
-          style={{
-            height: 56,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-            borderRadius: 12,
-            border: '2px solid #D4A373',
-            background: 'linear-gradient(180deg, #5D4037 0%, #3E2723 100%)',
-            color: '#fff',
-            fontSize: 15, fontWeight: 800, letterSpacing: '0.06em',
-            boxShadow: '0 4px 0 #2A1715, 0 6px 14px rgba(42,23,21,0.28), 0 0 0 1px #D4A373',
-            cursor: 'pointer',
-          }}
-        >
-          Next Sale
-        </button>
-      </div>
+      <CompletedSaleScreen
+        sale={completedSale}
+        token={token}
+        API={API}
+        onNewSale={handleNextSale}
+        paymentMethods={PAYMENT_METHODS}
+      />
     );
   }
 

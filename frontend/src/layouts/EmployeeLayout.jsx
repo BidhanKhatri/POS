@@ -3,6 +3,7 @@ import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import PointOfSaleIcon from '@mui/icons-material/PointOfSale';
 import AccessTimeOutlinedIcon from '@mui/icons-material/AccessTimeOutlined';
 import GridViewOutlinedIcon from '@mui/icons-material/GridViewOutlined';
+import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import AdminPanelSettingsOutlinedIcon from '@mui/icons-material/AdminPanelSettingsOutlined';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
@@ -13,12 +14,13 @@ import CloseIcon from '@mui/icons-material/Close';
 import useAuthStore from '../store/useAuthStore';
 
 const NAV_ITEMS = [
-  { label: 'Terminal', path: '/employee/terminal', icon: PointOfSaleIcon },
-  { label: 'Shift',    path: '/employee/shift',    icon: AccessTimeOutlinedIcon },
-  { label: 'Dashboard',path: '/employee/dashboard',icon: GridViewOutlinedIcon },
+  { label: 'Terminal',      path: '/employee/terminal',      icon: PointOfSaleIcon },
+  { label: 'Transactions',  path: '/employee/transactions',  icon: ReceiptLongOutlinedIcon },
+  { label: 'Dashboard',     path: '/employee/dashboard',     icon: GridViewOutlinedIcon },
 ];
 
 const MENU_ITEMS = [
+  { label: 'Shift',              path: '/employee/shift',     icon: AccessTimeOutlinedIcon },
   { label: 'Inventory',          path: '/employee/inventory', icon: Inventory2OutlinedIcon },
   { label: 'Overrides Request',  path: '/employee/overrides', icon: AdminPanelSettingsOutlinedIcon },
   { label: 'Settings',           path: '/employee/settings',  icon: SettingsOutlinedIcon },
@@ -40,9 +42,12 @@ export default function EmployeeLayout() {
     ({ path }) => pathname === path || pathname.startsWith(path + '/')
   );
 
-  const activeIndex = NAV_ITEMS.findIndex(
+  // Keep the active indicator on Transactions for detail sub-routes
+  const activeNavPath = NAV_ITEMS.find(
     ({ path }) => pathname === path || pathname.startsWith(path + '/')
-  );
+  )?.path;
+
+  const activeIndex = NAV_ITEMS.findIndex(({ path }) => path === activeNavPath);
 
   const totalSlots = NAV_ITEMS.length + 1; // + hamburger slot
 

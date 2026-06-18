@@ -1,10 +1,19 @@
 import dotenv from 'dotenv';
 dotenv.config();
+import mongoose from 'mongoose';
 import app from './app.js';
 import connectDB from './config/db.js';
+import { initCronJobs } from './cron/index.js';
 
-// Connect to Database
+// Connect to Database first, then register cron jobs.
+// Cron jobs must not run before mongoose is ready — they fire live aggregations.
 connectDB();
+
+mongoose.connection.once('open', () => {
+  if (process.env.DISABLE_CRON !== 'true') {
+    initCronJobs();
+  }
+});
 
 const PORT = process.env.PORT || 5000;
 
