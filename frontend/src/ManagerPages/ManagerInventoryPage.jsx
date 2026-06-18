@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Dialog from '@mui/material/Dialog';
+import { useMediaQuery } from '@mui/material';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import AddOutlinedIcon from '@mui/icons-material/AddOutlined';
 import SearchOutlinedIcon from '@mui/icons-material/SearchOutlined';
@@ -10,6 +11,7 @@ import CloseOutlinedIcon from '@mui/icons-material/CloseOutlined';
 import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined';
 import ErrorOutlineOutlinedIcon from '@mui/icons-material/ErrorOutlineOutlined';
 import RefreshOutlinedIcon from '@mui/icons-material/RefreshOutlined';
+import TuneOutlinedIcon from '@mui/icons-material/TuneOutlined';
 import useAuthStore from '../store/useAuthStore';
 
 const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
@@ -20,6 +22,7 @@ const C = {
   hover: '#F3EDE9', textPri: '#2B1D1A', textSec: '#6B5B57', textDim: '#A09490',
   primary: '#3E2723', accent: '#D4A373',
   success: '#2E7D4F', warning: '#B26A00', error: '#B71C1C', info: '#0277BD',
+  elevated: '#EFE7E2', tableHdr: '#F3EDE9',
 };
 
 const inputStyle = {
@@ -52,28 +55,23 @@ function StockPill({ qty }) {
 function ProductActionsDialog({ open, product, token, onClose, onRefresh }) {
   const [tab, setTab] = useState('stock');
 
-  // Stock move
   const [moveType, setMoveType] = useState('RESTOCK');
   const [moveQty, setMoveQty] = useState('');
   const [moveRemarks, setMoveRemarks] = useState('');
   const [moveSaving, setMoveSaving] = useState(false);
   const [moveErr, setMoveErr] = useState('');
 
-  // History
   const [movements, setMovements] = useState([]);
   const [histLoading, setHistLoading] = useState(false);
 
-  // Edit
   const [editForm, setEditForm] = useState({});
   const [editSaving, setEditSaving] = useState(false);
   const [editErr, setEditErr] = useState('');
 
-  // Delete
   const [deleting, setDeleting] = useState(false);
 
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 
-  // Reset all state when dialog opens for a new product
   useEffect(() => {
     if (!open || !product) return;
     setTab('stock');
@@ -90,7 +88,6 @@ function ProductActionsDialog({ open, product, token, onClose, onRefresh }) {
     setEditErr('');
   }, [open, product?._id]);
 
-  // Fetch history when switching to the history tab
   useEffect(() => {
     if (tab !== 'history' || !product || movements.length > 0) return;
     setHistLoading(true);
@@ -100,7 +97,6 @@ function ProductActionsDialog({ open, product, token, onClose, onRefresh }) {
       .catch(() => setHistLoading(false));
   }, [tab]);
 
-  /* ─ Stock move ─ */
   const submitStockMove = async () => {
     const n = parseInt(moveQty, 10);
     if (!moveQty || isNaN(n) || n <= 0) { setMoveErr('Enter a valid quantity greater than 0.'); return; }
@@ -118,7 +114,6 @@ function ProductActionsDialog({ open, product, token, onClose, onRefresh }) {
     finally { setMoveSaving(false); }
   };
 
-  /* ─ Edit ─ */
   const submitEdit = async () => {
     if (!editForm.name?.trim() || !editForm.sku?.trim() || editForm.price === '' || editForm.costPrice === '') {
       setEditErr('Name, SKU, Sell Price and Cost Price are required.'); return;
@@ -143,7 +138,6 @@ function ProductActionsDialog({ open, product, token, onClose, onRefresh }) {
     finally { setEditSaving(false); }
   };
 
-  /* ─ Delete ─ */
   const submitDelete = async () => {
     setDeleting(true);
     try {
@@ -182,14 +176,12 @@ function ProductActionsDialog({ open, product, token, onClose, onRefresh }) {
         },
       }}
     >
-      {/* ── Dialog header ── */}
       <div style={{
         padding: '16px 16px 0',
         background: C.surface,
         borderBottom: `1px solid ${C.border}`,
         flexShrink: 0,
       }}>
-        {/* Product identity row */}
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
           <div style={{ minWidth: 0, flex: 1 }}>
             <p style={{
@@ -215,7 +207,6 @@ function ProductActionsDialog({ open, product, token, onClose, onRefresh }) {
           </button>
         </div>
 
-        {/* Tab bar */}
         <div style={{ display: 'flex' }}>
           {TABS.map(({ id, label }) => {
             const active = tab === id;
@@ -248,10 +239,8 @@ function ProductActionsDialog({ open, product, token, onClose, onRefresh }) {
         </div>
       </div>
 
-      {/* ── Tab content ── */}
       <div style={{ overflowY: 'auto', flex: 1 }}>
 
-        {/* Stk Move */}
         {tab === 'stock' && (
           <div style={{ padding: '18px 16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
             {moveErr && (
@@ -316,7 +305,6 @@ function ProductActionsDialog({ open, product, token, onClose, onRefresh }) {
           </div>
         )}
 
-        {/* Move Hstry */}
         {tab === 'history' && (
           histLoading ? (
             <div style={{ padding: '40px', textAlign: 'center', color: C.textDim, fontSize: 13 }}>Loading…</div>
@@ -356,7 +344,6 @@ function ProductActionsDialog({ open, product, token, onClose, onRefresh }) {
           )
         )}
 
-        {/* Edit Product */}
         {tab === 'edit' && (
           <div style={{ padding: '18px 16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
             {editErr && (
@@ -416,7 +403,6 @@ function ProductActionsDialog({ open, product, token, onClose, onRefresh }) {
           </div>
         )}
 
-        {/* Delete */}
         {tab === 'delete' && (
           <div style={{ padding: '28px 20px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18, textAlign: 'center' }}>
             <div style={{ width: 60, height: 60, borderRadius: 16, background: 'rgba(183,28,28,0.10)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -569,15 +555,24 @@ function AddProductDialog({ open, onClose, onSave }) {
   );
 }
 
-/* ── Window width hook ───────────────────────────────────────────── */
-function useWindowWidth() {
-  const [w, setW] = useState(() => window.innerWidth);
-  useEffect(() => {
-    const h = () => setW(window.innerWidth);
-    window.addEventListener('resize', h);
-    return () => window.removeEventListener('resize', h);
-  }, []);
-  return w;
+/* ── Desktop KPI Card ────────────────────────────────────────────── */
+function DesktopKpiCard({ label, value, icon: Icon, color, iconBg }) {
+  return (
+    <div style={{
+      position: 'relative', background: C.surface, border: `1px solid ${C.border}`,
+      borderRadius: 12, padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 14,
+    }}>
+      <div style={{ position: 'absolute', top: 0, left: 0, width: 28, height: 28, borderTop: `1.5px solid ${color}`, borderLeft: `1.5px solid ${color}`, borderTopLeftRadius: 10, pointerEvents: 'none' }} />
+      <div style={{ position: 'absolute', bottom: 0, right: 0, width: 28, height: 28, borderBottom: `1.5px solid ${color}`, borderRight: `1.5px solid ${color}`, borderBottomRightRadius: 10, pointerEvents: 'none' }} />
+      <div style={{ width: 42, height: 42, borderRadius: 11, background: iconBg, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Icon sx={{ fontSize: 21, color }} />
+      </div>
+      <div>
+        <p style={{ margin: 0, fontSize: 26, fontWeight: 800, color: C.textPri, letterSpacing: '-0.6px', lineHeight: 1 }}>{value}</p>
+        <p style={{ margin: '5px 0 0', fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</p>
+      </div>
+    </div>
+  );
 }
 
 /* ── Main Page ───────────────────────────────────────────────────── */
@@ -587,8 +582,9 @@ export default function ManagerInventoryPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [pageErr, setPageErr] = useState('');
-  const screenWidth = useWindowWidth();
-  const compact = screenWidth <= 430;
+
+  const isDesktop = useMediaQuery('(min-width:1024px)');
+  const isCompact = useMediaQuery('(max-width:430px)');
 
   const [addDlg, setAddDlg] = useState(false);
   const [actionsDlg, setActionsDlg] = useState({ open: false, product: null });
@@ -625,6 +621,222 @@ export default function ManagerInventoryPage() {
   const lowCount   = products.filter(p => p.stockQty > 0 && p.stockQty <= LOW).length;
   const outCount   = products.filter(p => p.stockQty === 0).length;
 
+  const dialogs = (
+    <>
+      <AddProductDialog
+        open={addDlg}
+        onClose={() => setAddDlg(false)}
+        onSave={handleAddProduct}
+      />
+      <ProductActionsDialog
+        open={actionsDlg.open}
+        product={actionsDlg.product}
+        token={token}
+        onClose={() => setActionsDlg({ open: false, product: null })}
+        onRefresh={fetchProducts}
+      />
+    </>
+  );
+
+  /* ══════════════════════════════════════════
+     DESKTOP
+  ══════════════════════════════════════════ */
+  if (isDesktop) {
+    const DESKTOP_COLS = '1fr 90px 120px 100px 100px 56px 90px 54px';
+
+    return (
+      <div style={{ height: '100dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden', fontFamily: "'Plus Jakarta Sans', sans-serif", background: C.bg }}>
+
+        {/* Top bar */}
+        <div style={{ padding: '24px 32px 20px', flexShrink: 0, background: C.bg }}>
+
+          {/* Header row */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+            <div>
+              <p style={{ margin: '0 0 2px', fontSize: 11, fontWeight: 600, color: C.textDim, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Manager Portal</p>
+              <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: C.textPri, letterSpacing: '-0.4px' }}>Inventory Management</h1>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <button
+                onClick={fetchProducts}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, fontSize: 13, fontWeight: 600, color: C.textSec, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+              >
+                <RefreshOutlinedIcon sx={{ fontSize: 16 }} /> Refresh
+              </button>
+              <button
+                onClick={() => setAddDlg(true)}
+                style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 18px', borderRadius: 8, background: C.primary, border: 'none', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+              >
+                <AddOutlinedIcon sx={{ fontSize: 16 }} /> Add Product
+              </button>
+            </div>
+          </div>
+
+          {/* KPI Cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 240px))', gap: 14 }}>
+            <DesktopKpiCard label="Total Products"  value={totalCount} icon={Inventory2OutlinedIcon}   color={C.primary} iconBg="rgba(62,39,35,0.09)"  />
+            <DesktopKpiCard label="Low Stock"        value={lowCount}   icon={WarningAmberOutlinedIcon} color={C.warning} iconBg="rgba(178,106,0,0.10)" />
+            <DesktopKpiCard label="Out of Stock"     value={outCount}   icon={ErrorOutlineOutlinedIcon} color={C.error}   iconBg="rgba(183,28,28,0.09)" />
+          </div>
+        </div>
+
+        {/* Main content */}
+        <div style={{ flex: 1, overflow: 'hidden', borderTop: `1px solid ${C.border}` }}>
+          <div style={{ height: '100%', overflowY: 'auto', padding: '20px 32px 32px' }}>
+
+            {/* Search bar */}
+            <div style={{ position: 'relative', marginBottom: 16 }}>
+              <SearchOutlinedIcon sx={{ fontSize: 17, color: C.textDim, position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search by product name, SKU or barcode…"
+                style={{ ...inputStyle, padding: '10px 12px 10px 38px', fontSize: 13, borderRadius: 9 }}
+              />
+              {search && (
+                <button onClick={() => setSearch('')} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 2 }}>
+                  <CloseOutlinedIcon sx={{ fontSize: 15, color: C.textDim }} />
+                </button>
+              )}
+            </div>
+
+            {/* Error banner */}
+            {pageErr && (
+              <div style={{ background: 'rgba(183,28,28,0.08)', border: '1px solid rgba(183,28,28,0.22)', borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 13, color: C.error }}>
+                {pageErr}
+              </div>
+            )}
+
+            {/* Product table */}
+            <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden' }}>
+
+              {/* Table header */}
+              <div style={{
+                background: C.tableHdr, borderBottom: `1px solid ${C.border}`,
+                padding: '10px 20px',
+                display: 'grid', gridTemplateColumns: DESKTOP_COLS,
+                gap: 8, alignItems: 'center',
+              }}>
+                {['Product', 'SKU', 'Barcode', 'Sell Price', 'Cost Price', 'Slot', 'Stock', 'Actions'].map(h => (
+                  <span key={h} style={{ fontSize: 10, fontWeight: 700, color: C.primary, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</span>
+                ))}
+              </div>
+
+              {loading ? (
+                <div style={{ padding: '56px 24px', textAlign: 'center', color: C.textDim, fontSize: 13 }}>Loading products…</div>
+              ) : filtered.length === 0 ? (
+                <div style={{ padding: '60px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, textAlign: 'center' }}>
+                  <div style={{ width: 52, height: 52, borderRadius: 14, background: '#F5F0EC', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Inventory2OutlinedIcon sx={{ fontSize: 26, color: C.primary }} />
+                  </div>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: C.textPri, margin: 0 }}>
+                    {search ? 'No products match your search' : 'No products configured'}
+                  </p>
+                  <p style={{ fontSize: 12, fontWeight: 500, color: C.textSec, margin: 0, maxWidth: 300, lineHeight: '18px' }}>
+                    {search ? 'Try a different name, SKU or barcode.' : 'Click "Add Product" to create your first product.'}
+                  </p>
+                </div>
+              ) : filtered.map((p, i) => (
+                <div
+                  key={p._id}
+                  style={{
+                    padding: '13px 20px',
+                    borderBottom: i < filtered.length - 1 ? `1px solid ${C.border}` : 'none',
+                    display: 'grid', gridTemplateColumns: DESKTOP_COLS,
+                    gap: 8, alignItems: 'center',
+                    background: i % 2 ? '#FDFCFB' : C.surface,
+                    transition: 'background 0.1s',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = C.hover}
+                  onMouseLeave={e => e.currentTarget.style.background = i % 2 ? '#FDFCFB' : C.surface}
+                >
+                  {/* Product name + sub-meta */}
+                  <div style={{ minWidth: 0 }}>
+                    <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {p.name}
+                    </p>
+                    {p.quickSlot && (
+                      <p style={{ margin: '1px 0 0', fontSize: 10, fontWeight: 600, color: C.textDim }}>
+                        POS Slot P{p.quickSlot}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* SKU */}
+                  <span style={{ fontSize: 12, fontWeight: 700, color: C.textSec, fontFamily: 'monospace', letterSpacing: '0.02em' }}>
+                    {p.sku}
+                  </span>
+
+                  {/* Barcode */}
+                  <span style={{ fontSize: 12, color: p.barcode ? C.textSec : C.textDim, fontFamily: 'monospace' }}>
+                    {p.barcode || '—'}
+                  </span>
+
+                  {/* Sell Price */}
+                  <span style={{ fontSize: 13, fontWeight: 800, color: C.textPri }}>
+                    ${p.price.toFixed(2)}
+                  </span>
+
+                  {/* Cost Price */}
+                  <span style={{ fontSize: 13, fontWeight: 600, color: C.textSec }}>
+                    {p.costPrice != null ? `$${p.costPrice.toFixed(2)}` : '—'}
+                  </span>
+
+                  {/* Quick Slot */}
+                  <span style={{ fontSize: 12, fontWeight: 700, color: p.quickSlot ? C.primary : C.textDim }}>
+                    {p.quickSlot ? `P${p.quickSlot}` : '—'}
+                  </span>
+
+                  {/* Stock */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <span style={{ fontSize: 14, fontWeight: 800, color: p.stockQty === 0 ? C.error : p.stockQty <= LOW ? C.warning : C.textPri, lineHeight: 1 }}>
+                      {p.stockQty}
+                    </span>
+                    <StockPill qty={p.stockQty} />
+                  </div>
+
+                  {/* Actions */}
+                  <button
+                    onClick={() => setActionsDlg({ open: true, product: p })}
+                    title="Manage product"
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 5,
+                      padding: '6px 12px', borderRadius: 7,
+                      border: `1px solid ${C.border}`,
+                      background: C.surface,
+                      cursor: 'pointer',
+                      fontSize: 12, fontWeight: 700, color: C.primary,
+                      fontFamily: "'Plus Jakarta Sans', sans-serif",
+                      whiteSpace: 'nowrap',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = C.primary; e.currentTarget.style.color = '#fff'; e.currentTarget.style.borderColor = C.primary; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = C.surface; e.currentTarget.style.color = C.primary; e.currentTarget.style.borderColor = C.border; }}
+                  >
+                    <TuneOutlinedIcon sx={{ fontSize: 14 }} />
+                    Manage
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {filtered.length > 0 && (
+              <p style={{ margin: '12px 0 0', fontSize: 11, color: C.textDim }}>
+                {filtered.length} product{filtered.length !== 1 ? 's' : ''}{search ? ' matched' : ' total'}
+                {lowCount > 0 && <span style={{ color: C.warning, fontWeight: 700 }}> · {lowCount} low stock</span>}
+                {outCount > 0 && <span style={{ color: C.error, fontWeight: 700 }}> · {outCount} out of stock</span>}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {dialogs}
+      </div>
+    );
+  }
+
+  /* ══════════════════════════════════════════
+     MOBILE (unchanged layout)
+  ══════════════════════════════════════════ */
   return (
     <div style={{ padding: '20px 16px', maxWidth: 640, margin: '0 auto' }}>
 
@@ -666,8 +878,8 @@ export default function ManagerInventoryPage() {
             </div>
             <div style={{ minWidth: 0 }}>
               <p style={{ margin: 0, fontSize: 17, fontWeight: 800, color, lineHeight: '22px', letterSpacing: '-0.2px' }}>{value}</p>
-              <p style={{ margin: 0, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.06em', lineHeight: '13px', whiteSpace: 'nowrap', fontSize: compact ? 8.5 : 9 }}>
-                {compact ? short : label}
+              <p style={{ margin: 0, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.06em', lineHeight: '13px', whiteSpace: 'nowrap', fontSize: isCompact ? 8.5 : 9 }}>
+                {isCompact ? short : label}
               </p>
             </div>
           </div>
@@ -727,7 +939,6 @@ export default function ManagerInventoryPage() {
             display: 'grid', gridTemplateColumns: '1fr 58px 66px 36px',
             gap: 6, alignItems: 'center',
           }}>
-            {/* Name + meta */}
             <div style={{ minWidth: 0 }}>
               <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {p.name}
@@ -737,7 +948,6 @@ export default function ManagerInventoryPage() {
               </p>
             </div>
 
-            {/* Stock */}
             <div>
               <p style={{ margin: 0, fontSize: 14, fontWeight: 800, lineHeight: '18px', color: p.stockQty === 0 ? C.error : p.stockQty <= LOW ? C.warning : C.textPri }}>
                 {p.stockQty}
@@ -745,12 +955,10 @@ export default function ManagerInventoryPage() {
               <StockPill qty={p.stockQty} />
             </div>
 
-            {/* Price */}
             <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri }}>
               ${p.price.toFixed(2)}
             </p>
 
-            {/* Single action trigger */}
             <button
               onClick={() => setActionsDlg({ open: true, product: p })}
               title="Product actions"
@@ -777,21 +985,7 @@ export default function ManagerInventoryPage() {
         </p>
       )}
 
-      {/* Add Product dialog */}
-      <AddProductDialog
-        open={addDlg}
-        onClose={() => setAddDlg(false)}
-        onSave={handleAddProduct}
-      />
-
-      {/* Product actions dialog (tabs) */}
-      <ProductActionsDialog
-        open={actionsDlg.open}
-        product={actionsDlg.product}
-        token={token}
-        onClose={() => setActionsDlg({ open: false, product: null })}
-        onRefresh={fetchProducts}
-      />
+      {dialogs}
     </div>
   );
 }

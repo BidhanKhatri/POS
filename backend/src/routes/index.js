@@ -7,8 +7,10 @@ import productRoutes from './productRoutes.js';
 import saleRoutes from './saleRoutes.js';
 import overrideRoutes from './overrideRoutes.js';
 import reportRoutes from './reportRoutes.js';
+import webauthnRoutes from './webauthnRoutes.js';
 
 router.use('/auth', authRoutes);
+router.use('/auth/webauthn', webauthnRoutes);
 router.use('/shifts', shiftRoutes);
 router.use('/products', productRoutes);
 router.use('/sales', saleRoutes);

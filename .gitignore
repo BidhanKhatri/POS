@@ -12,6 +12,7 @@ POS_System_design_Architecture.png
 # Design files
 .agents/
 desing-ui/
+node_modules/
 
 # Optional
 skills-lock.json

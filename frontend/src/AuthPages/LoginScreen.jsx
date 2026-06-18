@@ -6,7 +6,9 @@ import EmailOutlinedIcon from '@mui/icons-material/EmailOutlined';
 import BackspaceOutlinedIcon from '@mui/icons-material/BackspaceOutlined';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import PersonAddAltIcon from '@mui/icons-material/PersonAddAlt';
+import FingerprintIcon from '@mui/icons-material/Fingerprint';
 import useAuthStore from '../store/useAuthStore';
+import { useWebAuthn } from '../hooks/useWebAuthn';
 
 const MAX_ATTEMPTS = 3;
 const LOCKOUT_SECONDS = 60;
@@ -17,10 +19,12 @@ const LOCKOUT_SECONDS = 60;
 const LoginScreen = () => {
   const navigate = useNavigate();
   const { lastEmail, setLastEmail, setUser, setToken } = useAuthStore();
+  const { supported, authenticating, loginWithBiometric } = useWebAuthn();
 
   const [email, setEmail] = useState(lastEmail || '');
   const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
+  const [biometricError, setBiometricError] = useState('');
 
   // Error / shake state
   const [shake, setShake] = useState(false);
@@ -111,6 +115,20 @@ const LoginScreen = () => {
     }
   };
 
+  const handleBiometricLogin = async () => {
+    if (authenticating) return;
+    setBiometricError('');
+    try {
+      const data = await loginWithBiometric(email.trim() || undefined);
+      setLastEmail(data.email || email.trim());
+      setUser(data);
+      setToken(data.token);
+      navigate('/employee/terminal', { replace: true });
+    } catch (err) {
+      setBiometricError(err.message || 'Biometric login failed. Try your PIN instead.');
+    }
+  };
+
   /* ── PIN dot row — red on error, normal otherwise ── */
   const PinDots = () => (
     <div className={shake ? 'pin-shake' : ''}>
@@ -198,46 +216,79 @@ const LoginScreen = () => {
 
   /* ── Action buttons ── */
   const ActionButtons = () => (
-    <div className="flex gap-3 w-full">
-      <button
-        onClick={handleClockIn}
-        disabled={isLocked || loading || pin.length < 4 || !email.trim()}
-        className="flex-1 flex items-center justify-center gap-2 rounded transition-opacity"
-        style={{
-          minHeight: 48,
-          paddingTop: 14,
-          paddingBottom: 14,
-          backgroundColor: '#3E2723',
-          color: '#ffffff',
-          fontSize: 14,
-          fontWeight: 600,
-          lineHeight: '20px',
-          letterSpacing: '0.25px',
-          opacity: (isLocked || loading || pin.length < 4 || !email.trim()) ? 0.5 : 1,
-          cursor: (isLocked || loading || pin.length < 4 || !email.trim()) ? 'not-allowed' : 'pointer',
-        }}
-      >
-        <AccessTimeIcon sx={{ fontSize: 17 }} />
-        {loading ? 'CHECKING…' : isLocked ? `LOCKED ${lockoutSeconds}s` : 'CLOCK IN'}
-      </button>
+    <div className="flex flex-col gap-3 w-full">
+      <div className="flex gap-3 w-full">
+        <button
+          onClick={handleClockIn}
+          disabled={isLocked || loading || pin.length < 4 || !email.trim()}
+          className="flex-1 flex items-center justify-center gap-2 rounded transition-opacity"
+          style={{
+            minHeight: 48,
+            paddingTop: 14,
+            paddingBottom: 14,
+            backgroundColor: '#3E2723',
+            color: '#ffffff',
+            fontSize: 14,
+            fontWeight: 600,
+            lineHeight: '20px',
+            letterSpacing: '0.25px',
+            opacity: (isLocked || loading || pin.length < 4 || !email.trim()) ? 0.5 : 1,
+            cursor: (isLocked || loading || pin.length < 4 || !email.trim()) ? 'not-allowed' : 'pointer',
+          }}
+        >
+          <AccessTimeIcon sx={{ fontSize: 17 }} />
+          {loading ? 'CHECKING…' : isLocked ? `LOCKED ${lockoutSeconds}s` : 'CLOCK IN'}
+        </button>
 
-      <button
-        className="flex-1 flex items-center justify-center gap-2 rounded border border-primary bg-transparent hover:bg-surface-variant transition-colors cursor-pointer"
-        style={{
-          minHeight: 48,
-          paddingTop: 14,
-          paddingBottom: 14,
-          color: '#3E2723',
-          fontSize: 14,
-          fontWeight: 600,
-          lineHeight: '20px',
-          letterSpacing: '0.25px',
-        }}
-        onClick={() => navigate('/signup')}
-      >
-        <PersonAddAltIcon sx={{ fontSize: 17 }} />
-        SIGN UP
-      </button>
+        <button
+          className="flex-1 flex items-center justify-center gap-2 rounded border border-primary bg-transparent hover:bg-surface-variant transition-colors cursor-pointer"
+          style={{
+            minHeight: 48,
+            paddingTop: 14,
+            paddingBottom: 14,
+            color: '#3E2723',
+            fontSize: 14,
+            fontWeight: 600,
+            lineHeight: '20px',
+            letterSpacing: '0.25px',
+          }}
+          onClick={() => navigate('/signup')}
+        >
+          <PersonAddAltIcon sx={{ fontSize: 17 }} />
+          SIGN UP
+        </button>
+      </div>
+
+      {/* Biometric login — only shown when device supports WebAuthn */}
+      {supported && (
+        <div className="flex flex-col gap-1 w-full">
+          <button
+            onClick={handleBiometricLogin}
+            disabled={authenticating || isLocked}
+            className="w-full flex items-center justify-center gap-2 rounded transition-all"
+            style={{
+              minHeight: 44,
+              border: '1px solid #DDD2CC',
+              background: authenticating ? '#F5F0EC' : '#ffffff',
+              color: authenticating ? '#A09490' : '#3E2723',
+              fontSize: 13,
+              fontWeight: 600,
+              letterSpacing: '0.1em',
+              cursor: (authenticating || isLocked) ? 'not-allowed' : 'pointer',
+              opacity: isLocked ? 0.4 : 1,
+              boxShadow: '0 2px 0 #c4b8b2',
+            }}
+          >
+            <FingerprintIcon sx={{ fontSize: 20, color: authenticating ? '#A09490' : '#3E2723' }} />
+            {authenticating ? 'WAITING FOR BIOMETRIC…' : 'USE BIOMETRIC LOGIN'}
+          </button>
+          {biometricError && (
+            <p style={{ margin: 0, fontSize: 11, fontWeight: 600, color: '#B71C1C', textAlign: 'center' }}>
+              {biometricError}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 

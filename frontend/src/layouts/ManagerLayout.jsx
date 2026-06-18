@@ -147,9 +147,9 @@ export default function ManagerLayout() {
                       <div style={{ display: 'flex', paddingLeft: 20, paddingTop: 2, paddingBottom: 4 }}>
                         {/* Left vertical line */}
                         <div style={{
-                          width: 1.5,
+                          width: 1,
                           borderRadius: 2,
-                          background: 'linear-gradient(180deg, #D4A373 0%, #ECE6E1 100%)',
+                          background: '#E2D5CC',
                           flexShrink: 0,
                           marginRight: 12,
                           marginLeft: 8,
