@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import Setting from '../models/Setting.js';
 import ManagerOverride from '../models/ManagerOverride.js';
 import Product from '../models/Product.js';
 import Sale from '../models/Sale.js';
@@ -115,6 +116,46 @@ const approveOverride = async (overrideId, managerId, pin) => {
     throw new Error('You cannot approve your own refund request');
   }
 
+  if (pending.actionType === 'DISCOUNT') {
+    // Atomically flip both the override and its linked Sale to APPROVED.
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+      const override = await ManagerOverride.findOneAndUpdate(
+        { _id: overrideId, status: 'PENDING' },
+        { $set: { status: 'APPROVED', approvedBy: managerId, managerPinVerified: true, resolvedAt: new Date() } },
+        { new: true, session }
+      );
+      if (!override) throw new Error('Override request already resolved');
+
+      if (override.saleId) {
+        const updated = await Sale.findOneAndUpdate(
+          { _id: override.saleId, status: 'PENDING_APPROVAL' },
+          { $set: { status: 'APPROVED' } },
+          { session }
+        );
+        if (!updated) throw new Error('Linked sale not found or already resolved');
+      }
+
+      await AuditLog.create([{
+        action: 'DISCOUNT_APPROVED',
+        entity: 'ManagerOverride',
+        entityId: override._id,
+        afterData: { productName: override.productName, discountAmount: override.discountAmount },
+        performedBy: managerId,
+        role: 'Manager',
+      }], { session });
+
+      await session.commitTransaction();
+      session.endSession();
+      return override;
+    } catch (error) {
+      await session.abortTransaction();
+      session.endSession();
+      throw error;
+    }
+  }
+
   if (pending.actionType !== 'REFUND') {
     const result = await ManagerOverride.findOneAndUpdate(
       { _id: overrideId, status: 'PENDING' },
@@ -221,7 +262,12 @@ const approveOverride = async (overrideId, managerId, pin) => {
   }
 };
 
-const denyOverride = async (overrideId, managerId) => {
+const denyOverride = async (overrideId, managerId, pin) => {
+  const manager = await User.findById(managerId).select('+pinHash');
+  if (!manager || !(await manager.matchPin(pin))) {
+    throw new Error('Invalid manager PIN');
+  }
+
   const override = await ManagerOverride.findOneAndUpdate(
     { _id: overrideId, status: 'PENDING' },
     { $set: { status: 'DENIED', approvedBy: managerId, resolvedAt: new Date() } },
@@ -229,8 +275,15 @@ const denyOverride = async (overrideId, managerId) => {
   );
   if (!override) throw new Error('Override request already resolved');
 
+  // Void the upfront-created Sale so it never appears in reports.
+  if (override.actionType === 'DISCOUNT' && override.saleId) {
+    await Sale.findByIdAndUpdate(override.saleId, {
+      $set: { status: 'VOIDED', paymentStatus: 'VOIDED' },
+    });
+  }
+
   await AuditLog.create({
-    action: 'REFUND_DENIED',
+    action: `${override.actionType}_DENIED`,
     entity: 'ManagerOverride',
     entityId: override._id,
     afterData: { reason: override.reason },
@@ -241,4 +294,82 @@ const denyOverride = async (overrideId, managerId) => {
   return override;
 };
 
-export { createRefundRequest, getOverrides, getMyOverrides, approveOverride, denyOverride };
+const generateInvoiceNo = () =>
+  'INV-' + Date.now().toString().slice(-6) + Math.floor(Math.random() * 1000);
+
+// Pre-sale discount that exceeds the employee's configured limit.
+// Creates a Sale as PENDING_APPROVAL (no stock touch, no payment) so the full
+// sale context is persisted before the manager ever sees the request.
+// The same Sale document is finalized to COMPLETED when the employee pays.
+const createDiscountOverride = async (employeeId, {
+  productId, productName, sku, amount,
+  discountType, discountValue, discountAmount, reason, saleContext,
+}) => {
+  if (!['PERCENTAGE', 'FIXED'].includes(discountType)) throw new Error('Invalid discount type');
+  if (!discountValue || discountValue <= 0) throw new Error('Discount value must be greater than 0');
+  if (!discountAmount || discountAmount <= 0) throw new Error('Computed discount amount is invalid');
+  if (discountAmount >= amount) throw new Error('Discount cannot equal or exceed the sale amount');
+  if (!reason || !reason.trim()) throw new Error('A reason is required for a discount override');
+
+  const setting = await Setting.findById('global');
+  const discountLimit = setting?.maxDiscountPercent ?? 10;
+
+  // Replicate the same totals processSale would compute from TenderPage inputs:
+  //   item.total = unitPrice - discount = amount - discountAmount
+  //   subtotal   = item.total
+  //   grandTotal = subtotal - discountTotal = (amount - discountAmount) - discountAmount
+  const itemTotal   = amount - discountAmount;
+  const subtotal    = itemTotal;
+  const grandTotal  = subtotal - discountAmount;
+
+  const sale = await Sale.create({
+    invoiceNo:     generateInvoiceNo(),
+    employeeId,
+    shiftId:       null,  // stamped at completeSale time
+    status:        'PENDING_APPROVAL',
+    paymentStatus: 'PENDING',
+    items: [{
+      productId,
+      productName,
+      sku:       sku || '',
+      unitPrice: amount,
+      quantity:  1,
+      discount:  discountAmount,
+      total:     itemTotal,
+    }],
+    subtotal,
+    discountTotal: discountAmount,
+    taxTotal:      0,
+    grandTotal,
+  });
+
+  const override = await ManagerOverride.create({
+    actionType: 'DISCOUNT',
+    status: 'PENDING',
+    reason: reason.trim(),
+    employeeId,
+    saleId: sale._id,
+    productId,
+    productName,
+    sku,
+    amount: amount - discountAmount,  // final price after discount — what the buyer actually pays
+    discountType,
+    discountValue,
+    discountAmount,  // computed dollar off
+    discountLimit,
+    saleContext: saleContext || undefined,
+  });
+
+  return override;
+};
+
+// Polled by the employee's DiscountPage while waiting for manager approval.
+// Scoped to the requesting employee so employees can't peek at others' requests.
+const getOverrideById = async (overrideId, employeeId) => {
+  const override = await ManagerOverride.findOne({ _id: overrideId, employeeId })
+    .populate('approvedBy', 'name');
+  if (!override) throw new Error('Override request not found');
+  return override;
+};
+
+export { createRefundRequest, createDiscountOverride, getOverrideById, getOverrides, getMyOverrides, approveOverride, denyOverride };

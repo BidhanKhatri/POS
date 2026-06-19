@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import AdminPanelSettingsOutlinedIcon from '@mui/icons-material/AdminPanelSettingsOutlined';
 import SearchOutlinedIcon from '@mui/icons-material/SearchOutlined';
 import ErrorOutlineOutlinedIcon from '@mui/icons-material/ErrorOutlineOutlined';
@@ -6,7 +7,9 @@ import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined';
 import RefreshOutlinedIcon from '@mui/icons-material/RefreshOutlined';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import PlayArrowOutlinedIcon from '@mui/icons-material/PlayArrowOutlined';
 import useAuthStore from '../store/useAuthStore';
+import CornerCard from '../components/CornerCard/CornerCard';
 
 const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
 const PAGE_SIZE = 5;
@@ -51,6 +54,7 @@ const inputStyle = {
 };
 
 export default function OverridesPage() {
+  const navigate = useNavigate();
   const token = useAuthStore((s) => s.token);
   const [overrides, setOverrides] = useState([]);
   const [loading, setLoading]     = useState(true);
@@ -114,7 +118,7 @@ export default function OverridesPage() {
           margin: '3px 0 0', fontSize: 12, fontWeight: 500, color: C.textSec,
           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
         }}>
-          Refund requests you've submitted and their authorization status.
+          Your override requests — refunds and discounts awaiting or resolved.
         </p>
       </div>
 
@@ -136,9 +140,8 @@ export default function OverridesPage() {
             border: C.border,
           },
         ].map(({ label, value, color, Icon, iconBg, border }) => (
-          <div key={label} style={{
-            background: C.surface, border: `1px solid ${border}`,
-            borderLeft: `2px solid ${color}`, borderRadius: 10,
+          <CornerCard key={label} borderColor={C.border} cornerSize={18} cornerHeight={18} style={{ background: C.surface }}>
+          <div style={{
             padding: '11px 14px', display: 'flex', alignItems: 'center', gap: 10,
           }}>
             <div style={{
@@ -156,6 +159,7 @@ export default function OverridesPage() {
               </p>
             </div>
           </div>
+          </CornerCard>
         ))}
       </div>
 
@@ -212,7 +216,7 @@ export default function OverridesPage() {
           <p style={{ fontSize: 12, fontWeight: 500, color: C.textSec, margin: '4px 0 0' }}>
             {search || statusFilter !== 'ALL'
               ? 'Try a different search term or filter.'
-              : "Refund requests you submit at the terminal will show up here."}
+              : 'Refund and discount override requests you submit will show up here.'}
           </p>
         </div>
       ) : (
@@ -221,12 +225,8 @@ export default function OverridesPage() {
             const s = STATUS_STYLE[o.status] || STATUS_STYLE.PENDING;
             const t = TYPE_META[o.actionType] || TYPE_META.REFUND;
             return (
-              <div key={o._id} style={{
-                background: C.surface,
-                border: `1px solid ${o.status === 'PENDING' ? s.border : C.border}`,
-                borderRadius: 10,
-                padding: '10px 12px',
-              }}>
+              <CornerCard key={o._id} borderColor={C.border} cornerSize={20} cornerHeight={20} style={{ background: C.surface }}>
+              <div style={{ padding: '10px 12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
                   <span style={{
                     fontSize: 12, fontWeight: 700, color: C.textPri,
@@ -260,7 +260,8 @@ export default function OverridesPage() {
                   </span>
                 </div>
 
-                {o.status === 'PENDING' && o.buyer?.name && (
+                {/* Buyer row — shown for pending refunds and discount overrides */}
+                {(o.buyer?.name || o.saleContext?.buyer?.name) && (
                   <div style={{
                     marginTop: 8, paddingTop: 7, borderTop: `1px dashed ${s.border}`,
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
@@ -272,11 +273,53 @@ export default function OverridesPage() {
                       fontSize: 11, fontWeight: 700, color: C.textPri,
                       whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, textAlign: 'right',
                     }}>
-                      {o.buyer.name}{o.buyer.phone ? ` · ${o.buyer.phone}` : ''}
+                      {(o.buyer?.name || o.saleContext?.buyer?.name)}
                     </span>
                   </div>
                 )}
+
+                {/* Resume Sale — APPROVED DISCOUNT overrides not yet finalized */}
+                {o.actionType === 'DISCOUNT' && o.status === 'APPROVED' && !o.completedSaleId && (
+                  <div style={{ marginTop: 10, paddingTop: 8, borderTop: `1px dashed ${s.border}` }}>
+                    <button
+                      onClick={() => navigate('/employee/tender', {
+                        state: {
+                          amount: (o.amount || 0) + (o.discountAmount || 0),  // original price for TenderPage
+                          product: {
+                            productId: o.productId,
+                            name:      o.productName,
+                            sku:       o.sku,
+                            code:      o.sku || '',
+                          },
+                          transactionType: 'SL',
+                          discount: {
+                            type:        o.discountType,
+                            value:       o.discountValue,
+                            amount:      o.discountAmount,
+                            finalAmount: o.amount,           // final price (stored on override)
+                            overrideId:  o._id,
+                            saleId:      o.saleId || null,
+                            prefill:     o.saleContext || null,
+                          },
+                        },
+                      })}
+                      style={{
+                        width: '100%', padding: '9px 0', borderRadius: 8,
+                        border: `1.5px solid ${C.success}`,
+                        background: 'rgba(46,125,79,0.08)',
+                        color: C.success, fontSize: 12, fontWeight: 800,
+                        cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif",
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                        letterSpacing: '0.04em',
+                      }}
+                    >
+                      <PlayArrowOutlinedIcon sx={{ fontSize: 15 }} />
+                      Resume Sale — ${Number(o.amount ?? 0).toFixed(2)} due
+                    </button>
+                  </div>
+                )}
               </div>
+              </CornerCard>
             );
           })}
         </div>

@@ -11,6 +11,7 @@ import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined';
 import HourglassEmptyOutlinedIcon from '@mui/icons-material/HourglassEmptyOutlined';
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import { printReceipt, downloadPDF, methodLabel } from '../utils/receiptUtils';
+import CornerCard from '../components/CornerCard/CornerCard';
 import useAuthStore from '../store/useAuthStore';
 
 const API  = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
@@ -249,23 +250,27 @@ export default function TransactionDetailPage() {
       <div style={{ padding: '20px 16px 0' }}>
 
         {/* ── Receipt card ── */}
-        <div style={{
-          background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14,
-          overflow: 'hidden', marginBottom: 16,
-          boxShadow: '0 4px 0 #c8bdb8, 0 8px 20px rgba(62,39,35,0.07)',
-        }}>
+        <CornerCard
+          borderColor={C.border}
+          style={{
+            background: C.surface,
+            marginBottom: 16,
+          }}
+        >
           {/* Card header */}
           <div style={{
-            background: 'linear-gradient(135deg, #3E2723 0%, #5D4037 100%)',
+            background: '#FAF7F5',
+            borderBottom: `1px solid ${C.border}`,
             padding: '10px 16px',
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           }}>
-            <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.50)', letterSpacing: '0.14em', textTransform: 'uppercase' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 700, color: C.textDim, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
+              <ReceiptLongOutlinedIcon style={{ fontSize: 14, color: C.textDim }} />
               Receipt
             </span>
             {sale.refundedAmount > 0 && (
-              <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.55)' }}>
-                Refunded ${sale.refundedAmount}
+              <span style={{ fontSize: 10, fontWeight: 700, color: C.textSec }}>
+                Refunded ${Number(sale.refundedAmount).toFixed(2)}
               </span>
             )}
           </div>
@@ -277,8 +282,8 @@ export default function TransactionDetailPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
                   <span>{item.productName}</span>
                   <span style={{ fontSize: 11, color: C.textDim, fontWeight: 500 }}>
-                    {item.quantity} × ${item.unitPrice}
-                    {item.discount > 0 && ` − $${item.discount}`}
+                    {item.quantity} × ${Number(item.unitPrice).toFixed(2)}
+                    {item.discount > 0 && ` − $${Number(item.discount).toFixed(2)}`}
                   </span>
                 </div>
               </DetailRow>
@@ -288,10 +293,10 @@ export default function TransactionDetailPage() {
             <div style={{ borderTop: '1.5px dashed #E6DAD5', margin: '8px 0' }} />
 
             {/* Totals */}
-            {sale.discountTotal > 0 && <DetailRow label="Discount">−${sale.discountTotal}</DetailRow>}
-            {sale.taxTotal > 0       && <DetailRow label="Tax">${sale.taxTotal}</DetailRow>}
+            {sale.discountTotal > 0 && <DetailRow label="Discount">−${Number(sale.discountTotal).toFixed(2)}</DetailRow>}
+            {sale.taxTotal > 0       && <DetailRow label="Tax">${Number(sale.taxTotal).toFixed(2)}</DetailRow>}
             <DetailRow label="Total Paid">
-              <span style={{ fontSize: 15, fontWeight: 800, color: C.textPri }}>${sale.grandTotal}</span>
+              <span style={{ fontSize: 15, fontWeight: 800, color: C.textPri }}>${Number(sale.grandTotal).toFixed(2)}</span>
             </DetailRow>
             <DetailRow label="Status">
               <span style={{
@@ -331,7 +336,7 @@ export default function TransactionDetailPage() {
             <DetailRow label="Invoice" mono>{sale.invoiceNo}</DetailRow>
             <DetailRow label="Date"><span style={{ color: C.textSec }}>{dateStr}</span></DetailRow>
           </div>
-        </div>
+        </CornerCard>
 
         {/* ── Receipt actions ── */}
         <div style={{ marginBottom: 16 }}>

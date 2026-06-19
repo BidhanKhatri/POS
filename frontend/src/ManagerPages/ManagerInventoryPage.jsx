@@ -12,6 +12,8 @@ import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined';
 import ErrorOutlineOutlinedIcon from '@mui/icons-material/ErrorOutlineOutlined';
 import RefreshOutlinedIcon from '@mui/icons-material/RefreshOutlined';
 import TuneOutlinedIcon from '@mui/icons-material/TuneOutlined';
+import LocalOfferOutlinedIcon from '@mui/icons-material/LocalOfferOutlined';
+import CheckOutlinedIcon from '@mui/icons-material/CheckOutlined';
 import useAuthStore from '../store/useAuthStore';
 
 const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
@@ -555,6 +557,134 @@ function AddProductDialog({ open, onClose, onSave }) {
   );
 }
 
+/* ── Discount Rules Card ─────────────────────────────────────────── */
+function DiscountRulesCard({ token, compact = false }) {
+  const [current, setCurrent]   = useState(null); // loaded value
+  const [input, setInput]       = useState('');
+  const [saving, setSaving]     = useState(false);
+  const [saved, setSaved]       = useState(false);
+  const [err, setErr]           = useState('');
+
+  const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+
+  useEffect(() => {
+    fetch(`${API}/api/settings/discount-limit`, { headers })
+      .then(r => r.json())
+      .then(d => {
+        const v = d.maxDiscountPercent ?? 10;
+        setCurrent(v);
+        setInput(String(v));
+      })
+      .catch(() => {});
+  }, [token]);
+
+  const handleSave = async () => {
+    const val = parseFloat(input);
+    if (isNaN(val) || val < 0 || val > 100) { setErr('Enter a value between 0 and 100.'); return; }
+    setSaving(true); setErr(''); setSaved(false);
+    try {
+      const res = await fetch(`${API}/api/settings/discount-limit`, {
+        method: 'PATCH', headers,
+        body: JSON.stringify({ maxDiscountPercent: val }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Save failed');
+      setCurrent(data.maxDiscountPercent ?? val);
+      setInput(String(data.maxDiscountPercent ?? val));
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (e) { setErr(e.message); }
+    finally { setSaving(false); }
+  };
+
+  const dirty = current !== null && parseFloat(input) !== current;
+
+  return (
+    <div style={{
+      background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12,
+      overflow: 'hidden',
+    }}>
+      {/* Header */}
+      <div style={{
+        background: '#FAF7F5', borderBottom: `1px solid ${C.border}`,
+        padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 7,
+      }}>
+        <LocalOfferOutlinedIcon sx={{ fontSize: 15, color: C.primary }} />
+        <span style={{ fontSize: 11, fontWeight: 700, color: C.textSec, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+          Discount Rules
+        </span>
+      </div>
+
+      <div style={{
+        padding: compact ? '12px 14px' : '14px 16px',
+        display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+      }}>
+        {/* Description */}
+        <div style={{ flex: '1 1 180px', minWidth: 0 }}>
+          <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri }}>
+            Max Employee Discount
+          </p>
+          <p style={{ margin: '3px 0 0', fontSize: 11, fontWeight: 500, color: C.textSec, lineHeight: '16px' }}>
+            Discounts above this limit require a manager override approval before the sale proceeds.
+          </p>
+        </div>
+
+        {/* Input + save */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <div style={{ position: 'relative' }}>
+            <input
+              type="number"
+              min="0"
+              max="100"
+              step="0.5"
+              value={input}
+              onChange={e => { setInput(e.target.value); setErr(''); setSaved(false); }}
+              style={{
+                width: 76, padding: '8px 26px 8px 10px', borderRadius: 8,
+                border: `1.5px solid ${err ? C.error : dirty ? C.primary : C.border}`,
+                fontSize: 15, fontWeight: 800, color: C.textPri,
+                background: '#fff', outline: 'none', boxSizing: 'border-box',
+                fontFamily: "'Plus Jakarta Sans', sans-serif",
+                transition: 'border-color 0.15s',
+              }}
+            />
+            <span style={{
+              position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)',
+              fontSize: 13, fontWeight: 700, color: C.textDim, pointerEvents: 'none',
+            }}>%</span>
+          </div>
+          <button
+            onClick={handleSave}
+            disabled={saving || !dirty}
+            style={{
+              padding: '8px 14px', borderRadius: 8, border: 'none',
+              background: saved ? C.success : dirty ? C.primary : C.border,
+              color: '#fff', fontSize: 13, fontWeight: 700,
+              cursor: saving || !dirty ? 'not-allowed' : 'pointer',
+              opacity: saving ? 0.7 : 1,
+              display: 'flex', alignItems: 'center', gap: 5,
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
+              transition: 'background 0.2s',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {saved
+              ? <><CheckOutlinedIcon sx={{ fontSize: 15 }} /> Saved</>
+              : saving ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+
+        {/* Inline messages */}
+        {(err || saved) && (
+          <p style={{ margin: 0, width: '100%', fontSize: 11, fontWeight: 600, color: err ? C.error : C.success }}>
+            {err || `Discount limit updated to ${current}%`}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ── Desktop KPI Card ────────────────────────────────────────────── */
 function DesktopKpiCard({ label, value, icon: Icon, color, iconBg }) {
   return (
@@ -673,11 +803,14 @@ export default function ManagerInventoryPage() {
           </div>
 
           {/* KPI Cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 240px))', gap: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 240px))', gap: 14, marginBottom: 16 }}>
             <DesktopKpiCard label="Total Products"  value={totalCount} icon={Inventory2OutlinedIcon}   color={C.primary} iconBg="rgba(62,39,35,0.09)"  />
             <DesktopKpiCard label="Low Stock"        value={lowCount}   icon={WarningAmberOutlinedIcon} color={C.warning} iconBg="rgba(178,106,0,0.10)" />
             <DesktopKpiCard label="Out of Stock"     value={outCount}   icon={ErrorOutlineOutlinedIcon} color={C.error}   iconBg="rgba(183,28,28,0.09)" />
           </div>
+
+          {/* Discount Rules */}
+          <DiscountRulesCard token={token} />
         </div>
 
         {/* Main content */}
@@ -884,6 +1017,11 @@ export default function ManagerInventoryPage() {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Discount Rules */}
+      <div style={{ marginBottom: 14 }}>
+        <DiscountRulesCard token={token} compact />
       </div>
 
       {/* Search bar */}

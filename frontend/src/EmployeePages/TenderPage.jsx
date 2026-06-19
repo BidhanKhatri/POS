@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
@@ -14,6 +14,9 @@ import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutlineOutlined';
 import SendOutlinedIcon from '@mui/icons-material/SendOutlined';
 import { printReceipt, downloadPDF } from '../utils/receiptUtils';
 import useAuthStore from '../store/useAuthStore';
+import CornerCard from '../components/CornerCard/CornerCard';
+import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
+import ShoppingBagOutlinedIcon from '@mui/icons-material/ShoppingBagOutlined';
 
 const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
 
@@ -134,18 +137,14 @@ function CompletedSaleScreen({ sale, token, API, onNewSale, paymentMethods }) {
     }}>
 
       {/* ── Receipt card ── */}
-      <div style={{
-        background: '#ffffff', border: '1px solid #DDD2CC', borderRadius: 14,
-        overflow: 'hidden', marginBottom: 16,
-        boxShadow: '0 4px 0 #c8bdb8, 0 8px 20px rgba(62,39,35,0.07)',
-      }}>
-        {/* Dark header strip */}
+      <CornerCard borderColor="#DDD2CC" style={{ background: '#ffffff', marginBottom: 16 }}>
         <div style={{
-          background: 'linear-gradient(135deg, #3E2723 0%, #5D4037 100%)',
+          background: '#FAF7F5', borderBottom: '1px solid #DDD2CC',
           padding: '10px 16px',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          display: 'flex', alignItems: 'center', gap: 6,
         }}>
-          <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.50)', letterSpacing: '0.14em', textTransform: 'uppercase' }}>
+          <ReceiptLongOutlinedIcon style={{ fontSize: 14, color: '#A09490' }} />
+          <span style={{ fontSize: 10, fontWeight: 700, color: '#A09490', letterSpacing: '0.14em', textTransform: 'uppercase' }}>
             Receipt
           </span>
         </div>
@@ -194,7 +193,7 @@ function CompletedSaleScreen({ sale, token, API, onNewSale, paymentMethods }) {
           <ReceiptRow label="Invoice" mono>{sale.invoiceNo}</ReceiptRow>
           {dateStr && <ReceiptRow label="Date"><span style={{ color: '#6B5B57' }}>{dateStr}</span></ReceiptRow>}
         </div>
-      </div>
+      </CornerCard>
 
       {/* ── Receipt actions ── */}
       <div style={{ marginBottom: 16 }}>
@@ -292,7 +291,9 @@ function CompletedSaleScreen({ sale, token, API, onNewSale, paymentMethods }) {
 export default function TenderPage() {
   const navigate              = useNavigate();
   const location              = useLocation();
-  const { amount, product, transactionType } = location.state || {};
+  const { amount, product, transactionType, discount } = location.state || {};
+  // discount = { type, value, amount: dollarOff, finalAmount, overrideId } | null
+  const chargeAmount = discount ? discount.finalAmount : amount;
   const terminalPath          = location.pathname.startsWith('/manager') ? '/manager/terminal' : '/employee/terminal';
   const token                 = useAuthStore((s) => s.token);
 
@@ -310,6 +311,22 @@ export default function TenderPage() {
   const [buyerEmail, setBuyerEmail] = useState('');
   const [cardBrand, setCardBrand]   = useState('VISA');
   const [cardLast4, setCardLast4]   = useState('');
+
+  // When arriving from an approved discount override (via DiscountPage polling or
+  // OverridesPage Resume), pre-fill the payment/buyer fields that were captured
+  // at override-submission time so the employee only needs to confirm.
+  useEffect(() => {
+    if (discount?.prefill) {
+      const { method, buyer, card } = discount.prefill;
+      if (method) setSelectedMethod(method);
+      if (buyer?.name)  setBuyerName(buyer.name);
+      if (buyer?.phone) setBuyerPhone(buyer.phone);
+      if (buyer?.email) setBuyerEmail(buyer.email);
+      if (card?.brand)  setCardBrand(card.brand);
+      if (card?.last4)  setCardLast4(card.last4);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally runs once on mount
 
   const isRefund   = transactionType === 'RF';
   const isCardTender = selectedMethod === 'CREDIT' || selectedMethod === 'DEBIT';
@@ -355,7 +372,7 @@ export default function TenderPage() {
     try {
       const payment = {
         method: selectedMethod,
-        amount,
+        amount: chargeAmount,
         buyer: {
           name: buyerName.trim(),
           phone: buyerPhone.trim() || undefined,
@@ -399,23 +416,31 @@ export default function TenderPage() {
         return;
       }
 
-      const res = await fetch(`${API}/api/sales`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          items: [{
-            productId: product.productId,
-            quantity: 1,
-            unitPrice: amount,
-            discount: 0,
-          }],
-          payments: [payment],
-          discountTotal: 0,
-        }),
-      });
+      // When a discount override was pre-approved (Sale already exists as APPROVED),
+      // finalize it via /complete rather than creating a duplicate Sale document.
+      const isOverrideSale = !!discount?.saleId;
+      const saleRes = isOverrideSale
+        ? await fetch(`${API}/api/sales/${discount.saleId}/complete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ discountOverrideId: discount.overrideId }),
+          })
+        : await fetch(`${API}/api/sales`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+              items: [{
+                productId:  product.productId,
+                quantity:   1,
+                unitPrice:  amount,
+                discount:   discount ? discount.amount : 0,
+              }],
+              payments: [payment],
+              discountTotal: discount ? discount.amount : 0,
+              ...(discount?.overrideId && { discountOverrideId: discount.overrideId }),
+            }),
+          });
+      const res  = saleRes;
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to process sale');
 
@@ -476,28 +501,22 @@ export default function TenderPage() {
         </div>
 
         {/* ── Request card ── */}
-        <div style={{
-          background: '#ffffff',
-          border: '1px solid #DDD2CC',
-          borderRadius: 14,
-          overflow: 'hidden',
-          marginBottom: 20,
-          boxShadow: '0 4px 0 #c8bdb8, 0 8px 20px rgba(62,39,35,0.08)',
-        }}>
+        <CornerCard borderColor="#DDD2CC" cornerSize={20} cornerHeight={20} style={{ background: '#ffffff', marginBottom: 20 }}>
           <div style={{
-            background: 'linear-gradient(135deg, #3E2723 0%, #5D4037 100%)',
-            padding: '12px 18px',
+            background: '#FAF7F5', borderBottom: '1px solid #DDD2CC',
+            padding: '10px 16px',
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           }}>
-            <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.55)', letterSpacing: '0.14em', textTransform: 'uppercase' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 700, color: '#A09490', letterSpacing: '0.14em', textTransform: 'uppercase' }}>
+              <ShoppingBagOutlinedIcon style={{ fontSize: 14, color: '#A09490' }} />
               Refund Request
             </span>
             <span style={{
-              fontSize: 11, fontWeight: 800, letterSpacing: '0.1em',
-              padding: '3px 11px', borderRadius: 20,
-              background: 'rgba(178,106,0,0.20)',
-              border: '1px solid rgba(178,106,0,0.40)',
-              color: '#ffcc80',
+              fontSize: 10, fontWeight: 800, letterSpacing: '0.1em',
+              padding: '2px 10px', borderRadius: 20,
+              background: 'rgba(178,106,0,0.10)',
+              border: '1px solid rgba(178,106,0,0.30)',
+              color: '#B26A00',
             }}>
               PENDING
             </span>
@@ -538,7 +557,7 @@ export default function TenderPage() {
               <span style={{ fontSize: 13, fontWeight: 600, color: '#2B1D1A' }}>{pendingOverride.buyer?.name}</span>
             </div>
           </div>
-        </div>
+        </CornerCard>
 
         <div style={{ flex: 1, minHeight: 12 }} />
 
@@ -633,63 +652,70 @@ export default function TenderPage() {
       </div>
 
       {/* ── Transaction summary card (receipt style) ── */}
-      <div style={{
-        background: '#ffffff',
-        border: '1px solid #DDD2CC',
-        borderRadius: 14,
-        overflow: 'hidden',
-        marginBottom: 24,
-        boxShadow: '0 4px 0 #c8bdb8, 0 8px 20px rgba(62,39,35,0.08)',
-      }}>
+      <CornerCard borderColor="#DDD2CC" style={{ background: '#ffffff', marginBottom: 24 }}>
 
         {/* Card header strip */}
         <div style={{
-          background: 'linear-gradient(135deg, #3E2723 0%, #5D4037 100%)',
-          padding: '12px 18px',
+          background: '#FAF7F5', borderBottom: '1px solid #DDD2CC',
+          padding: '10px 16px',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         }}>
-          <span style={{
-            fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.55)',
-            letterSpacing: '0.14em', textTransform: 'uppercase',
-          }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 700, color: '#A09490', letterSpacing: '0.14em', textTransform: 'uppercase' }}>
+            <ShoppingBagOutlinedIcon style={{ fontSize: 14, color: '#A09490' }} />
             Transaction Summary
           </span>
           <span style={{
-            fontSize: 11, fontWeight: 800, letterSpacing: '0.1em',
-            padding: '3px 11px', borderRadius: 20,
-            background: isRefund ? 'rgba(183,28,28,0.22)' : 'rgba(46,125,79,0.22)',
-            border: `1px solid ${isRefund ? 'rgba(183,28,28,0.40)' : 'rgba(46,125,79,0.40)'}`,
-            color: isRefund ? '#ff8a80' : '#69f0ae',
+            fontSize: 10, fontWeight: 800, letterSpacing: '0.1em',
+            padding: '2px 10px', borderRadius: 20,
+            background: isRefund ? 'rgba(183,28,28,0.10)' : 'rgba(46,125,79,0.10)',
+            border: `1px solid ${isRefund ? 'rgba(183,28,28,0.30)' : 'rgba(46,125,79,0.30)'}`,
+            color: isRefund ? '#B71C1C' : '#2E7D4F',
           }}>
             {isRefund ? 'REFUND' : 'SALE'}
           </span>
         </div>
 
         {/* Amount row */}
-        <div style={{
-          padding: '14px 18px',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        }}>
-          <span style={{
-            fontSize: 11, fontWeight: 600, color: '#A09490',
-            letterSpacing: '0.08em', textTransform: 'uppercase',
-          }}>
-            Total Amount
+        <div style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: '#A09490', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+            {discount ? 'Original Amount' : 'Total Amount'}
           </span>
-          <span style={{
-            fontSize: 28, fontWeight: 800, color: '#2B1D1A',
-            letterSpacing: '-0.8px', fontVariantNumeric: 'tabular-nums',
-          }}>
-            <span style={{ fontSize: 16, fontWeight: 700, color: '#6B5B57', marginRight: 1 }}>$</span>
+          <span style={{ fontSize: discount ? 18 : 28, fontWeight: 800, color: discount ? '#6B5B57' : '#2B1D1A', letterSpacing: '-0.8px', fontVariantNumeric: 'tabular-nums', textDecoration: discount ? 'line-through' : 'none' }}>
+            <span style={{ fontSize: discount ? 13 : 16, fontWeight: 700, color: '#A09490', marginRight: 1 }}>$</span>
             {amount}
           </span>
         </div>
 
+        {/* Discount rows — only rendered when a discount was applied */}
+        {discount && (
+          <>
+            <div style={{ padding: '0 18px 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: '#A09490', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                Discount {discount.type === 'PERCENTAGE' ? `(${discount.value}%)` : '(Fixed)'}
+                {discount.overrideId && (
+                  <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 800, padding: '2px 6px', borderRadius: 6, background: 'rgba(178,106,0,0.18)', color: '#B26A00', letterSpacing: '0.06em' }}>
+                    OVERRIDE
+                  </span>
+                )}
+              </span>
+              <span style={{ fontSize: 15, fontWeight: 700, color: '#2E7D4F' }}>
+                −${discount.amount.toFixed(2)}
+              </span>
+            </div>
+            <div style={{ padding: '0 18px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: '#A09490', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                Total Charged
+              </span>
+              <span style={{ fontSize: 28, fontWeight: 800, color: '#2B1D1A', letterSpacing: '-0.8px', fontVariantNumeric: 'tabular-nums' }}>
+                <span style={{ fontSize: 16, fontWeight: 700, color: '#6B5B57', marginRight: 1 }}>$</span>
+                {chargeAmount.toFixed(2)}
+              </span>
+            </div>
+          </>
+        )}
+
         {/* Dashed separator */}
-        <div style={{
-          margin: '0 20px',
-          borderTop: '1.5px dashed #DDD2CC',
-        }} />
+        <div style={{ margin: '0 20px', borderTop: '1.5px dashed #DDD2CC' }} />
 
         {/* Product & type rows */}
         <div style={{ padding: '14px 20px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -724,7 +750,7 @@ export default function TenderPage() {
             </span>
           </div>
         </div>
-      </div>
+      </CornerCard>
 
       {/* ── Payment method section ── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>

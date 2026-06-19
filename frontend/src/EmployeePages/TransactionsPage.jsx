@@ -9,6 +9,7 @@ import CreditCardIcon from '@mui/icons-material/CreditCard';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import useAuthStore from '../store/useAuthStore';
+import CornerCard from '../components/CornerCard/CornerCard';
 
 const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
 const FONT = "'Plus Jakarta Sans', sans-serif";
@@ -97,14 +98,13 @@ function TxCard({ tx, onClick }) {
     <button
       onClick={onClick}
       style={{
-        display: 'flex', alignItems: 'stretch', gap: 12,
-        width: '100%', padding: '13px 16px',
-        background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12,
+        width: '100%', padding: 0,
+        background: 'none', border: 'none',
         cursor: 'pointer', textAlign: 'left', fontFamily: FONT,
-        boxShadow: '0 2px 0 #ddd0c8, 0 3px 8px rgba(62,39,35,0.05)',
-        transition: 'box-shadow 0.15s',
       }}
     >
+      <CornerCard borderColor={C.border} cornerSize={20} cornerHeight={20} style={{ background: C.surface }}>
+      <div style={{ display: 'flex', alignItems: 'stretch', gap: 12, padding: '13px 16px' }}>
       {/* Left icon */}
       <div style={{
         width: 42, height: 42, borderRadius: 11, flexShrink: 0, alignSelf: 'center',
@@ -146,7 +146,7 @@ function TxCard({ tx, onClick }) {
       }}>
         <span style={{ fontSize: 18, fontWeight: 800, color: C.textPri, letterSpacing: '-0.5px', fontVariantNumeric: 'tabular-nums', lineHeight: '22px' }}>
           <span style={{ fontSize: 12, fontWeight: 700, color: C.accent }}>$</span>
-          {tx.grandTotal}
+          {Number(tx.grandTotal ?? 0).toFixed(2)}
         </span>
         <span style={{
           width: 28, height: 28, borderRadius: 8, flexShrink: 0,
@@ -156,6 +156,8 @@ function TxCard({ tx, onClick }) {
           <ChevronRightIcon sx={{ fontSize: 18, color: '#fff' }} />
         </span>
       </div>
+      </div>
+      </CornerCard>
     </button>
   );
 }

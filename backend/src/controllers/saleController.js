@@ -1,4 +1,5 @@
 import * as saleService from '../services/saleService.js';
+// completeSale is exported from saleService
 // listTransactions is exported from saleService
 import * as shiftService from '../services/shiftService.js';
 import { sendReceiptEmail } from '../services/emailService.js';
@@ -6,7 +7,7 @@ import Sale from '../models/Sale.js';
 
 const processSale = async (req, res, next) => {
   try {
-    const { items, payments, discountTotal } = req.body;
+    const { items, payments, discountTotal, discountOverrideId } = req.body;
 
     // Shift is optional for now — sales are allowed without an open shift.
     const shift = await shiftService.getActiveShift(req.user._id);
@@ -16,7 +17,8 @@ const processSale = async (req, res, next) => {
       shift ? shift._id : null,
       items,
       payments,
-      discountTotal || 0
+      discountTotal || 0,
+      discountOverrideId || null
     );
 
     res.status(201).json(sale);
@@ -106,4 +108,20 @@ const emailReceipt = async (req, res, next) => {
   }
 };
 
-export { processSale, searchSales, getSaleDetail, listTransactions, emailReceipt };;
+const completeSale = async (req, res, next) => {
+  try {
+    const { id: saleId } = req.params;
+    const shift = await shiftService.getActiveShift(req.user._id);
+    const sale = await saleService.completeSale(
+      req.user._id,
+      saleId,
+      shift ? shift._id : null,
+    );
+    res.status(200).json(sale);
+  } catch (error) {
+    res.status(400);
+    next(error);
+  }
+};
+
+export { processSale, completeSale, searchSales, getSaleDetail, listTransactions, emailReceipt };

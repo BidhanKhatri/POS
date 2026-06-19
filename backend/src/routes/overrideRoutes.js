@@ -2,6 +2,8 @@ import express from 'express';
 const router = express.Router();
 import {
   createRefundRequest,
+  createDiscountOverride,
+  getOverrideById,
   getOverrides,
   getMyOverrides,
   approveOverride,
@@ -13,7 +15,11 @@ router.route('/')
   .get(protect, managerOrAdmin, getOverrides)
   .post(protect, createRefundRequest);
 
+// Specific named sub-routes must come before /:id to avoid being swallowed.
+router.route('/discount').post(protect, createDiscountOverride);
 router.route('/mine').get(protect, getMyOverrides);
+
+router.route('/:id').get(protect, getOverrideById);
 router.route('/:id/approve').post(protect, managerOrAdmin, approveOverride);
 router.route('/:id/deny').post(protect, managerOrAdmin, denyOverride);
 

@@ -14,6 +14,7 @@ import AccessTimeOutlinedIcon   from '@mui/icons-material/AccessTimeOutlined';
 import SearchOutlinedIcon       from '@mui/icons-material/SearchOutlined';
 import EmojiEventsOutlinedIcon  from '@mui/icons-material/EmojiEventsOutlined';
 import { useReportCashiers, buildDateRange } from '../hooks/useReportQuery';
+import CornerCard from '../components/CornerCard/CornerCard';
 
 const C = {
   primary: '#3E2723', accent: '#D4A373',
@@ -41,18 +42,20 @@ function SkeletonBlock({ h = 20, w = '100%', radius = 6 }) {
 
 function StatBox({ label, value, sub, color = C.textPri, icon: Icon }) {
   return (
-    <div style={{ padding: '14px 16px', background: C.surface, borderRadius: 11, border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 10 }}>
-      {Icon && (
-        <div style={{ width: 34, height: 34, borderRadius: 8, background: `${color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          <Icon sx={{ fontSize: 17, color }} />
+    <CornerCard borderColor={C.border} cornerSize={18} cornerHeight={18} style={{ background: C.surface }}>
+      <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+        {Icon && (
+          <div style={{ width: 34, height: 34, borderRadius: 8, background: `${color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <Icon sx={{ fontSize: 17, color }} />
+          </div>
+        )}
+        <div style={{ minWidth: 0 }}>
+          <p style={{ margin: 0, fontSize: 18, fontWeight: 800, color, letterSpacing: '-0.3px', lineHeight: '22px' }}>{value}</p>
+          {sub && <p style={{ margin: '1px 0 0', fontSize: 10, fontWeight: 600, color: C.textDim }}>{sub}</p>}
+          <p style={{ margin: '2px 0 0', fontSize: 9, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</p>
         </div>
-      )}
-      <div style={{ minWidth: 0 }}>
-        <p style={{ margin: 0, fontSize: 18, fontWeight: 800, color, letterSpacing: '-0.3px', lineHeight: '22px' }}>{value}</p>
-        {sub && <p style={{ margin: '1px 0 0', fontSize: 10, fontWeight: 600, color: C.textDim }}>{sub}</p>}
-        <p style={{ margin: '2px 0 0', fontSize: 9, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</p>
       </div>
-    </div>
+    </CornerCard>
   );
 }
 
@@ -172,7 +175,7 @@ export default function ManagerIndividualReportPage() {
               {[1, 2, 3, 4, 5].map(i => <SkeletonBlock key={i} h={56} radius={10} />)}
             </div>
           ) : filtered.length ? (
-            <div style={{ maxHeight: 'calc(100dvh - 200px)', overflowY: 'auto', paddingRight: 2 }}>
+            <div className="no-scrollbar" style={{ maxHeight: 'calc(100dvh - 200px)', overflowY: 'auto', paddingRight: 2 }}>
               {filtered.map((c, i) => (
                 <CashierRow key={c.employeeId} c={c} rank={i} isSelected={selectedId === c.employeeId || (!selectedId && i === 0)} onClick={() => setSelectedId(c.employeeId)} />
               ))}
@@ -197,26 +200,28 @@ export default function ManagerIndividualReportPage() {
           ) : active ? (
             <>
               {/* Identity bar */}
-              <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: '18px 22px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 16 }}>
-                <div style={{ width: 52, height: 52, borderRadius: 13, background: C.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <span style={{ fontSize: 18, fontWeight: 800, color: C.accent }}>{initials(active.name)}</span>
+              <CornerCard borderColor={C.border} style={{ background: C.surface, marginBottom: 14 }}>
+                <div style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16 }}>
+                  <div style={{ width: 52, height: 52, borderRadius: 13, background: C.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <span style={{ fontSize: 18, fontWeight: 800, color: C.accent }}>{initials(active.name)}</span>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ margin: 0, fontSize: 17, fontWeight: 800, color: C.textPri }}>{active.name}</p>
+                    <p style={{ margin: '3px 0 0', fontSize: 12, color: C.textSec }}>{active.role || 'Cashier'} · ID #{active.employeeId?.slice(-6)}</p>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                    {active.voidRate > 3 && (
+                      <span style={{ padding: '4px 10px', borderRadius: 8, background: `${C.error}12`, color: C.error, fontSize: 11, fontWeight: 700 }}>High Voids</span>
+                    )}
+                    {active.refundRate > 10 && (
+                      <span style={{ padding: '4px 10px', borderRadius: 8, background: `${C.error}12`, color: C.error, fontSize: 11, fontWeight: 700 }}>High Refunds</span>
+                    )}
+                    {(active.voidRate ?? 0) <= 1 && (active.refundRate ?? 0) <= 3 && (
+                      <span style={{ padding: '4px 10px', borderRadius: 8, background: `${C.success}12`, color: C.success, fontSize: 11, fontWeight: 700 }}>Performing Well</span>
+                    )}
+                  </div>
                 </div>
-                <div style={{ flex: 1 }}>
-                  <p style={{ margin: 0, fontSize: 17, fontWeight: 800, color: C.textPri }}>{active.name}</p>
-                  <p style={{ margin: '3px 0 0', fontSize: 12, color: C.textSec }}>{active.role || 'Cashier'} · ID #{active.employeeId?.slice(-6)}</p>
-                </div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                  {active.voidRate > 3 && (
-                    <span style={{ padding: '4px 10px', borderRadius: 8, background: `${C.error}12`, color: C.error, fontSize: 11, fontWeight: 700 }}>High Voids</span>
-                  )}
-                  {active.refundRate > 10 && (
-                    <span style={{ padding: '4px 10px', borderRadius: 8, background: `${C.error}12`, color: C.error, fontSize: 11, fontWeight: 700 }}>High Refunds</span>
-                  )}
-                  {(active.voidRate ?? 0) <= 1 && (active.refundRate ?? 0) <= 3 && (
-                    <span style={{ padding: '4px 10px', borderRadius: 8, background: `${C.success}12`, color: C.success, fontSize: 11, fontWeight: 700 }}>Performing Well</span>
-                  )}
-                </div>
-              </div>
+              </CornerCard>
 
               {/* Stats grid */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 14 }}>
@@ -232,9 +237,9 @@ export default function ManagerIndividualReportPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 260px', gap: 14 }}>
 
                 {/* Revenue comparison bar */}
-                <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden' }}>
-                  <div style={{ padding: '13px 18px 8px', borderBottom: `1px solid ${C.border}` }}>
-                    <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri }}>Revenue Comparison</p>
+                <CornerCard borderColor={C.border} style={{ background: C.surface }}>
+                  <div style={{ background: '#FAF7F5', borderBottom: `1px solid ${C.border}`, padding: '11px 16px' }}>
+                    <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: C.textPri }}>Revenue Comparison</p>
                     <p style={{ margin: '2px 0 0', fontSize: 10, color: C.textDim }}>Net revenue vs refunds — top 10 cashiers</p>
                   </div>
                   <div style={{ padding: '12px 4px 8px 0' }}>
@@ -249,12 +254,12 @@ export default function ManagerIndividualReportPage() {
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
-                </div>
+                </CornerCard>
 
                 {/* Radar performance */}
-                <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden' }}>
-                  <div style={{ padding: '13px 18px 8px', borderBottom: `1px solid ${C.border}` }}>
-                    <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri }}>Performance Profile</p>
+                <CornerCard borderColor={C.border} style={{ background: C.surface }}>
+                  <div style={{ background: '#FAF7F5', borderBottom: `1px solid ${C.border}`, padding: '11px 16px' }}>
+                    <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: C.textPri }}>Performance Profile</p>
                     <p style={{ margin: '2px 0 0', fontSize: 10, color: C.textDim }}>5-dimension normalized score</p>
                   </div>
                   <div style={{ padding: '8px 0' }}>
@@ -267,17 +272,19 @@ export default function ManagerIndividualReportPage() {
                       </RadarChart>
                     </ResponsiveContainer>
                   </div>
-                </div>
+                </CornerCard>
 
               </div>
             </>
           ) : (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 360, background: C.surface, borderRadius: 14, border: `1px solid ${C.border}` }}>
-              <div style={{ textAlign: 'center' }}>
-                <PersonOutlinedIcon sx={{ fontSize: 44, color: C.elevated }} />
-                <p style={{ margin: '8px 0 0', fontSize: 14, color: C.textDim }}>Select an employee to view their report</p>
+            <CornerCard borderColor={C.border} style={{ background: C.surface }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 360 }}>
+                <div style={{ textAlign: 'center' }}>
+                  <PersonOutlinedIcon sx={{ fontSize: 44, color: C.elevated }} />
+                  <p style={{ margin: '8px 0 0', fontSize: 14, color: C.textDim }}>Select an employee to view their report</p>
+                </div>
               </div>
-            </div>
+            </CornerCard>
           )}
         </div>
       </div>

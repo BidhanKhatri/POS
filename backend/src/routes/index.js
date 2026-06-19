@@ -8,6 +8,7 @@ import saleRoutes from './saleRoutes.js';
 import overrideRoutes from './overrideRoutes.js';
 import reportRoutes from './reportRoutes.js';
 import webauthnRoutes from './webauthnRoutes.js';
+import settingRoutes from './settingRoutes.js';
 
 router.use('/auth', authRoutes);
 router.use('/auth/webauthn', webauthnRoutes);
@@ -16,5 +17,6 @@ router.use('/products', productRoutes);
 router.use('/sales', saleRoutes);
 router.use('/overrides', overrideRoutes);
 router.use('/reports', reportRoutes);
+router.use('/settings', settingRoutes);
 
 export default router;

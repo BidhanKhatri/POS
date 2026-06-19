@@ -37,6 +37,14 @@ const managerOverrideSchema = new mongoose.Schema({
     type: Date,
   },
 
+  // ── Discount-specific fields ──
+  // Captured at request time so the approving manager can see exactly what
+  // was requested and what limit was in force at that moment.
+  discountType:   { type: String, enum: ['PERCENTAGE', 'FIXED'] },
+  discountValue:  { type: Number },   // raw input: % or $ entered by employee
+  discountAmount: { type: Number },   // computed dollar value to be deducted
+  discountLimit:  { type: Number },   // maxDiscountPercent in force at request time
+
   // ── Refund-specific request details ──
   // Invoice-linked refund: the request must reference a real, original sale line
   // item. Never a freestanding amount — this is what makes the refund auditable
@@ -89,6 +97,35 @@ const managerOverrideSchema = new mongoose.Schema({
     brand: { type: String, enum: ['VISA', 'MASTERCARD', 'AMEX', 'DISCOVER', 'OTHER'] },
     last4: { type: String, match: /^\d{4}$/ },
   },
+
+  // ── Sale context snapshot (DISCOUNT overrides only) ──
+  // Captured at override-submission time so: (a) the manager sees full context
+  // before approving, (b) the employee can resume directly to payment after
+  // approval without re-entering details, and (c) OverridesPage can reconstruct
+  // the TenderPage state for orphaned approved overrides.
+  saleContext: {
+    paymentMethod: { type: String, enum: ['CASH', 'CREDIT', 'DEBIT', 'MISC'] },
+    card: {
+      brand: { type: String, enum: ['VISA', 'MASTERCARD', 'AMEX', 'DISCOVER', 'OTHER'] },
+      last4: { type: String, match: /^\d{4}$/ },
+    },
+    buyer: {
+      name:  { type: String, trim: true },
+      phone: { type: String, trim: true },
+      email: { type: String, trim: true },
+    },
+  },
+
+  // For DISCOUNT overrides: the Sale document created upfront as PENDING_APPROVAL
+  // at override-submission time. The same document is finalized to COMPLETED when
+  // the employee confirms payment — no second Sale is ever created.
+  saleId: { type: mongoose.Schema.Types.ObjectId, ref: 'Sale' },
+
+  // Set once the employee finalizes payment after a DISCOUNT override is approved.
+  // Null = approved but sale not yet completed (employee needs to resume).
+  completedSaleId: { type: mongoose.Schema.Types.ObjectId, ref: 'Sale' },
+  completedAt:     { type: Date },
+
   // Client-generated key so a double-tap/network retry on submit can't create
   // two requests for the same refund attempt.
   idempotencyKey: {

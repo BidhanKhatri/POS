@@ -76,6 +76,15 @@ const saleSchema = new mongoose.Schema({
     type: Number,
     required: true,
   },
+  // Lifecycle gate: PENDING_APPROVAL / APPROVED sales are discount overrides
+  // in progress — they are excluded from reports until COMPLETED.
+  // Default is COMPLETED so all pre-existing sale documents remain valid.
+  status: {
+    type: String,
+    enum: ['PENDING_APPROVAL', 'APPROVED', 'COMPLETED', 'VOIDED'],
+    default: 'COMPLETED',
+    index: true,
+  },
   paymentStatus: {
     type: String,
     enum: ['PENDING', 'PAID', 'PARTIAL', 'REFUNDED', 'VOIDED'],

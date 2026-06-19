@@ -1,5 +1,28 @@
 import * as overrideService from '../services/overrideService.js';
 
+const createDiscountOverride = async (req, res, next) => {
+  try {
+    const { productId, productName, sku, amount, discountType, discountValue, discountAmount, reason, saleContext } = req.body;
+    const override = await overrideService.createDiscountOverride(req.user._id, {
+      productId, productName, sku, amount, discountType, discountValue, discountAmount, reason, saleContext,
+    });
+    res.status(201).json(override);
+  } catch (error) {
+    res.status(400);
+    next(error);
+  }
+};
+
+const getOverrideById = async (req, res, next) => {
+  try {
+    const override = await overrideService.getOverrideById(req.params.id, req.user._id);
+    res.json(override);
+  } catch (error) {
+    res.status(404);
+    next(error);
+  }
+};
+
 const createRefundRequest = async (req, res, next) => {
   try {
     const {
@@ -50,7 +73,12 @@ const approveOverride = async (req, res, next) => {
 
 const denyOverride = async (req, res, next) => {
   try {
-    const override = await overrideService.denyOverride(req.params.id, req.user._id);
+    const { pin } = req.body;
+    if (!pin) {
+      res.status(400);
+      throw new Error('Manager PIN is required');
+    }
+    const override = await overrideService.denyOverride(req.params.id, req.user._id, pin);
     res.status(200).json(override);
   } catch (error) {
     res.status(400);
@@ -58,4 +86,4 @@ const denyOverride = async (req, res, next) => {
   }
 };
 
-export { createRefundRequest, getOverrides, getMyOverrides, approveOverride, denyOverride };
+export { createRefundRequest, createDiscountOverride, getOverrideById, getOverrides, getMyOverrides, approveOverride, denyOverride };

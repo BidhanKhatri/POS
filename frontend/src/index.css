@@ -59,6 +59,15 @@
   }
 }
 
+/* Hide scrollbar — cross-browser (Chrome, Safari, Firefox, Edge) */
+.no-scrollbar {
+  -ms-overflow-style: none;   /* IE / Edge */
+  scrollbar-width: none;       /* Firefox */
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;               /* Chrome, Safari, Opera */
+}
+
 @keyframes pin-shake {
   0%, 100% { transform: translateX(0); }
   15%       { transform: translateX(-7px); }

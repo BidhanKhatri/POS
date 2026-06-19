@@ -5,6 +5,7 @@ import Product from '../models/Product.js';
 import InventoryMovement from '../models/InventoryMovement.js';
 import Shift from '../models/Shift.js';
 import AuditLog from '../models/AuditLog.js';
+import ManagerOverride from '../models/ManagerOverride.js';
 
 const generateInvoiceNo = () => {
   return 'INV-' + Date.now().toString().slice(-6) + Math.floor(Math.random() * 1000);
@@ -45,7 +46,7 @@ const buildPaymentRecord = (saleId, p) => {
   return record;
 };
 
-const processSale = async (employeeId, shiftId, items, payments, discountTotal = 0) => {
+const processSale = async (employeeId, shiftId, items, payments, discountTotal = 0, discountOverrideId = null) => {
   const session = await mongoose.startSession();
   session.startTransaction();
 
@@ -160,6 +161,16 @@ const processSale = async (employeeId, shiftId, items, payments, discountTotal =
     });
     await auditLog.save({ session });
 
+    // 8. Stamp the discount override as completed so OverridesPage can distinguish
+    //    "approved-not-yet-paid" from "fully finalized". No-op if no override linked.
+    if (discountOverrideId) {
+      await ManagerOverride.findByIdAndUpdate(
+        discountOverrideId,
+        { $set: { completedSaleId: sale._id, completedAt: new Date() } },
+        { session }
+      );
+    }
+
     await session.commitTransaction();
     session.endSession();
 
@@ -244,7 +255,11 @@ const listTransactions = async (requestingUser, {
   const isPrivileged = requestingUser.role === 'Manager' || requestingUser.role === 'Admin';
 
   // ── Build sale-level filter ──────────────────────────────────────────────
-  const saleFilter = {};
+  const saleFilter = {
+    // Exclude discount override sales that are still in-flight or voided.
+    // Pre-status-system sales have no `status` field — they are always shown.
+    $or: [{ status: 'COMPLETED' }, { status: { $exists: false } }],
+  };
 
   if (!isPrivileged) {
     // Employees always scoped to their own sales
@@ -336,4 +351,87 @@ const listTransactions = async (requestingUser, {
   return { transactions, total, page, pages: Math.ceil(total / limit) };
 };
 
-export { processSale, searchSales, getSaleDetail, listTransactions };
+// Finalize an APPROVED discount-override Sale: decrement stock, record payments,
+// flip status to COMPLETED. Called via POST /api/sales/:saleId/complete.
+// The Sale document already exists (created as PENDING_APPROVAL at override
+// submission) — this function performs all the side-effects that processSale
+// would have done, but operates on the pre-existing Sale rather than creating one.
+const completeSale = async (employeeId, saleId, shiftId) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const sale = await Sale.findOne({ _id: saleId, status: 'APPROVED' }).session(session);
+    if (!sale) throw new Error('Sale not found or not in APPROVED state');
+    if (String(sale.employeeId) !== String(employeeId)) {
+      throw new Error('You are not authorized to complete this sale');
+    }
+
+    // Decrement stock + record inventory movements for each item
+    for (const item of sale.items) {
+      const product = await Product.findById(item.productId).session(session);
+      if (!product || !product.isActive) {
+        throw new Error(`Product ${item.productName} not found or inactive`);
+      }
+      if (product.stockQty < item.quantity) {
+        throw new Error(`Insufficient stock for ${product.name}`);
+      }
+      const beforeQty = product.stockQty;
+      product.stockQty -= item.quantity;
+      await product.save({ session });
+
+      await InventoryMovement.create([{
+        productId:     product._id,
+        movementType:  'SALE',
+        quantity:      -item.quantity,
+        beforeQty,
+        afterQty:      product.stockQty,
+        referenceId:   sale._id,
+        referenceType: 'Sale',
+        createdBy:     employeeId,
+      }], { session });
+    }
+
+    // Finalize the Sale document
+    sale.status        = 'COMPLETED';
+    sale.paymentStatus = 'PAID';
+    if (shiftId) sale.shiftId = shiftId;
+    await sale.save({ session });
+
+    // Stamp the linked ManagerOverride as completed
+    await ManagerOverride.findOneAndUpdate(
+      { saleId: sale._id },
+      { $set: { completedSaleId: sale._id, completedAt: new Date() } },
+      { session }
+    );
+
+    // Update Shift totals
+    if (shiftId) {
+      const shift = await Shift.findById(shiftId).session(session);
+      if (shift && shift.status === 'OPEN') {
+        shift.totalSales        += sale.grandTotal;
+        shift.totalTransactions += 1;
+        await shift.save({ session });
+      }
+    }
+
+    await AuditLog.create([{
+      action:     'SALE_COMPLETED',
+      entity:     'Sale',
+      entityId:   sale._id,
+      afterData:  { invoiceNo: sale.invoiceNo, grandTotal: sale.grandTotal },
+      performedBy: employeeId,
+      role:        'Employee',
+    }], { session });
+
+    await session.commitTransaction();
+    session.endSession();
+    return sale;
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+    throw error;
+  }
+};
+
+export { processSale, completeSale, searchSales, getSaleDetail, listTransactions };

@@ -82,63 +82,243 @@ function pageRange(current, total) {
 /* ─────────────────────────────────────────────
    PIN Dialog
 ───────────────────────────────────────────── */
-function PinDialog({ open, override, error, submitting, onClose, onConfirm }) {
+function PinDialog({ open, override, error, submitting, onClose, onConfirm, mode = 'approve' }) {
   const [pin,   setPin]   = useState('');
   const [shake, setShake] = useState(false);
+  const isMobile = useMediaQuery('(max-width:480px)');
 
-  useEffect(() => { if (open) setPin(''); }, [open]);
+  useEffect(() => { if (open) { setPin(''); } }, [open]);
 
-  const push  = (d) => { if (pin.length < 4) setPin((p) => p + d); };
-  const del   = ()  => setPin((p) => p.slice(0, -1));
-  const clear = ()  => setPin('');
+  // Auto-submit when 4th digit is entered
+  useEffect(() => {
+    if (pin.length === 4) {
+      const t = setTimeout(() => onConfirm(pin), 120);
+      return () => clearTimeout(t);
+    }
+  }, [pin]);
 
-  const handleConfirm = () => {
-    if (pin.length < 4) { setShake(true); setTimeout(() => setShake(false), 450); return; }
-    onConfirm(pin);
+  const push = (d) => {
+    if (submitting) return;
+    setPin((p) => { if (p.length >= 4) return p; return p + d; });
   };
+  const del   = () => { if (!submitting) setPin((p) => p.slice(0, -1)); };
+  const clear = () => { if (!submitting) setPin(''); };
+
   const handleClose = () => { setPin(''); onClose(); };
 
-  const KEYS = ['1','2','3','4','5','6','7','8','9'];
+  const meta       = TYPE_META[override?.actionType] || TYPE_META.REFUND;
+  const isDiscount = override?.actionType === 'DISCOUNT';
+  const isRefund   = override?.actionType === 'REFUND';
+  const originalPrice = isDiscount ? (override?.amount || 0) + (override?.discountAmount || 0) : (override?.amount || 0);
+  const amountDisplay = isDiscount
+    ? `${formatMoney(originalPrice)} → ${formatMoney(override?.amount)}`
+    : formatMoney(override?.amount);
+
+  const ROWS = [['1','2','3'],['4','5','6'],['7','8','9']];
+
+  const keyBtn = (label, onClick, variant = 'digit') => {
+    const isDigit   = variant === 'digit';
+    const isAction  = variant === 'action';
+    const sz = isMobile ? 68 : 72;
+    return (
+      <button
+        key={label}
+        onClick={onClick}
+        disabled={submitting}
+        className="active:translate-y-[3px]"
+        style={{
+          width: sz, height: sz,
+          borderRadius: 14,
+          border: `1px solid ${isDigit ? C.border : 'transparent'}`,
+          background: isDigit ? C.surface : isAction ? C.bg : 'transparent',
+          fontSize: isDigit ? (isMobile ? 20 : 22) : 12,
+          fontWeight: isDigit ? 700 : 600,
+          color: isDigit ? C.textPri : C.textSec,
+          cursor: submitting ? 'not-allowed' : 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: isDigit ? `0 3px 0 ${C.border}` : 'none',
+          transition: 'box-shadow 0.1s, transform 0.1s',
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
+          flexShrink: 0,
+          opacity: submitting ? 0.5 : 1,
+        }}
+      >
+        {label}
+      </button>
+    );
+  };
 
   return (
-    <Dialog open={open} onClose={handleClose}
-      PaperProps={{ style: { borderRadius: 16, maxWidth: 320, width: '100%', boxShadow: '0 20px 60px rgba(42,23,21,0.18)', margin: 16 } }}
+    <Dialog
+      open={open}
+      onClose={handleClose}
+      PaperProps={{
+        style: {
+          borderRadius: 20,
+          width: isMobile ? '96vw' : 720,
+          maxWidth: 720,
+          margin: 'auto',
+          boxShadow: '0 24px 80px rgba(42,23,21,0.22), 0 8px 24px rgba(42,23,21,0.12)',
+          overflow: 'hidden',
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
+        },
+      }}
+      slotProps={{ backdrop: { style: { backdropFilter: 'blur(3px)', background: 'rgba(42,23,21,0.35)' } } }}
     >
-      <DialogContent style={{ padding: '28px 24px 24px' }}>
-        <div style={{ textAlign: 'center', marginBottom: 20 }}>
-          <div style={{ width: 48, height: 48, borderRadius: 14, background: C.elevated, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
-            <LockOutlinedIcon sx={{ fontSize: 24, color: C.primary }} />
+      {/* ── Dark header strip ── */}
+      <div style={{
+        background: mode === 'deny'
+          ? `linear-gradient(135deg, ${C.error} 0%, #7B1010 100%)`
+          : `linear-gradient(135deg, ${C.primary} 0%, #5D4037 100%)`,
+        padding: '16px 20px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: 10,
+            background: mode === 'deny' ? 'rgba(255,255,255,0.15)' : 'rgba(212,163,115,0.18)',
+            border: `1px solid ${mode === 'deny' ? 'rgba(255,255,255,0.25)' : 'rgba(212,163,115,0.30)'}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          }}>
+            <LockOutlinedIcon sx={{ fontSize: 18, color: mode === 'deny' ? '#fff' : C.accent }} />
           </div>
-          <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: C.textPri }}>Manager PIN</p>
-          <p style={{ margin: '4px 0 0', fontSize: 12, fontWeight: 500, color: C.textSec, lineHeight: '18px' }}>
-            Enter your PIN to authorize<br />
-            <strong style={{ color: C.textPri }}>{TYPE_META[override?.actionType]?.label}</strong>
-          </p>
+          <div>
+            <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: '#fff', lineHeight: 1.2 }}>
+              {mode === 'deny' ? 'Confirm Denial' : 'Manager PIN Verification'}
+            </p>
+            <p style={{ margin: '2px 0 0', fontSize: 10, fontWeight: 600, color: 'rgba(255,255,255,0.55)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+              {meta.label}
+            </p>
+          </div>
         </div>
-        <div className={shake ? 'pin-shake' : ''} style={{ display: 'flex', justifyContent: 'center', gap: 12, marginBottom: 12 }}>
-          {[0,1,2,3].map((i) => (
-            <div key={i} style={{ width: 14, height: 14, borderRadius: '50%', background: i < pin.length ? C.primary : 'transparent', border: `2px solid ${i < pin.length ? C.primary : C.border}`, transition: 'background 0.15s, border-color 0.15s' }} />
+        <button onClick={handleClose} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex', opacity: 0.6 }}>
+          <CloseOutlinedIcon sx={{ fontSize: 18, color: '#fff' }} />
+        </button>
+      </div>
+
+      {/* ── Body: two-column on desktop, stacked on mobile ── */}
+      <div style={{
+        display: 'flex',
+        flexDirection: isMobile ? 'column' : 'row',
+      }}>
+
+        {/* LEFT — context + PIN indicator + actions */}
+        <div style={{
+          flex: 1,
+          padding: isMobile ? '18px 18px 0' : '22px 24px 24px',
+          display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 16,
+          borderRight: isMobile ? 'none' : `1px solid ${C.border}`,
+          borderBottom: isMobile ? `1px solid ${C.border}` : 'none',
+        }}>
+
+          {/* Override context */}
+          <div>
+            <p style={{ margin: '0 0 10px', fontSize: 9, fontWeight: 700, color: C.textDim, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+              Override Details
+            </p>
+            <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', marginBottom: 8 }}>
+              <p style={{ margin: '0 0 1px', fontSize: 10, fontWeight: 600, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Product</p>
+              <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri }}>
+                {override?.productName || '—'}{override?.sku ? ` · ${override.sku}` : ''}
+              </p>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px' }}>
+                <p style={{ margin: '0 0 1px', fontSize: 10, fontWeight: 600, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  {isDiscount ? 'Original' : 'Amount'}
+                </p>
+                <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: C.textPri, letterSpacing: '-0.3px' }}>
+                  {formatMoney(originalPrice)}
+                </p>
+              </div>
+              {isDiscount && (
+                <div style={{ background: `${C.success}0D`, border: `1px solid ${C.success}40`, borderRadius: 10, padding: '10px 14px' }}>
+                  <p style={{ margin: '0 0 1px', fontSize: 10, fontWeight: 600, color: C.success, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Final Total</p>
+                  <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: C.success, letterSpacing: '-0.3px' }}>
+                    {formatMoney(override?.amount)}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* PIN dots */}
+          <div>
+            <p style={{ margin: '0 0 10px', fontSize: 9, fontWeight: 700, color: C.textDim, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+              Enter 4-Digit PIN
+            </p>
+            <div className={shake ? 'pin-shake' : ''} style={{
+              display: 'flex', gap: 12, padding: '14px 18px', borderRadius: 12,
+              background: C.bg, border: `1.5px solid ${error ? C.error : pin.length === 4 ? (mode === 'deny' ? C.error : C.primary) : C.border}`,
+              transition: 'border-color 0.15s',
+            }}>
+              {[0,1,2,3].map((i) => (
+                <div key={i} style={{
+                  flex: 1, height: 14, borderRadius: 4,
+                  background: i < pin.length ? (mode === 'deny' ? C.error : C.primary) : C.border,
+                  transition: 'background 0.12s',
+                }} />
+              ))}
+            </div>
+            {error && <p style={{ margin: '6px 0 0', fontSize: 11, fontWeight: 700, color: C.error }}>{error}</p>}
+          </div>
+
+          {/* Actions */}
+          <div style={{ display: 'flex', gap: 8, paddingBottom: isMobile ? 18 : 0 }}>
+            <button
+              onClick={handleClose}
+              disabled={submitting}
+              style={{
+                flex: 1, height: 44, borderRadius: 10,
+                border: `1px solid ${C.border}`, background: C.surface,
+                fontSize: 13, fontWeight: 600, color: C.textSec,
+                cursor: submitting ? 'not-allowed' : 'pointer',
+                fontFamily: "'Plus Jakarta Sans', sans-serif",
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => { if (pin.length < 4) { setShake(true); setTimeout(() => setShake(false), 450); return; } onConfirm(pin); }}
+              disabled={submitting || pin.length < 4}
+              style={{
+                flex: 2, height: 44, borderRadius: 10,
+                border: pin.length === 4 ? `2px solid ${mode === 'deny' ? C.error : C.accent}` : `1px solid ${C.border}`,
+                background: pin.length === 4 ? (mode === 'deny' ? C.error : C.primary) : C.elevated,
+                fontSize: 13, fontWeight: 700, color: pin.length === 4 ? '#fff' : C.textDim,
+                cursor: submitting || pin.length < 4 ? 'not-allowed' : 'pointer',
+                opacity: submitting ? 0.65 : 1,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                fontFamily: "'Plus Jakarta Sans', sans-serif",
+                boxShadow: pin.length === 4 ? `0 3px 0 ${mode === 'deny' ? '#7B0000' : '#2A1715'}` : 'none',
+                transition: 'all 0.15s',
+              }}
+            >
+              <KeyOutlinedIcon sx={{ fontSize: 15 }} />
+              {submitting ? 'Verifying…' : mode === 'deny' ? 'Confirm Deny' : 'Authorize'}
+            </button>
+          </div>
+        </div>
+
+        {/* RIGHT — numpad */}
+        <div style={{
+          padding: isMobile ? '18px' : '20px 24px',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8,
+          background: C.bg,
+        }}>
+          {ROWS.map((row) => (
+            <div key={row[0]} style={{ display: 'flex', gap: 8 }}>
+              {row.map((d) => keyBtn(d, () => push(d), 'digit'))}
+            </div>
           ))}
+          <div style={{ display: 'flex', gap: 8 }}>
+            {keyBtn('CLR', clear, 'action')}
+            {keyBtn('0', () => push('0'), 'digit')}
+            {keyBtn(<BackspaceOutlinedIcon sx={{ fontSize: 18 }} />, del, 'action')}
+          </div>
         </div>
-        {error && <p style={{ margin: '0 0 12px', fontSize: 12, fontWeight: 700, color: C.error, textAlign: 'center' }}>{error}</p>}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 16 }}>
-          {KEYS.map((d) => (
-            <button key={d} onClick={() => push(d)} style={{ height: 50, borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, fontSize: 20, fontWeight: 700, color: C.textPri, cursor: 'pointer', boxShadow: `0 3px 0 ${C.border}` }}>{d}</button>
-          ))}
-          <button onClick={clear} style={{ height: 50, borderRadius: 10, border: `1px solid ${C.border}`, background: C.bg, fontSize: 11, fontWeight: 700, color: C.textSec, letterSpacing: '0.06em', cursor: 'pointer', boxShadow: `0 3px 0 ${C.border}` }}>CLR</button>
-          <button onClick={() => push('0')} style={{ height: 50, borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, fontSize: 20, fontWeight: 700, color: C.textPri, cursor: 'pointer', boxShadow: `0 3px 0 ${C.border}` }}>0</button>
-          <button onClick={del} style={{ height: 50, borderRadius: 10, border: `1px solid ${C.border}`, background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: `0 3px 0 ${C.border}` }}>
-            <BackspaceOutlinedIcon sx={{ fontSize: 20, color: C.textSec }} />
-          </button>
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={handleClose} style={{ flex: 1, height: 44, borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, fontSize: 13, fontWeight: 600, color: C.textSec, cursor: 'pointer' }}>Cancel</button>
-          <button onClick={handleConfirm} disabled={submitting} style={{ flex: 2, height: 44, borderRadius: 10, border: 'none', background: C.primary, fontSize: 13, fontWeight: 700, color: '#fff', cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.6 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-            <KeyOutlinedIcon sx={{ fontSize: 16 }} />
-            {submitting ? 'Verifying…' : 'Authorize'}
-          </button>
-        </div>
-      </DialogContent>
+
+      </div>
     </Dialog>
   );
 }
@@ -150,10 +330,22 @@ function OverrideCard({ item, onAuthorize, onDeny, denying, isDesktop }) {
   const meta = TYPE_META[item.actionType] || TYPE_META.REFUND;
   const p    = PRIORITY[meta.priority];
   const Icon = meta.icon;
-  const details = [
-    { label: 'Amount', value: formatMoney(item.amount), errorColor: true },
-    { label: 'Item',   value: `${item.productName || ''}${item.sku ? ` (${item.sku})` : ''}${item.requestedQty ? ` ×${item.requestedQty}` : ''}` },
-  ];
+  const isDiscount = item.actionType === 'DISCOUNT';
+  const originalAmount = (item.amount || 0) + (item.discountAmount || 0);
+  const finalTotal = item.amount || 0;
+  const discountTypeSub = item.discountType === 'PERCENTAGE'
+    ? `${item.discountValue}% off`
+    : 'fixed amount';
+  const details = isDiscount
+    ? [
+        { label: 'Original Price', value: formatMoney(originalAmount),       sub: null,             errorColor: false },
+        { label: 'Discount Off',   value: `−${formatMoney(item.discountAmount)}`, sub: discountTypeSub, errorColor: false },
+        { label: 'Final Total',    value: formatMoney(finalTotal),          sub: null,             accent: true      },
+      ]
+    : [
+        { label: 'Amount', value: formatMoney(item.amount), errorColor: true },
+        { label: 'Item',   value: `${item.productName || ''}${item.sku ? ` (${item.sku})` : ''}${item.requestedQty ? ` ×${item.requestedQty}` : ''}` },
+      ];
 
   return (
     <CornerPanel color={p.badgeColor} style={{ borderRadius: 12 }}>
@@ -182,18 +374,64 @@ function OverrideCard({ item, onAuthorize, onDeny, denying, isDesktop }) {
 
       <div style={{ padding: isDesktop ? '12px 18px' : '10px 14px', borderBottom: `1px solid ${C.border}` }}>
         <div style={{ display: 'grid', gridTemplateColumns: `repeat(${details.length}, 1fr)`, gap: 8 }}>
-          {details.map(({ label, value, errorColor }) => (
-            <div key={label} style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 10px' }}>
-              <p style={{ margin: '0 0 3px', fontSize: 9, fontWeight: 700, color: C.textDim, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{label}</p>
-              <p style={{ margin: 0, fontSize: 15, fontWeight: 800, letterSpacing: '-0.2px', color: errorColor ? C.error : C.textPri }}>{value}</p>
+          {details.map(({ label, value, sub, errorColor, accent }) => (
+            <div key={label} style={{
+              background: accent ? `${C.success}0D` : C.bg,
+              border: `1px solid ${accent ? `${C.success}40` : C.border}`,
+              borderRadius: 8, padding: '8px 10px',
+            }}>
+              <p style={{ margin: '0 0 3px', fontSize: 9, fontWeight: 700, color: accent ? C.success : C.textDim, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{label}</p>
+              <p style={{ margin: 0, fontSize: 15, fontWeight: 800, letterSpacing: '-0.2px', color: errorColor ? C.error : accent ? C.success : C.textPri }}>{value}</p>
+              {sub && <p style={{ margin: '2px 0 0', fontSize: 9, fontWeight: 600, color: C.textDim, letterSpacing: '0.04em' }}>{sub}</p>}
             </div>
           ))}
         </div>
-        <div style={{ marginTop: 8, display: 'flex', flexDirection: isDesktop ? 'row' : 'column', flexWrap: 'wrap', gap: isDesktop ? 16 : 3 }}>
-          <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: C.textSec }}>Buyer: <strong style={{ color: C.textPri }}>{item.buyer?.name || '—'}</strong>{item.buyer?.phone ? ` · ${item.buyer.phone}` : ''}</p>
-          <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: C.textSec }}>Refund via: <strong style={{ color: C.textPri }}>{item.paymentMethod}</strong>{item.card?.last4 ? ` •••• ${item.card.last4}` : ''}</p>
-        </div>
-        {(item.methodOverridden || !item.buyerVerified) && (
+        {isDiscount ? (
+          <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {/* Product + limit row */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
+              <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: C.textSec }}>
+                Product: <strong style={{ color: C.textPri }}>{item.productName || '—'}{item.sku ? ` (${item.sku})` : ''}</strong>
+              </p>
+              {item.discountLimit != null && (
+                <>
+                  <span style={{ color: C.textDim }}>·</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: C.textSec }}>
+                    Limit: <strong style={{ color: C.warning }}>{item.discountLimit}%</strong>
+                  </span>
+                  {item.discountType === 'PERCENTAGE' && item.discountValue > item.discountLimit && (
+                    <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 7px', borderRadius: 10, background: 'rgba(183,28,28,0.09)', border: '1px solid rgba(183,28,28,0.25)', color: C.error }}>
+                      ⚠ Exceeds by {(item.discountValue - item.discountLimit).toFixed(1)}%
+                    </span>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Buyer details from saleContext */}
+            {item.saleContext?.buyer?.name && (
+              <div style={{ display: 'flex', flexDirection: isDesktop ? 'row' : 'column', flexWrap: 'wrap', gap: isDesktop ? 16 : 3 }}>
+                <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: C.textSec }}>
+                  Buyer: <strong style={{ color: C.textPri }}>{item.saleContext.buyer.name}</strong>
+                  {item.saleContext.buyer.phone ? <span style={{ color: C.textDim }}> · {item.saleContext.buyer.phone}</span> : null}
+                  {item.saleContext.buyer.email ? <span style={{ color: C.textDim }}> · {item.saleContext.buyer.email}</span> : null}
+                </p>
+                {item.saleContext.paymentMethod && (
+                  <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: C.textSec }}>
+                    Payment: <strong style={{ color: C.textPri }}>{item.saleContext.paymentMethod}</strong>
+                    {item.saleContext.card?.last4 ? <span style={{ color: C.textDim }}> •••• {item.saleContext.card.last4}</span> : null}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div style={{ marginTop: 8, display: 'flex', flexDirection: isDesktop ? 'row' : 'column', flexWrap: 'wrap', gap: isDesktop ? 16 : 3 }}>
+            <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: C.textSec }}>Buyer: <strong style={{ color: C.textPri }}>{item.buyer?.name || '—'}</strong>{item.buyer?.phone ? ` · ${item.buyer.phone}` : ''}</p>
+            <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: C.textSec }}>Refund via: <strong style={{ color: C.textPri }}>{item.paymentMethod}</strong>{item.card?.last4 ? ` •••• ${item.card.last4}` : ''}</p>
+          </div>
+        )}
+        {!isDiscount && (item.methodOverridden || !item.buyerVerified) && (
           <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {item.methodOverridden && <span style={{ fontSize: 10, fontWeight: 800, padding: '3px 9px', borderRadius: 20, background: 'rgba(183,28,28,0.09)', border: '1px solid rgba(183,28,28,0.25)', color: C.error }}>⚠ Refund method differs from original payment</span>}
             {!item.buyerVerified   && <span style={{ fontSize: 10, fontWeight: 800, padding: '3px 9px', borderRadius: 20, background: 'rgba(178,106,0,0.10)', border: '1px solid rgba(178,106,0,0.30)', color: C.warning }}>⚠ Buyer not verified against invoice</span>}
@@ -482,7 +720,7 @@ function PendingPanel({ pending, onAuthorize, onDeny, denyingId, isDesktop }) {
 ───────────────────────────────────────────── */
 function HistoryTable({ history, isDesktop }) {
   return (
-    <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, overflowX: 'auto' }}>
+    <div className="no-scrollbar" style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, overflowX: 'auto' }}>
       <div style={{
         minWidth: isDesktop ? 560 : 'auto',
       }}>
@@ -537,12 +775,14 @@ export default function ManagerOverridePage() {
   const headers   = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
   const isDesktop = useMediaQuery('(min-width:1024px)');
 
-  const [overrides,  setOverrides]  = useState([]);
-  const [loading,    setLoading]    = useState(true);
-  const [pinTarget,  setPinTarget]  = useState(null);
-  const [pinError,   setPinError]   = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [denyingId,  setDenyingId]  = useState(null);
+  const [overrides,      setOverrides]      = useState([]);
+  const [loading,        setLoading]        = useState(true);
+  const [pinTarget,      setPinTarget]      = useState(null);
+  const [pinError,       setPinError]       = useState('');
+  const [submitting,     setSubmitting]     = useState(false);
+  const [denyPinTarget,  setDenyPinTarget]  = useState(null);
+  const [denyPinError,   setDenyPinError]   = useState('');
+  const [denySubmitting, setDenySubmitting] = useState(false);
 
   const loadOverrides = useCallback(() => {
     setLoading(true);
@@ -568,10 +808,16 @@ export default function ManagerOverridePage() {
     } catch (e) { setPinError(e.message); }
     finally { setSubmitting(false); }
   };
-  const handleDeny = async (item) => {
-    setDenyingId(item._id);
-    try { await fetch(`${API}/api/overrides/${item._id}/deny`, { method: 'POST', headers }); loadOverrides(); }
-    finally { setDenyingId(null); }
+  const handleDeny = (item) => { setDenyPinError(''); setDenyPinTarget(item); };
+  const handleDenyPinConfirm = async (pin) => {
+    setDenySubmitting(true); setDenyPinError('');
+    try {
+      const res  = await fetch(`${API}/api/overrides/${denyPinTarget._id}/deny`, { method: 'POST', headers, body: JSON.stringify({ pin }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Denial failed');
+      setDenyPinTarget(null); loadOverrides();
+    } catch (e) { setDenyPinError(e.message); }
+    finally { setDenySubmitting(false); }
   };
 
   const statItems = [
@@ -622,7 +868,7 @@ export default function ManagerOverridePage() {
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden', borderTop: `1px solid ${C.border}` }}>
 
           {/* Left: pending — searchable, filterable, paginated */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px 32px 32px' }}>
+          <div className="no-scrollbar" style={{ flex: 1, overflowY: 'auto', padding: '20px 24px 32px 32px' }}>
             <CornerPanel color={pending.length > 0 ? C.error : C.textDim} style={{ marginBottom: 16, padding: '12px 16px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -639,12 +885,12 @@ export default function ManagerOverridePage() {
             {loading ? (
               <div style={{ textAlign: 'center', padding: '24px 0', fontSize: 12, fontWeight: 600, color: C.textDim }}>Loading overrides…</div>
             ) : (
-              <PendingPanel pending={pending} onAuthorize={handleAuthorize} onDeny={handleDeny} denyingId={denyingId} isDesktop />
+              <PendingPanel pending={pending} onAuthorize={handleAuthorize} onDeny={handleDeny} denyingId={null} isDesktop />
             )}
           </div>
 
           {/* Right: history — fixed, scrolls independently */}
-          <div style={{ width: 460, flexShrink: 0, overflowY: 'auto', padding: '20px 32px 32px 24px', borderLeft: `1px solid ${C.border}`, background: '#FAF8F6' }}>
+          <div className="no-scrollbar" style={{ width: 460, flexShrink: 0, overflowY: 'auto', padding: '20px 32px 32px 24px', borderLeft: `1px solid ${C.border}`, background: '#FAF8F6' }}>
             <CornerPanel color={C.textDim} bg="#FAF8F6" style={{ marginBottom: 16, padding: '12px 16px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -661,6 +907,7 @@ export default function ManagerOverridePage() {
         </div>
 
         <PinDialog open={!!pinTarget} override={pinTarget} error={pinError} submitting={submitting} onClose={() => setPinTarget(null)} onConfirm={handlePinConfirm} />
+        <PinDialog open={!!denyPinTarget} override={denyPinTarget} error={denyPinError} submitting={denySubmitting} onClose={() => setDenyPinTarget(null)} onConfirm={handleDenyPinConfirm} mode="deny" />
       </div>
     );
   }
@@ -700,7 +947,7 @@ export default function ManagerOverridePage() {
         {loading ? (
           <div style={{ textAlign: 'center', padding: '24px 0', fontSize: 12, fontWeight: 600, color: C.textDim }}>Loading overrides…</div>
         ) : (
-          <PendingPanel pending={pending} onAuthorize={handleAuthorize} onDeny={handleDeny} denyingId={denyingId} isDesktop={false} />
+          <PendingPanel pending={pending} onAuthorize={handleAuthorize} onDeny={handleDeny} denyingId={null} isDesktop={false} />
         )}
       </div>
 
@@ -708,6 +955,7 @@ export default function ManagerOverridePage() {
       <HistoryTable history={resolved} isDesktop={false} />
 
       <PinDialog open={!!pinTarget} override={pinTarget} error={pinError} submitting={submitting} onClose={() => setPinTarget(null)} onConfirm={handlePinConfirm} />
+      <PinDialog open={!!denyPinTarget} override={denyPinTarget} error={denyPinError} submitting={denySubmitting} onClose={() => setDenyPinTarget(null)} onConfirm={handleDenyPinConfirm} mode="deny" />
     </div>
   );
 }

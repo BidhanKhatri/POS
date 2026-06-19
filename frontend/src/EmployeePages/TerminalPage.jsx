@@ -23,8 +23,9 @@ function toDisplay(raw) {
 export default function TerminalPage() {
   const navigate              = useNavigate();
   const { pathname }          = useLocation();
-  const tenderPath            = pathname.startsWith('/manager') ? '/manager/tender' : '/employee/tender';
-  const refundPath            = pathname.startsWith('/manager') ? '/manager/refund' : '/employee/refund';
+  const tenderPath            = pathname.startsWith('/manager') ? '/manager/tender'   : '/employee/tender';
+  const discountPath          = pathname.startsWith('/manager') ? '/manager/discount' : '/employee/discount';
+  const refundPath            = pathname.startsWith('/manager') ? '/manager/refund'   : '/employee/refund';
   const token                 = useAuthStore((s) => s.token);
 
   const [amountRaw, setAmountRaw]             = useState('');
@@ -147,15 +148,35 @@ export default function TerminalPage() {
 
   /* ── Navigate to tender (sale) or refund flow, carrying the confirmed
      amount + selected product as the starting context for either page ── */
-  const handleCheckout = () => {
+  const handleCheckout = async () => {
     if (!canCheckout) return;
     beep(784, 80, 'sine', 0.12);
     setTimeout(() => beep(1046, 110, 'sine', 0.10), 75);
-    navigate(isRefundMode ? refundPath : tenderPath, {
+
+    if (isRefundMode) {
+      navigate(refundPath, { state: { amount: confirmedAmount, product: selectedProduct, transactionType } });
+      return;
+    }
+
+    // For SL: check discount limit — if 0%, skip the discount step entirely.
+    let skipDiscount = false;
+    try {
+      const res = await fetch(`${API}/api/settings/discount-limit`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        skipDiscount = (data.maxDiscountPercent ?? 10) === 0;
+      }
+    } catch { /* network error — default to showing the discount page */ }
+
+    const nextPath = skipDiscount ? tenderPath : discountPath;
+    navigate(nextPath, {
       state: {
         amount: confirmedAmount,
         product: selectedProduct,
         transactionType,
+        ...(skipDiscount && { discount: null }),
       },
     });
   };
