@@ -150,15 +150,28 @@ function CompletedSaleScreen({ sale, token, API, onNewSale, paymentMethods }) {
         </div>
 
         <div style={{ padding: '4px 16px 12px' }}>
-          {/* Product row (acts as the "item" row) */}
-          <ReceiptRow label={sale.product?.code || 'Item'}>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
-              <span>{sale.product?.name}</span>
-              <span style={{ fontSize: 11, color: '#A09490', fontWeight: 500 }}>
-                1 × ${total}
-              </span>
-            </div>
-          </ReceiptRow>
+          {/* Line items */}
+          {sale.items && sale.items.length > 1 ? (
+            sale.items.map((item, idx) => (
+              <ReceiptRow key={item.id || idx} label={item.product?.code || `Item ${idx + 1}`}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
+                  <span>{item.product?.name}</span>
+                  <span style={{ fontSize: 11, color: '#A09490', fontWeight: 500 }}>
+                    {item.qty} × ${item.sellingPrice}
+                  </span>
+                </div>
+              </ReceiptRow>
+            ))
+          ) : (
+            <ReceiptRow label={sale.product?.code || 'Item'}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
+                <span>{sale.product?.name}</span>
+                <span style={{ fontSize: 11, color: '#A09490', fontWeight: 500 }}>
+                  1 × ${total}
+                </span>
+              </div>
+            </ReceiptRow>
+          )}
 
           {/* Dashed divider */}
           <div style={{ borderTop: '1.5px dashed #E6DAD5', margin: '8px 0' }} />
@@ -291,9 +304,23 @@ function CompletedSaleScreen({ sale, token, API, onNewSale, paymentMethods }) {
 export default function TenderPage() {
   const navigate              = useNavigate();
   const location              = useLocation();
-  const { amount, product, transactionType, discount } = location.state || {};
-  // discount = { type, value, amount: dollarOff, finalAmount, overrideId } | null
-  const chargeAmount = discount ? discount.finalAmount : amount;
+  const { amount, product, items, transactionType, discount, priceOverride } = location.state || {};
+  // items         = [{id, product, sellingPrice, qty}] for multi-item carts | undefined for legacy single
+  // discount      = { type, value, amount: dollarOff, finalAmount, overrideId, saleId, prefill } | null
+  // priceOverride = { saleId, overrideId, items?, varianceItems?, defaultPrice?, sellingPrice?, variancePercent?, prefill } | null
+
+  // Subtotal of all cart items (or fallback to legacy single-item amount)
+  const cartSubtotal = items
+    ? items.reduce((sum, i) => sum + i.sellingPrice * i.qty, 0)
+    : (amount || 0);
+
+  const chargeAmount = priceOverride
+    ? (priceOverride.items
+        ? priceOverride.items.reduce((s, i) => s + i.sellingPrice * i.qty, 0)
+        : (priceOverride.sellingPrice || cartSubtotal))
+    : discount
+    ? discount.finalAmount
+    : cartSubtotal;
   const terminalPath          = location.pathname.startsWith('/manager') ? '/manager/terminal' : '/employee/terminal';
   const token                 = useAuthStore((s) => s.token);
 
@@ -316,9 +343,11 @@ export default function TenderPage() {
   // OverridesPage Resume), pre-fill the payment/buyer fields that were captured
   // at override-submission time so the employee only needs to confirm.
   useEffect(() => {
-    if (discount?.prefill) {
-      const { method, buyer, card } = discount.prefill;
-      if (method) setSelectedMethod(method);
+    const prefill = discount?.prefill || priceOverride?.prefill;
+    if (prefill) {
+      const { method, paymentMethod, buyer, card } = prefill;
+      const m = method || paymentMethod;
+      if (m) setSelectedMethod(m);
       if (buyer?.name)  setBuyerName(buyer.name);
       if (buyer?.phone) setBuyerPhone(buyer.phone);
       if (buyer?.email) setBuyerEmail(buyer.email);
@@ -383,9 +412,11 @@ export default function TenderPage() {
         payment.card = { brand: cardBrand, last4: cardLast4.trim() };
       }
 
+      // Resolve the single product reference for refunds and legacy single-item paths
+      const singleProduct = product || items?.[0]?.product;
+
       if (isRefund) {
-        // Refunds aren't processed directly by the employee — they're sent to the
-        // manager's Overrides queue and only take effect once PIN-authorized there.
+        // Refunds are per-item; first item is used (terminal sends single-item for refunds)
         const res = await fetch(`${API}/api/overrides`, {
           method: 'POST',
           headers: {
@@ -393,12 +424,12 @@ export default function TenderPage() {
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-            amount,
-            productId: product.productId,
+            amount: singleProduct ? (items?.[0]?.sellingPrice || amount) : amount,
+            productId: singleProduct?.productId,
             paymentMethod: selectedMethod,
             buyer: payment.buyer,
             card: payment.card,
-            reason: `Refund requested at terminal for ${product.code} — ${product.name}`,
+            reason: `Refund requested at terminal for ${singleProduct?.code} — ${singleProduct?.name}`,
           }),
         });
         const data = await res.json();
@@ -407,8 +438,8 @@ export default function TenderPage() {
         setPendingOverride({
           id: data._id,
           createdAt: data.createdAt,
-          amount,
-          product,
+          amount: items?.[0]?.sellingPrice || amount,
+          product: singleProduct,
           method: selectedMethod,
           buyer: payment.buyer,
           card: payment.card || null,
@@ -416,25 +447,38 @@ export default function TenderPage() {
         return;
       }
 
-      // When a discount override was pre-approved (Sale already exists as APPROVED),
-      // finalize it via /complete rather than creating a duplicate Sale document.
-      const isOverrideSale = !!discount?.saleId;
+      // When a discount or price-change override was pre-approved (Sale already
+      // exists as APPROVED), finalize it via /complete instead of creating a new one.
+      const overrideSaleId  = discount?.saleId || priceOverride?.saleId;
+      const overrideId      = discount?.overrideId || priceOverride?.overrideId;
+      const isOverrideSale  = !!overrideSaleId;
+
+      // Build line items for new (non-override) sale creation
+      const saleLineItems = items && items.length > 0
+        ? items.map((i) => ({
+            productId: i.product.productId,
+            quantity:  i.qty,
+            unitPrice: i.sellingPrice,
+            discount:  0,
+          }))
+        : [{
+            productId: singleProduct?.productId,
+            quantity:  1,
+            unitPrice: amount,
+            discount:  discount ? discount.amount : 0,
+          }];
+
       const saleRes = isOverrideSale
-        ? await fetch(`${API}/api/sales/${discount.saleId}/complete`, {
+        ? await fetch(`${API}/api/sales/${overrideSaleId}/complete`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ discountOverrideId: discount.overrideId }),
+            body: JSON.stringify({ discountOverrideId: overrideId }),
           })
         : await fetch(`${API}/api/sales`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
             body: JSON.stringify({
-              items: [{
-                productId:  product.productId,
-                quantity:   1,
-                unitPrice:  amount,
-                discount:   discount ? discount.amount : 0,
-              }],
+              items: saleLineItems,
               payments: [payment],
               discountTotal: discount ? discount.amount : 0,
               ...(discount?.overrideId && { discountOverrideId: discount.overrideId }),
@@ -448,9 +492,10 @@ export default function TenderPage() {
         saleId: data._id,
         invoiceNo: data.invoiceNo,
         createdAt: data.createdAt,
-        grandTotal: data.grandTotal,
-        amount,
-        product,
+        grandTotal: data.grandTotal ?? chargeAmount,
+        amount: chargeAmount,
+        items,          // multi-item array (may be undefined for legacy)
+        product: singleProduct,
         transactionType,
         method: selectedMethod,
         buyer: payment.buyer,
@@ -594,7 +639,8 @@ export default function TenderPage() {
     );
   }
 
-  if (!amount || !product) {
+  const hasValidState = (items && items.length > 0) || (amount && product);
+  if (!hasValidState) {
     return (
       <div style={{
         padding: '40px 20px', textAlign: 'center',
@@ -675,14 +721,34 @@ export default function TenderPage() {
           </span>
         </div>
 
+        {/* Multi-item line list */}
+        {items && items.length > 1 && !discount && !priceOverride && (
+          <div style={{ padding: '10px 18px 0' }}>
+            {items.map((item, idx) => (
+              <div key={item.id || idx} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '5px 0', borderBottom: idx < items.length - 1 ? '1px solid #F0E8E3' : 'none',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ padding: '1px 6px', borderRadius: 4, background: '#3E2723', color: '#D4A373', fontSize: 10, fontWeight: 800 }}>
+                    {item.product.code}
+                  </span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: '#6B5B57' }}>{item.product.name}</span>
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#2B1D1A', fontVariantNumeric: 'tabular-nums' }}>${item.sellingPrice}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Amount row */}
         <div style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span style={{ fontSize: 11, fontWeight: 600, color: '#A09490', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-            {discount ? 'Original Amount' : 'Total Amount'}
+            {priceOverride ? (priceOverride.defaultPrice ? 'Catalog Price' : 'Subtotal') : discount ? 'Original Amount' : items && items.length > 1 ? 'Subtotal' : 'Total Amount'}
           </span>
-          <span style={{ fontSize: discount ? 18 : 28, fontWeight: 800, color: discount ? '#6B5B57' : '#2B1D1A', letterSpacing: '-0.8px', fontVariantNumeric: 'tabular-nums', textDecoration: discount ? 'line-through' : 'none' }}>
-            <span style={{ fontSize: discount ? 13 : 16, fontWeight: 700, color: '#A09490', marginRight: 1 }}>$</span>
-            {amount}
+          <span style={{ fontSize: (discount || priceOverride) ? 18 : 28, fontWeight: 800, color: (discount || priceOverride) ? '#6B5B57' : '#2B1D1A', letterSpacing: '-0.8px', fontVariantNumeric: 'tabular-nums', textDecoration: (discount || priceOverride) ? 'line-through' : 'none' }}>
+            <span style={{ fontSize: (discount || priceOverride) ? 13 : 16, fontWeight: 700, color: '#A09490', marginRight: 1 }}>$</span>
+            {priceOverride && priceOverride.defaultPrice ? priceOverride.defaultPrice : cartSubtotal}
           </span>
         </div>
 
@@ -714,38 +780,70 @@ export default function TenderPage() {
           </>
         )}
 
+        {/* Price override rows — rendered when a price change override was approved */}
+        {priceOverride && (
+          <>
+            <div style={{ padding: '0 18px 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: '#A09490', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                Variance
+                <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 800, padding: '2px 6px', borderRadius: 6, background: 'rgba(178,106,0,0.18)', color: '#B26A00', letterSpacing: '0.06em' }}>
+                  OVERRIDE
+                </span>
+              </span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#B26A00' }}>
+                {priceOverride.sellingPrice > priceOverride.defaultPrice ? '+' : '−'}{Number(priceOverride.variancePercent || 0).toFixed(1)}%
+              </span>
+            </div>
+            <div style={{ padding: '0 18px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: '#A09490', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                Selling Price
+              </span>
+              <span style={{ fontSize: 28, fontWeight: 800, color: '#2B1D1A', letterSpacing: '-0.8px', fontVariantNumeric: 'tabular-nums' }}>
+                <span style={{ fontSize: 16, fontWeight: 700, color: '#6B5B57', marginRight: 1 }}>$</span>
+                {chargeAmount}
+              </span>
+            </div>
+          </>
+        )}
+
         {/* Dashed separator */}
         <div style={{ margin: '0 20px', borderTop: '1.5px dashed #DDD2CC' }} />
 
         {/* Product & type rows */}
         <div style={{ padding: '14px 20px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: '#A09490', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-              Product
-            </span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{
-                padding: '2px 10px', borderRadius: 6,
-                background: '#3E2723', color: '#D4A373',
-                fontSize: 12, fontWeight: 800, letterSpacing: '0.06em',
-              }}>
-                {product.code}
+          {/* Only show product row for single-item or when no items list above */}
+          {(!items || items.length <= 1) && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: '#A09490', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                Product
               </span>
-              <span style={{ fontSize: 13, fontWeight: 600, color: '#2B1D1A' }}>
-                {product.name}
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {(items?.[0]?.product || product) && (
+                  <>
+                    <span style={{ padding: '2px 10px', borderRadius: 6, background: '#3E2723', color: '#D4A373', fontSize: 12, fontWeight: 800, letterSpacing: '0.06em' }}>
+                      {(items?.[0]?.product || product)?.code}
+                    </span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#2B1D1A' }}>
+                      {(items?.[0]?.product || product)?.name}
+                    </span>
+                  </>
+                )}
+              </div>
             </div>
-          </div>
+          )}
+
+          {items && items.length > 1 && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: '#A09490', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Items</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#2B1D1A' }}>{items.length} products</span>
+            </div>
+          )}
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontSize: 11, fontWeight: 600, color: '#A09490', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
               Type
             </span>
-            <span style={{
-              fontSize: 12, fontWeight: 700,
-              color: isRefund ? '#B71C1C' : '#2E7D4F',
-              letterSpacing: '0.04em',
-            }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: isRefund ? '#B71C1C' : '#2E7D4F', letterSpacing: '0.04em' }}>
               {isRefund ? 'Refund' : 'Sale'}
             </span>
           </div>

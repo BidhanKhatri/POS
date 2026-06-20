@@ -1,10 +1,31 @@
 import * as overrideService from '../services/overrideService.js';
 
+const createPriceChangeOverride = async (req, res, next) => {
+  try {
+    const {
+      productId, productName, sku, defaultPrice, sellingPrice, variancePercent,
+      reason, saleContext, items, varianceItems,
+    } = req.body;
+    const override = await overrideService.createPriceChangeOverride(req.user._id, {
+      productId, productName, sku, defaultPrice, sellingPrice, variancePercent,
+      reason, saleContext, items, varianceItems,
+    });
+    res.status(201).json(override);
+  } catch (error) {
+    res.status(400);
+    next(error);
+  }
+};
+
 const createDiscountOverride = async (req, res, next) => {
   try {
-    const { productId, productName, sku, amount, discountType, discountValue, discountAmount, reason, saleContext } = req.body;
+    const {
+      productId, productName, sku, amount,
+      discountType, discountValue, discountAmount, reason, saleContext, items,
+    } = req.body;
     const override = await overrideService.createDiscountOverride(req.user._id, {
-      productId, productName, sku, amount, discountType, discountValue, discountAmount, reason, saleContext,
+      productId, productName, sku, amount,
+      discountType, discountValue, discountAmount, reason, saleContext, items,
     });
     res.status(201).json(override);
   } catch (error) {
@@ -97,4 +118,4 @@ const denyOverride = async (req, res, next) => {
   }
 };
 
-export { createRefundRequest, createDiscountOverride, createVoidRequest, getOverrideById, getOverrides, getMyOverrides, approveOverride, denyOverride };
+export { createRefundRequest, createDiscountOverride, createVoidRequest, createPriceChangeOverride, getOverrideById, getOverrides, getMyOverrides, approveOverride, denyOverride };

@@ -3,6 +3,7 @@ import { Dialog, DialogContent, useMediaQuery } from '@mui/material';
 import AdminPanelSettingsOutlinedIcon from '@mui/icons-material/AdminPanelSettingsOutlined';
 import CancelOutlinedIcon            from '@mui/icons-material/CancelOutlined';
 import LocalOfferOutlinedIcon        from '@mui/icons-material/LocalOfferOutlined';
+import SellOutlinedIcon              from '@mui/icons-material/SellOutlined';
 import PersonOutlinedIcon            from '@mui/icons-material/PersonOutlined';
 import LockOutlinedIcon              from '@mui/icons-material/LockOutlined';
 import KeyOutlinedIcon               from '@mui/icons-material/KeyOutlined';
@@ -35,9 +36,10 @@ const C = {
 };
 
 const TYPE_META = {
-  REFUND:   { icon: AdminPanelSettingsOutlinedIcon, label: 'Refund Request',   actionLabel: 'Verify & Authorize', priority: 'HIGH'     },
-  VOID:     { icon: CancelOutlinedIcon,             label: 'Void Request',     actionLabel: 'Confirm Void',        priority: 'STANDARD' },
-  DISCOUNT: { icon: LocalOfferOutlinedIcon,         label: 'Discount Request', actionLabel: 'Approve Discount',    priority: 'LOYALTY'  },
+  REFUND:       { icon: AdminPanelSettingsOutlinedIcon, label: 'Refund Request',         actionLabel: 'Verify & Authorize', priority: 'HIGH'     },
+  VOID:         { icon: CancelOutlinedIcon,             label: 'Void Request',           actionLabel: 'Confirm Void',       priority: 'STANDARD' },
+  DISCOUNT:     { icon: LocalOfferOutlinedIcon,         label: 'Discount Request',       actionLabel: 'Approve Discount',   priority: 'LOYALTY'  },
+  PRICE_CHANGE: { icon: SellOutlinedIcon,               label: 'Price Override Request', actionLabel: 'Approve Price',      priority: 'LOYALTY'  },
 };
 
 const PRIORITY = {
@@ -330,8 +332,9 @@ function OverrideCard({ item, onAuthorize, onDeny, denying, isDesktop }) {
   const meta = TYPE_META[item.actionType] || TYPE_META.REFUND;
   const p    = PRIORITY[meta.priority];
   const Icon = meta.icon;
-  const isDiscount = item.actionType === 'DISCOUNT';
-  const isVoid     = item.actionType === 'VOID';
+  const isDiscount    = item.actionType === 'DISCOUNT';
+  const isVoid        = item.actionType === 'VOID';
+  const isPriceChange = item.actionType === 'PRICE_CHANGE';
   const originalAmount = (item.amount || 0) + (item.discountAmount || 0);
   const finalTotal = item.amount || 0;
   const discountTypeSub = item.discountType === 'PERCENTAGE'
@@ -339,14 +342,20 @@ function OverrideCard({ item, onAuthorize, onDeny, denying, isDesktop }) {
     : 'fixed amount';
   const details = isDiscount
     ? [
-        { label: 'Original Price', value: formatMoney(originalAmount),       sub: null,             errorColor: false },
-        { label: 'Discount Off',   value: `−${formatMoney(item.discountAmount)}`, sub: discountTypeSub, errorColor: false },
-        { label: 'Final Total',    value: formatMoney(finalTotal),          sub: null,             accent: true      },
+        { label: 'Original Price', value: formatMoney(originalAmount),            sub: null,             errorColor: false },
+        { label: 'Discount Off',   value: `−${formatMoney(item.discountAmount)}`, sub: discountTypeSub,  errorColor: false },
+        { label: 'Final Total',    value: formatMoney(finalTotal),                sub: null,             accent: true      },
       ]
     : isVoid
     ? [
         { label: 'Sale Total', value: formatMoney(item.amount), errorColor: true },
         { label: 'Invoice',    value: item.invoiceNo || '—' },
+      ]
+    : isPriceChange
+    ? [
+        { label: 'Catalog Price',  value: formatMoney(item.defaultPrice),  errorColor: false },
+        { label: 'Variance',       value: `${item.sellingPrice > item.defaultPrice ? '+' : '−'}${Number(item.variancePercent || 0).toFixed(1)}%`, errorColor: false },
+        { label: 'Selling Price',  value: formatMoney(item.sellingPrice),  accent: true },
       ]
     : [
         { label: 'Amount', value: formatMoney(item.amount), errorColor: true },
@@ -392,14 +401,14 @@ function OverrideCard({ item, onAuthorize, onDeny, denying, isDesktop }) {
             </div>
           ))}
         </div>
-        {isDiscount ? (
+        {(isDiscount || isPriceChange) ? (
           <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
             {/* Product + limit row */}
             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
               <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: C.textSec }}>
                 Product: <strong style={{ color: C.textPri }}>{item.productName || '—'}{item.sku ? ` (${item.sku})` : ''}</strong>
               </p>
-              {item.discountLimit != null && (
+              {isDiscount && item.discountLimit != null && (
                 <>
                   <span style={{ color: C.textDim }}>·</span>
                   <span style={{ fontSize: 11, fontWeight: 600, color: C.textSec }}>
@@ -408,6 +417,19 @@ function OverrideCard({ item, onAuthorize, onDeny, denying, isDesktop }) {
                   {item.discountType === 'PERCENTAGE' && item.discountValue > item.discountLimit && (
                     <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 7px', borderRadius: 10, background: 'rgba(183,28,28,0.09)', border: '1px solid rgba(183,28,28,0.25)', color: C.error }}>
                       ⚠ Exceeds by {(item.discountValue - item.discountLimit).toFixed(1)}%
+                    </span>
+                  )}
+                </>
+              )}
+              {isPriceChange && item.varianceLimit != null && (
+                <>
+                  <span style={{ color: C.textDim }}>·</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: C.textSec }}>
+                    Variance Limit: <strong style={{ color: C.warning }}>{item.varianceLimit}%</strong>
+                  </span>
+                  {item.variancePercent > item.varianceLimit && (
+                    <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 7px', borderRadius: 10, background: 'rgba(183,28,28,0.09)', border: '1px solid rgba(183,28,28,0.25)', color: C.error }}>
+                      ⚠ Exceeds by {(item.variancePercent - item.varianceLimit).toFixed(1)}%
                     </span>
                   )}
                 </>

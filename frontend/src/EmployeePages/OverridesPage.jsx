@@ -41,9 +41,10 @@ const STATUS_STYLE = {
 };
 
 const TYPE_META = {
-  REFUND:   { label: 'Refund', bg: 'rgba(62,39,35,0.08)',   color: C.primary },
-  VOID:     { label: 'Void',   bg: 'rgba(178,106,0,0.10)',  color: C.warning },
-  DISCOUNT: { label: 'Discount Sale', bg: 'rgba(212,163,115,0.18)', color: '#8a5a2c' },
+  REFUND:       { label: 'Refund',         bg: 'rgba(62,39,35,0.08)',    color: C.primary   },
+  VOID:         { label: 'Void',           bg: 'rgba(178,106,0,0.10)',   color: C.warning   },
+  DISCOUNT:     { label: 'Discount Sale',  bg: 'rgba(212,163,115,0.18)', color: '#8a5a2c'   },
+  PRICE_CHANGE: { label: 'Price Override', bg: 'rgba(0,100,160,0.08)',   color: '#006494'   },
 };
 
 const inputStyle = {
@@ -315,6 +316,47 @@ export default function OverridesPage() {
                     >
                       <PlayArrowOutlinedIcon sx={{ fontSize: 15 }} />
                       Resume Sale — ${Number(o.amount ?? 0).toFixed(2)} due
+                    </button>
+                  </div>
+                )}
+
+                {/* Resume Sale — APPROVED PRICE_CHANGE overrides not yet finalized */}
+                {o.actionType === 'PRICE_CHANGE' && o.status === 'APPROVED' && !o.completedSaleId && (
+                  <div style={{ marginTop: 10, paddingTop: 8, borderTop: `1px dashed ${s.border}` }}>
+                    <button
+                      onClick={() => navigate('/employee/tender', {
+                        state: {
+                          amount: o.sellingPrice || o.amount,
+                          product: {
+                            productId: o.productId,
+                            name:      o.productName,
+                            sku:       o.sku,
+                            code:      o.sku || '',
+                            price:     o.defaultPrice,
+                          },
+                          transactionType: 'SL',
+                          priceOverride: {
+                            saleId:          o.saleId || null,
+                            overrideId:      o._id,
+                            defaultPrice:    o.defaultPrice,
+                            sellingPrice:    o.sellingPrice || o.amount,
+                            variancePercent: o.variancePercent,
+                            prefill:         o.saleContext || null,
+                          },
+                        },
+                      })}
+                      style={{
+                        width: '100%', padding: '9px 0', borderRadius: 8,
+                        border: '1.5px solid #006494',
+                        background: 'rgba(0,100,160,0.08)',
+                        color: '#006494', fontSize: 12, fontWeight: 800,
+                        cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif",
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                        letterSpacing: '0.04em',
+                      }}
+                    >
+                      <PlayArrowOutlinedIcon sx={{ fontSize: 15 }} />
+                      Resume Sale — ${Number(o.sellingPrice || o.amount || 0).toFixed(2)} due
                     </button>
                   </div>
                 )}

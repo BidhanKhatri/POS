@@ -18,6 +18,9 @@ const saleItemSchema = new mongoose.Schema({
     type: Number,
     required: true,
   },
+  defaultPrice: {
+    type: Number,  // catalog price at sale time; set for PRICE_CHANGE overrides, null for normal sales
+  },
   quantity: {
     type: Number,
     required: true,

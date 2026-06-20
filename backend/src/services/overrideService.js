@@ -231,6 +231,50 @@ const approveOverride = async (overrideId, managerId, pin) => {
     }
   }
 
+  if (pending.actionType === 'PRICE_CHANGE') {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+      const override = await ManagerOverride.findOneAndUpdate(
+        { _id: overrideId, status: 'PENDING' },
+        { $set: { status: 'APPROVED', approvedBy: managerId, managerPinVerified: true, resolvedAt: new Date() } },
+        { new: true, session }
+      );
+      if (!override) throw new Error('Override request already resolved');
+
+      if (override.saleId) {
+        const updated = await Sale.findOneAndUpdate(
+          { _id: override.saleId, status: 'PENDING_APPROVAL' },
+          { $set: { status: 'APPROVED' } },
+          { session }
+        );
+        if (!updated) throw new Error('Linked sale not found or already resolved');
+      }
+
+      await AuditLog.create([{
+        action: 'PRICE_CHANGE_APPROVED',
+        entity: 'ManagerOverride',
+        entityId: override._id,
+        afterData: {
+          productName:     override.productName,
+          defaultPrice:    override.defaultPrice,
+          sellingPrice:    override.sellingPrice,
+          variancePercent: override.variancePercent,
+        },
+        performedBy: managerId,
+        role: 'Manager',
+      }], { session });
+
+      await session.commitTransaction();
+      session.endSession();
+      return override;
+    } catch (error) {
+      await session.abortTransaction();
+      session.endSession();
+      throw error;
+    }
+  }
+
   if (pending.actionType !== 'REFUND') {
     const result = await ManagerOverride.findOneAndUpdate(
       { _id: overrideId, status: 'PENDING' },
@@ -351,7 +395,7 @@ const denyOverride = async (overrideId, managerId, pin) => {
   if (!override) throw new Error('Override request already resolved');
 
   // Void the upfront-created Sale so it never appears in reports.
-  if (override.actionType === 'DISCOUNT' && override.saleId) {
+  if ((override.actionType === 'DISCOUNT' || override.actionType === 'PRICE_CHANGE') && override.saleId) {
     await Sale.findByIdAndUpdate(override.saleId, {
       $set: { status: 'VOIDED', paymentStatus: 'VOIDED' },
     });
@@ -376,9 +420,11 @@ const generateInvoiceNo = () =>
 // Creates a Sale as PENDING_APPROVAL (no stock touch, no payment) so the full
 // sale context is persisted before the manager ever sees the request.
 // The same Sale document is finalized to COMPLETED when the employee pays.
+// Accepts optional `items` array for multi-item sales; falls back to single-item when absent.
 const createDiscountOverride = async (employeeId, {
   productId, productName, sku, amount,
   discountType, discountValue, discountAmount, reason, saleContext,
+  items, // optional [{productId, productName, sku, unitPrice, qty}]
 }) => {
   if (!['PERCENTAGE', 'FIXED'].includes(discountType)) throw new Error('Invalid discount type');
   if (!discountValue || discountValue <= 0) throw new Error('Discount value must be greater than 0');
@@ -389,21 +435,27 @@ const createDiscountOverride = async (employeeId, {
   const setting = await Setting.findById('global');
   const discountLimit = setting?.maxDiscountPercent ?? 10;
 
-  // Replicate the same totals processSale would compute from TenderPage inputs:
-  //   item.total = unitPrice - discount = amount - discountAmount
-  //   subtotal   = item.total
-  //   grandTotal = subtotal - discountTotal = (amount - discountAmount) - discountAmount
-  const itemTotal   = amount - discountAmount;
-  const subtotal    = itemTotal;
-  const grandTotal  = subtotal - discountAmount;
+  let saleItems, subtotal, grandTotal;
 
-  const sale = await Sale.create({
-    invoiceNo:     generateInvoiceNo(),
-    employeeId,
-    shiftId:       null,  // stamped at completeSale time
-    status:        'PENDING_APPROVAL',
-    paymentStatus: 'PENDING',
-    items: [{
+  if (items && items.length > 1) {
+    // Multi-item: discount is applied at transaction level, not per item
+    saleItems = items.map((i) => ({
+      productId:   i.productId,
+      productName: i.productName,
+      sku:         i.sku || '',
+      unitPrice:   i.unitPrice,
+      quantity:    i.qty || 1,
+      discount:    0,
+      total:       i.unitPrice * (i.qty || 1),
+    }));
+    subtotal   = saleItems.reduce((s, i) => s + i.total, 0);
+    grandTotal = subtotal - discountAmount;
+  } else {
+    // Single item — preserve existing double-discount pattern so /complete totals match
+    const itemTotal = amount - discountAmount;
+    subtotal    = itemTotal;
+    grandTotal  = subtotal - discountAmount;
+    saleItems   = [{
       productId,
       productName,
       sku:       sku || '',
@@ -411,7 +463,16 @@ const createDiscountOverride = async (employeeId, {
       quantity:  1,
       discount:  discountAmount,
       total:     itemTotal,
-    }],
+    }];
+  }
+
+  const sale = await Sale.create({
+    invoiceNo:     generateInvoiceNo(),
+    employeeId,
+    shiftId:       null,
+    status:        'PENDING_APPROVAL',
+    paymentStatus: 'PENDING',
+    items:         saleItems,
     subtotal,
     discountTotal: discountAmount,
     taxTotal:      0,
@@ -424,13 +485,13 @@ const createDiscountOverride = async (employeeId, {
     reason: reason.trim(),
     employeeId,
     saleId: sale._id,
-    productId,
-    productName,
-    sku,
-    amount: amount - discountAmount,  // final price after discount — what the buyer actually pays
+    productId:   productId || (items?.[0]?.productId),
+    productName: productName || (items?.[0]?.productName),
+    sku:         sku || (items?.[0]?.sku),
+    amount: amount - discountAmount,
     discountType,
     discountValue,
-    discountAmount,  // computed dollar off
+    discountAmount,
     discountLimit,
     saleContext: saleContext || undefined,
   });
@@ -472,6 +533,101 @@ const createVoidRequest = async (employeeId, { saleId, reason }) => {
   }
 };
 
+// Pre-sale price change that exceeds the employee's configured variance limit.
+// Creates a Sale as PENDING_APPROVAL (no stock touch, no payment) and a PRICE_CHANGE
+// ManagerOverride so the manager can approve/deny. On approval, the employee
+// completes the sale via /complete — same flow as discount overrides.
+// Accepts optional `items` (all cart items) and `varianceItems` (offending subset) for multi-item.
+const createPriceChangeOverride = async (employeeId, {
+  productId, productName, sku, defaultPrice, sellingPrice, variancePercent, reason, saleContext,
+  items,        // optional: all cart items [{productId, productName, sku, sellingPrice, defaultPrice, qty, variancePercent?}]
+  varianceItems,// optional: subset that exceed the limit
+}) => {
+  if (!reason || !reason.trim()) throw new Error('A reason is required for a price override');
+
+  const setting = await Setting.findById('global');
+  const varianceLimit = setting?.maxPriceVariancePercent ?? 10;
+
+  let saleItems, subtotal, grandTotal;
+  let primaryProductId, primaryProductName, primarySku, primaryDefaultPrice, primarySellingPrice, primaryVariancePct;
+
+  if (items && items.length > 0) {
+    // Multi-item: create sale with all cart items
+    saleItems = items.map((i) => ({
+      productId:    i.product?.productId || i.productId,
+      productName:  i.product?.name || i.productName,
+      sku:          i.product?.sku || i.sku || '',
+      unitPrice:    i.sellingPrice,
+      defaultPrice: i.product?.price || i.defaultPrice || null,
+      quantity:     i.qty || 1,
+      discount:     0,
+      total:        i.sellingPrice * (i.qty || 1),
+    }));
+    subtotal   = saleItems.reduce((s, i) => s + i.total, 0);
+    grandTotal = subtotal;
+
+    // Primary = highest-variance item (for the single-field override display)
+    const primary = (varianceItems && varianceItems.length > 0 ? varianceItems : items)
+      .reduce((max, cur) => (cur.variancePercent || 0) >= (max.variancePercent || 0) ? cur : max, items[0]);
+    primaryProductId    = primary.product?.productId || primary.productId;
+    primaryProductName  = primary.product?.name || primary.productName;
+    primarySku          = primary.product?.sku || primary.sku;
+    primaryDefaultPrice = primary.product?.price || primary.defaultPrice;
+    primarySellingPrice = primary.sellingPrice;
+    primaryVariancePct  = primary.variancePercent || 0;
+  } else {
+    // Single item (backward-compat)
+    if (!productId) throw new Error('Product is required for a price override');
+    if (defaultPrice == null || defaultPrice < 0) throw new Error('Default price is invalid');
+    if (sellingPrice == null || sellingPrice < 0) throw new Error('Selling price is invalid');
+    saleItems = [{
+      productId, productName, sku: sku || '',
+      unitPrice: sellingPrice, defaultPrice,
+      quantity: 1, discount: 0, total: sellingPrice,
+    }];
+    subtotal            = sellingPrice;
+    grandTotal          = sellingPrice;
+    primaryProductId    = productId;
+    primaryProductName  = productName;
+    primarySku          = sku;
+    primaryDefaultPrice = defaultPrice;
+    primarySellingPrice = sellingPrice;
+    primaryVariancePct  = variancePercent;
+  }
+
+  const sale = await Sale.create({
+    invoiceNo:     generateInvoiceNo(),
+    employeeId,
+    shiftId:       null,
+    status:        'PENDING_APPROVAL',
+    paymentStatus: 'PENDING',
+    items:         saleItems,
+    subtotal,
+    discountTotal: 0,
+    taxTotal:      0,
+    grandTotal,
+  });
+
+  const override = await ManagerOverride.create({
+    actionType:      'PRICE_CHANGE',
+    status:          'PENDING',
+    reason:          reason.trim(),
+    employeeId,
+    saleId:          sale._id,
+    productId:       primaryProductId,
+    productName:     primaryProductName,
+    sku:             primarySku,
+    amount:          primarySellingPrice,
+    defaultPrice:    primaryDefaultPrice,
+    sellingPrice:    primarySellingPrice,
+    variancePercent: Math.abs(primaryVariancePct),
+    varianceLimit,
+    saleContext:     saleContext || undefined,
+  });
+
+  return override;
+};
+
 // Polled by the employee's DiscountPage while waiting for manager approval.
 // Scoped to the requesting employee so employees can't peek at others' requests.
 const getOverrideById = async (overrideId, employeeId) => {
@@ -481,4 +637,4 @@ const getOverrideById = async (overrideId, employeeId) => {
   return override;
 };
 
-export { createRefundRequest, createDiscountOverride, createVoidRequest, getOverrideById, getOverrides, getMyOverrides, approveOverride, denyOverride };
+export { createRefundRequest, createDiscountOverride, createVoidRequest, createPriceChangeOverride, getOverrideById, getOverrides, getMyOverrides, approveOverride, denyOverride };

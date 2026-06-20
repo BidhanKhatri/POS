@@ -58,7 +58,8 @@ function Divider({ label }) {
 export default function DiscountPage() {
   const navigate  = useNavigate();
   const location  = useLocation();
-  const { amount, product, transactionType } = location.state || {};
+  const { amount, product, items, transactionType } = location.state || {};
+  // items = [{id, product, sellingPrice, qty}] for multi-item sales; product = single item legacy
   const token     = useAuthStore((s) => s.token);
 
   const tenderPath  = location.pathname.startsWith('/manager') ? '/manager/tender'   : '/employee/tender';
@@ -105,9 +106,11 @@ export default function DiscountPage() {
 
   // Guard: redirect if page loaded without valid terminal state
   useEffect(() => {
-    if (!amount || !product || transactionType !== 'SL') {
+    const hasItems = (items && items.length > 0) || !!product;
+    if (!amount || !hasItems || transactionType !== 'SL') {
       navigate(terminalPath, { replace: true });
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Computed discount values ──
@@ -164,6 +167,7 @@ export default function DiscountPage() {
               state: {
                 amount,
                 product,
+                items,
                 transactionType,
                 discount: {
                   type:        discountType,
@@ -171,8 +175,8 @@ export default function DiscountPage() {
                   amount:      discountAmount,
                   finalAmount,
                   overrideId:  id,
-                  saleId:      draftSaleId,  // pre-created Sale to finalize at /complete
-                  prefill:     saleContext,   // pre-fills TenderPage fields on arrival
+                  saleId:      draftSaleId,
+                  prefill:     saleContext,
                 },
               },
             });
@@ -189,7 +193,7 @@ export default function DiscountPage() {
   // ── Actions ──
   const handleSkip = () => {
     navigate(tenderPath, {
-      state: { amount, product, transactionType, discount: null },
+      state: { amount, product, items, transactionType, discount: null },
     });
   };
 
@@ -203,6 +207,7 @@ export default function DiscountPage() {
       state: {
         amount,
         product,
+        items,
         transactionType,
         discount: {
           type: discountType,
@@ -236,21 +241,39 @@ export default function DiscountPage() {
       }),
     };
 
+    // Build primary product identifiers for the override record
+    const primaryProduct = (items && items.length > 0) ? items[0].product : product;
+    const overrideProductName = (items && items.length > 1)
+      ? `${items.length} items`
+      : primaryProduct?.name;
+
+    // Build items array for multi-item sale pre-creation
+    const saleItems = (items && items.length > 0)
+      ? items.map((i) => ({
+          productId:   i.product.productId,
+          productName: i.product.name,
+          sku:         i.product.sku || '',
+          unitPrice:   i.sellingPrice,
+          qty:         i.qty,
+        }))
+      : null;
+
     setSubmitting(true);
     try {
       const res = await fetch(`${API}/api/overrides/discount`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          productId:      product.productId,
-          productName:    product.name,
-          sku:            product.sku,
+          productId:      primaryProduct?.productId,
+          productName:    overrideProductName,
+          sku:            primaryProduct?.sku,
           amount,
           discountType,
           discountValue:  inputNum,
           discountAmount,
           reason:         reason.trim(),
           saleContext,
+          ...(saleItems && saleItems.length > 1 && { items: saleItems }),
         }),
       });
       const data = await res.json();
@@ -317,7 +340,13 @@ export default function DiscountPage() {
             <span style={{ fontSize: 10, fontWeight: 700, color: C.textDim, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Transaction</span>
           </div>
           <div style={{ padding: '4px 16px 10px' }}>
-            <Row label="Product">{product.name} <span style={{ color: C.textDim, fontSize: 11 }}>({product.code})</span></Row>
+            <Row label="Product">
+              {items && items.length > 1
+                ? `${items.length} items`
+                : product
+                ? <>{product.name} <span style={{ color: C.textDim, fontSize: 11 }}>({product.code})</span></>
+                : items?.[0]?.product.name}
+            </Row>
             <Row label="Original Amount"><span style={{ fontVariantNumeric: 'tabular-nums' }}>${amount}</span></Row>
             <Row label="Discount Requested">
               <span style={{ color: C.warning, fontWeight: 800 }}>
@@ -447,12 +476,39 @@ export default function DiscountPage() {
             Transaction
           </span>
           <span style={{ fontSize: 11, fontWeight: 700, color: C.textSec, letterSpacing: '0.04em' }}>
-            {product?.code} · {product?.name}
+            {items && items.length > 1
+              ? `${items.length} items`
+              : product
+              ? `${product.code} · ${product.name}`
+              : items?.[0]
+              ? `${items[0].product.code} · ${items[0].product.name}`
+              : ''}
           </span>
         </div>
-        <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+
+        {/* Multi-item line list */}
+        {items && items.length > 1 && (
+          <div style={{ padding: '8px 16px 0' }}>
+            {items.map((item, idx) => (
+              <div key={item.id || idx} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '5px 0', borderBottom: idx < items.length - 1 ? `1px solid ${C.border}` : 'none',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ padding: '1px 6px', borderRadius: 4, background: C.primary, color: C.accent, fontSize: 10, fontWeight: 800 }}>
+                    {item.product.code}
+                  </span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: C.textSec }}>{item.product.name}</span>
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 700, color: C.textPri, fontVariantNumeric: 'tabular-nums' }}>${item.sellingPrice}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={{ padding: items && items.length > 1 ? '8px 16px 12px' : '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span style={{ fontSize: 11, fontWeight: 600, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-            Sale Amount
+            {items && items.length > 1 ? 'Subtotal' : 'Sale Amount'}
           </span>
           <span style={{ fontSize: 28, fontWeight: 800, color: C.textPri, letterSpacing: '-0.8px', fontVariantNumeric: 'tabular-nums' }}>
             <span style={{ fontSize: 16, fontWeight: 700, color: C.textSec, marginRight: 1 }}>$</span>{amount}

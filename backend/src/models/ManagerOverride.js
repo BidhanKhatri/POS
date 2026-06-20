@@ -45,6 +45,12 @@ const managerOverrideSchema = new mongoose.Schema({
   discountAmount: { type: Number },   // computed dollar value to be deducted
   discountLimit:  { type: Number },   // maxDiscountPercent in force at request time
 
+  // ── Price-change-specific fields ──
+  defaultPrice:    { type: Number },  // catalog price at override submission time
+  sellingPrice:    { type: Number },  // price employee tried to sell at (= amount)
+  variancePercent: { type: Number },  // |defaultPrice - sellingPrice| / defaultPrice × 100
+  varianceLimit:   { type: Number },  // maxPriceVariancePercent in force at request time
+
   // ── Refund-specific request details ──
   // Invoice-linked refund: the request must reference a real, original sale line
   // item. Never a freestanding amount — this is what makes the refund auditable

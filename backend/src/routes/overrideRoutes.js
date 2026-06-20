@@ -4,6 +4,7 @@ import {
   createRefundRequest,
   createDiscountOverride,
   createVoidRequest,
+  createPriceChangeOverride,
   getOverrideById,
   getOverrides,
   getMyOverrides,
@@ -19,6 +20,7 @@ router.route('/')
 // Specific named sub-routes must come before /:id to avoid being swallowed.
 router.route('/discount').post(protect, createDiscountOverride);
 router.route('/void').post(protect, createVoidRequest);
+router.route('/price-change').post(protect, createPriceChangeOverride);
 router.route('/mine').get(protect, getMyOverrides);
 
 router.route('/:id').get(protect, getOverrideById);

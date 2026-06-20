@@ -2,9 +2,11 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
 import BackspaceOutlinedIcon from '@mui/icons-material/BackspaceOutlined';
-import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined';
 import ShoppingCartCheckoutIcon from '@mui/icons-material/ShoppingCartCheckout';
 import SwapHorizRoundedIcon from '@mui/icons-material/SwapHorizRounded';
+import CloseIcon from '@mui/icons-material/Close';
+import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
+import CornerCard from '../components/CornerCard/CornerCard';
 import useAuthStore from '../store/useAuthStore';
 
 const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
@@ -21,24 +23,29 @@ function toDisplay(raw) {
 }
 
 export default function TerminalPage() {
-  const navigate              = useNavigate();
-  const { pathname }          = useLocation();
-  const tenderPath            = pathname.startsWith('/manager') ? '/manager/tender'   : '/employee/tender';
-  const discountPath          = pathname.startsWith('/manager') ? '/manager/discount' : '/employee/discount';
-  const refundPath            = pathname.startsWith('/manager') ? '/manager/refund'   : '/employee/refund';
-  const token                 = useAuthStore((s) => s.token);
+  const navigate          = useNavigate();
+  const { pathname }      = useLocation();
+  const tenderPath        = pathname.startsWith('/manager') ? '/manager/tender'         : '/employee/tender';
+  const discountPath      = pathname.startsWith('/manager') ? '/manager/discount'       : '/employee/discount';
+  const refundPath        = pathname.startsWith('/manager') ? '/manager/refund'         : '/employee/refund';
+  const priceVariancePath = pathname.startsWith('/manager') ? '/manager/price-variance' : '/employee/price-variance';
+  const token             = useAuthStore((s) => s.token);
 
-  const [amountRaw, setAmountRaw]             = useState('');
+  // ── Cart state ──
+  const [cartItems, setCartItems]       = useState([]); // [{id, product, sellingPrice, qty}]
+  const [currentProduct, setCurrentProduct] = useState(null); // product being selected for current line
+  const [amountRaw, setAmountRaw]       = useState('');  // selling price being typed
   const [transactionType, setTransactionType] = useState(null); // 'RF' | 'SL' | null
-  const [confirmedAmount, setConfirmedAmount] = useState(null);
-  const [selectedProduct, setSelectedProduct] = useState(null);
-  const [toast, setToast]                     = useState(null); // { message, key }
-  const [products, setProducts]               = useState([]);
-  const [productsLoading, setProductsLoading] = useState(true);
-  const toastTimer                            = useRef(null);
-  const audioCtx                              = useRef(null);
 
-  /* ── Load quick-slot products (P1-P9) from backend ── */
+  const [toast, setToast]               = useState(null);
+  const [products, setProducts]         = useState([]);
+  const [productsLoading, setProductsLoading] = useState(true);
+
+  const toastTimer  = useRef(null);
+  const audioCtx    = useRef(null);
+  const itemIdRef   = useRef(0);
+
+  /* ── Load quick-slot products (P1-P9) ── */
   useEffect(() => {
     let cancelled = false;
     setProductsLoading(true);
@@ -64,7 +71,7 @@ export default function TerminalPage() {
     return () => { cancelled = true; };
   }, [token]);
 
-  /* ── Web Audio beep generator ── */
+  /* ── Web Audio beep ── */
   const beep = useCallback((freq = 880, durationMs = 55, type = 'square', gain = 0.12) => {
     try {
       if (!audioCtx.current) {
@@ -92,160 +99,192 @@ export default function TerminalPage() {
 
   useEffect(() => () => clearTimeout(toastTimer.current), []);
 
-  const hasAmount   = amountRaw.length > 0;
-  const isConfirmed = confirmedAmount !== null;
-  const canConfirm  = hasAmount && transactionType !== null && !isConfirmed;
-  const canCheckout = isConfirmed && selectedProduct !== null;
+  /* ── Computed values ── */
+  const currentSellingPrice = amountRaw ? parseInt(amountRaw, 10) : 0;
+  const canAddToCart  = currentProduct !== null && amountRaw.length > 0 && currentSellingPrice > 0;
+  const cartSubtotal  = cartItems.reduce((sum, i) => sum + i.sellingPrice * i.qty, 0);
+  const canCheckout   = cartItems.length > 0 && transactionType !== null;
+  const isRefundMode  = transactionType === 'RF';
 
-  /* ── Numpad (only active before ENT is pressed) ── */
+  /* ── Variance for current line (live feedback while typing) ── */
+  const showVarianceStrip   = !!(currentProduct && currentProduct.price > 0 && amountRaw.length > 0);
+  const currentVariancePct  = showVarianceStrip
+    ? Math.abs((currentSellingPrice - currentProduct.price) / currentProduct.price) * 100
+    : 0;
+  const currentVarAbove  = showVarianceStrip && currentSellingPrice > currentProduct.price;
+  const currentVarColor  = currentVariancePct === 0 ? '#2E7D4F' : currentVarAbove ? '#B26A00' : '#B71C1C';
+
+  /* ── Numpad ── */
   const pushDigit = (d) => {
-    if (isConfirmed) return;
-    beep(880, 55, 'square', 0.10);            // crisp register click
+    beep(880, 55, 'square', 0.10);
     setAmountRaw((p) => (p + d).replace(/^0+/, '').slice(0, 7) || '0');
   };
 
   const handleBackspace = () => {
-    if (isConfirmed) return;
-    beep(660, 50, 'square', 0.09);            // slightly lower — delete feel
+    beep(660, 50, 'square', 0.09);
     setAmountRaw((p) => p.slice(0, -1));
   };
 
+  /* ── CLR: clear current line only (amount first, then product) ── */
   const handleClear = () => {
-    beep(300, 130, 'sawtooth', 0.11);         // low buzz — cancel/reset
-    setAmountRaw('');
-    setTransactionType(null);
-    setConfirmedAmount(null);
-    setSelectedProduct(null);
+    beep(300, 130, 'sawtooth', 0.11);
+    if (amountRaw) {
+      setAmountRaw('');
+    } else {
+      setCurrentProduct(null);
+    }
   };
 
   const handleTransactionType = (type) => {
-    if (isConfirmed) return;
-    beep(1046, 60, 'sine', 0.10);             // bright ping — mode selection
+    beep(1046, 60, 'sine', 0.10);
     setTransactionType((prev) => (prev === type ? null : type));
   };
 
-  /* ── ENT: lock the amount ── */
+  /* ── ENT: add current line to cart ── */
   const handleENT = () => {
-    if (isConfirmed || !hasAmount) return;
-    if (!transactionType) {
-      beep(280, 160, 'sawtooth', 0.10);       // low warning buzz
-      showToast('Select a sale type — RF or SL — before confirming.');
+    if (!currentProduct) {
+      beep(280, 160, 'sawtooth', 0.10);
+      showToast('Select a product first.');
       return;
     }
-    beep(1318, 90, 'sine', 0.13);             // high confirm chime
-    setTimeout(() => beep(1567, 70, 'sine', 0.09), 80); // two-tone ding
-    setConfirmedAmount(parseInt(amountRaw, 10));
+    if (!amountRaw || currentSellingPrice <= 0) {
+      beep(280, 160, 'sawtooth', 0.10);
+      showToast('Enter a selling price first.');
+      return;
+    }
+    beep(1318, 90, 'sine', 0.13);
+    setTimeout(() => beep(1567, 70, 'sine', 0.09), 80);
+    const id = ++itemIdRef.current;
+    setCartItems((prev) => [...prev, {
+      id,
+      product: currentProduct,
+      sellingPrice: currentSellingPrice,
+      qty: 1,
+    }]);
+    setCurrentProduct(null);
+    setAmountRaw('');
   };
 
-  /* ── Product: only selectable after amount is confirmed ── */
+  /* ── Product: toggle select / deselect ── */
   const handleProduct = (product) => {
-    if (!isConfirmed) return;
-    beep(987, 65, 'sine', 0.10);              // mid ping — item selected
-    setSelectedProduct(product);
+    if (currentProduct?.code === product.code) {
+      beep(300, 100, 'sawtooth', 0.10);
+      setCurrentProduct(null);
+      setAmountRaw('');
+    } else {
+      beep(987, 65, 'sine', 0.10);
+      setCurrentProduct(product);
+      setAmountRaw('');
+    }
   };
 
-  const isRefundMode = transactionType === 'RF';
+  /* ── Remove a cart item ── */
+  const removeCartItem = (id) => {
+    beep(300, 80, 'sawtooth', 0.10);
+    setCartItems((prev) => prev.filter((i) => i.id !== id));
+  };
 
-  /* ── Navigate to tender (sale) or refund flow, carrying the confirmed
-     amount + selected product as the starting context for either page ── */
+  /* ── Checkout ── */
   const handleCheckout = async () => {
     if (!canCheckout) return;
     beep(784, 80, 'sine', 0.12);
     setTimeout(() => beep(1046, 110, 'sine', 0.10), 75);
 
     if (isRefundMode) {
-      navigate(refundPath, { state: { amount: confirmedAmount, product: selectedProduct, transactionType } });
+      // Refund flow is per-item — pass the first cart item
+      const first = cartItems[0];
+      navigate(refundPath, {
+        state: { amount: first.sellingPrice, product: first.product, transactionType },
+      });
       return;
     }
 
-    // For SL: check discount limit — if 0%, skip the discount step entirely.
+    // Fetch discount limit and price variance limit concurrently
     let skipDiscount = false;
+    let maxPriceVariancePercent = 10;
     try {
-      const res = await fetch(`${API}/api/settings/discount-limit`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        skipDiscount = (data.maxDiscountPercent ?? 10) === 0;
+      const [discRes, pvRes] = await Promise.all([
+        fetch(`${API}/api/settings/discount-limit`,       { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${API}/api/settings/price-variance-limit`, { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+      if (discRes.ok) {
+        const d = await discRes.json();
+        skipDiscount = (d.maxDiscountPercent ?? 10) === 0;
       }
-    } catch { /* network error — default to showing the discount page */ }
+      if (pvRes.ok) {
+        const d = await pvRes.json();
+        maxPriceVariancePercent = d.maxPriceVariancePercent ?? 10;
+      }
+    } catch { /* proceed with defaults */ }
 
-    const nextPath = skipDiscount ? tenderPath : discountPath;
-    navigate(nextPath, {
+    // Per-item variance check
+    const varianceItems = cartItems
+      .filter((item) => item.product.price > 0)
+      .map((item) => ({
+        ...item,
+        variancePercent: Math.abs((item.sellingPrice - item.product.price) / item.product.price) * 100,
+      }))
+      .filter((item) => item.variancePercent > maxPriceVariancePercent);
+
+    if (varianceItems.length > 0) {
+      navigate(priceVariancePath, {
+        state: { items: cartItems, varianceItems, transactionType },
+      });
+      return;
+    }
+
+    navigate(skipDiscount ? tenderPath : discountPath, {
       state: {
-        amount: confirmedAmount,
-        product: selectedProduct,
+        amount: cartSubtotal,
+        items: cartItems,
         transactionType,
         ...(skipDiscount && { discount: null }),
       },
     });
   };
 
-  /* ── Display value in the amount field ── */
-  const displayValue = isConfirmed && selectedProduct
-    ? `${confirmedAmount}  —  ${selectedProduct.code}`
-    : isConfirmed
-    ? `${confirmedAmount}`
-    : hasAmount
-    ? toDisplay(amountRaw)
-    : '';
-
-  /* ── Border / label color for the input display ── */
-  const fieldBorder  = isConfirmed ? '#2E7D4F' : '#DDD2CC';
-  const labelColor   = isConfirmed ? '#2E7D4F' : '#6B5B57';
+  /* ── Amount field display ── */
+  const numpadDisabled = !currentProduct;
+  const displayValue = amountRaw ? toDisplay(amountRaw) : '';
+  const fieldBorder  = canAddToCart ? '#2E7D4F' : '#DDD2CC';
+  const labelColor   = canAddToCart ? '#2E7D4F' : '#6B5B57';
 
   return (
     <div style={{ padding: '14px 12px 20px', maxWidth: 480, margin: '0 auto', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
 
-      {/* ── Toast notification ── */}
+      {/* ── Toast ── */}
       {toast && (
-        <div
-          key={toast.key}
-          style={{
-            position: 'fixed',
-            top: 74,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 1200,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            padding: '11px 18px',
-            borderRadius: 12,
-            background: '#2B1D1A',
-            color: '#fff',
-            fontSize: 13,
-            fontWeight: 600,
-            letterSpacing: '0.01em',
-            boxShadow: '0 8px 24px rgba(42,23,21,0.28), 0 2px 6px rgba(42,23,21,0.16)',
-            whiteSpace: 'nowrap',
-            animation: 'toast-in 0.22s cubic-bezier(0.34,1.56,0.64,1)',
-          }}
-        >
+        <div key={toast.key} style={{
+          position: 'fixed', top: 74, left: '50%', transform: 'translateX(-50%)',
+          zIndex: 1200, display: 'flex', alignItems: 'center', gap: 10,
+          padding: '11px 18px', borderRadius: 12, background: '#2B1D1A', color: '#fff',
+          fontSize: 13, fontWeight: 600, letterSpacing: '0.01em',
+          boxShadow: '0 8px 24px rgba(42,23,21,0.28), 0 2px 6px rgba(42,23,21,0.16)',
+          whiteSpace: 'nowrap', animation: 'toast-in 0.22s cubic-bezier(0.34,1.56,0.64,1)',
+        }}>
           <SwapHorizRoundedIcon sx={{ fontSize: 18, color: '#D4A373', flexShrink: 0 }} />
           {toast.message}
         </div>
       )}
 
-      {/* ── Amount display card ── */}
+      {/* ══════════════════════════════════════════
+          POS SCREEN — cart list + current line entry
+          ══════════════════════════════════════════ */}
       <div style={{
         background: 'linear-gradient(145deg, #ffffff 0%, #f5f0ec 100%)',
         border: '1px solid #DDD2CC',
         borderRadius: 12,
-        padding: '20px 20px 16px',
-        marginBottom: 20,
+        padding: '14px 14px 12px',
+        marginBottom: 14,
         boxShadow: '0 4px 0 #c8bdb8, 0 6px 16px rgba(62,39,35,0.10), inset 0 1px 0 rgba(255,255,255,0.9)',
       }}>
+
+        {/* ── Selling price input field ── */}
         <div style={{
-          position: 'relative',
-          background: '#ffffff',
-          border: `1.5px solid ${fieldBorder}`,
-          borderRadius: 8,
+          position: 'relative', background: '#ffffff',
+          border: `1.5px solid ${fieldBorder}`, borderRadius: 8,
           boxShadow: 'inset 0 2px 4px rgba(62,39,35,0.06)',
-          padding: '10px 14px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
+          padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8,
           transition: 'border-color 0.2s',
         }}>
           <span style={{
@@ -255,30 +294,99 @@ export default function TerminalPage() {
             letterSpacing: '0.01em', lineHeight: 1, pointerEvents: 'none',
             transition: 'color 0.2s',
           }}>
-            Amount Entry
+            Selling Price
           </span>
-
-          {isConfirmed
-            ? <CheckCircleOutlinedIcon sx={{ fontSize: 22, color: '#2E7D4F', flexShrink: 0 }} />
-            : <AttachMoneyIcon sx={{ fontSize: 22, color: hasAmount ? '#3E2723' : '#A09490', flexShrink: 0 }} />
-          }
-
+          <AttachMoneyIcon sx={{ fontSize: 22, color: displayValue ? '#3E2723' : '#A09490', flexShrink: 0 }} />
           <span style={{
             flex: 1, textAlign: 'right',
-            fontSize: (isConfirmed && selectedProduct) ? 22 : 30,
-            fontWeight: 800,
+            fontSize: 30, fontWeight: 800,
             color: displayValue ? '#2B1D1A' : '#C4B5B0',
-            letterSpacing: '-0.5px', lineHeight: 1,
-            fontVariantNumeric: 'tabular-nums',
-            transition: 'font-size 0.1s',
+            letterSpacing: '-0.5px', lineHeight: 1, fontVariantNumeric: 'tabular-nums',
           }}>
             {displayValue || '0'}
           </span>
         </div>
+
+        {/* ── Live variance strip for current line ── */}
+        {showVarianceStrip && (
+          <div style={{
+            marginTop: 8,
+            background: currentVariancePct === 0 ? 'rgba(46,125,79,0.06)' : 'rgba(178,106,0,0.07)',
+            border: `1px solid ${currentVariancePct === 0 ? 'rgba(46,125,79,0.20)' : 'rgba(178,106,0,0.28)'}`,
+            borderRadius: 8, padding: '6px 12px',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+          }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              <span style={{ fontSize: 9, fontWeight: 700, color: '#A09490', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Catalog</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#6B5B57', fontVariantNumeric: 'tabular-nums' }}>${currentProduct.price}</span>
+            </div>
+            <span style={{ fontSize: 11, fontWeight: 800, color: currentVarColor, letterSpacing: '0.04em' }}>
+              {currentVariancePct === 0 ? 'AT PRICE' : `${currentVarAbove ? '+' : '−'}${currentVariancePct.toFixed(1)}%`}
+            </span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 1, alignItems: 'flex-end' }}>
+              <span style={{ fontSize: 9, fontWeight: 700, color: '#A09490', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Selling</span>
+              <span style={{ fontSize: 13, fontWeight: 800, color: '#2B1D1A', fontVariantNumeric: 'tabular-nums' }}>${currentSellingPrice}</span>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* ── Amount Entry divider ── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+      {/* ══════════════════════════════════════════
+          SECTION 1 — PRODUCT ENTRY (always active)
+          ══════════════════════════════════════════ */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+        <div style={{ flex: 1, height: 1, background: '#DDD2CC' }} />
+        <span style={{ fontSize: 10, fontWeight: 700, color: '#A09490', letterSpacing: '0.12em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+          Product Entry
+        </span>
+        <div style={{ flex: 1, height: 1, background: '#DDD2CC' }} />
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 18 }}>
+        {productsLoading && (
+          <div style={{ gridColumn: 'span 3', textAlign: 'center', padding: '16px 0', fontSize: 12, fontWeight: 600, color: '#A09490' }}>
+            Loading products…
+          </div>
+        )}
+        {!productsLoading && products.length === 0 && (
+          <div style={{ gridColumn: 'span 3', textAlign: 'center', padding: '16px 0', fontSize: 12, fontWeight: 600, color: '#A09490' }}>
+            No quick-slot products configured.
+          </div>
+        )}
+        {products.map((product) => {
+          const { code, name, price } = product;
+          const isSelected = currentProduct?.code === code;
+          return (
+            <button
+              key={code}
+              onClick={() => handleProduct(product)}
+              className="flex flex-col items-center justify-center select-none rounded-xl border transition-all duration-75"
+              style={{
+                height: 70, cursor: 'pointer',
+                background: isSelected ? '#6d4c41' : '#ffffff',
+                border: isSelected ? '2px solid #D4A373' : '1px solid #DDD2CC',
+                boxShadow: isSelected
+                  ? '0 4px 0 #3E2723, 0 6px 12px rgba(62,39,35,0.28), 0 0 0 1px #D4A373'
+                  : '0 4px 0 #c4b8b2, 0 6px 12px rgba(0,0,0,0.06)',
+              }}
+              onMouseDown={(e) => { e.currentTarget.style.transform = 'translateY(4px)'; }}
+              onMouseUp={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
+            >
+              <span style={{ fontSize: 18, fontWeight: 800, color: isSelected ? '#fff' : '#2B1D1A', lineHeight: 1 }}>{code}</span>
+              <span style={{ fontSize: 10, fontWeight: 500, color: isSelected ? '#fff' : '#8A7B77', marginTop: 3, letterSpacing: '0.02em' }}>{name}</span>
+              {price > 0 && (
+                <span style={{ fontSize: 10, fontWeight: 700, color: isSelected ? '#fff' : '#2E7D4F', marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>${price}</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ══════════════════════════════════════════
+          SECTION 2 — AMOUNT ENTRY
+          ══════════════════════════════════════════ */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
         <div style={{ flex: 1, height: 1, background: '#DDD2CC' }} />
         <span style={{ fontSize: 10, fontWeight: 700, color: '#A09490', letterSpacing: '0.12em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
           Amount Entry
@@ -286,14 +394,12 @@ export default function TerminalPage() {
         <div style={{ flex: 1, height: 1, background: '#DDD2CC' }} />
       </div>
 
-      {/* ── Numpad ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 18 }}>
 
         {/* Row 1 — 7 8 9 RF */}
         {['7', '8', '9'].map((d) => (
-          <button key={d} onClick={() => pushDigit(d)}
-            className={NUM_KEY}
-            style={{ height: 62, fontSize: 26, fontWeight: 700, color: '#2B1D1A', pointerEvents: isConfirmed ? 'none' : 'auto' }}>
+          <button key={d} onClick={() => numpadDisabled ? showToast('Select a product first.') : pushDigit(d)} className={NUM_KEY}
+            style={{ height: 62, fontSize: 26, fontWeight: 700, color: '#2B1D1A' }}>
             {d}
           </button>
         ))}
@@ -310,16 +416,14 @@ export default function TerminalPage() {
             boxShadow: transactionType === 'RF'
               ? '0 4px 0 #1f100e, 0 6px 12px rgba(42,23,21,0.30), 0 0 0 1px #D4A373'
               : '0 4px 0 #1f100e, 0 6px 12px rgba(42,23,21,0.30)',
-            pointerEvents: isConfirmed ? 'none' : 'auto',
           }}>
           RF
         </button>
 
         {/* Row 2 — 4 5 6 SL */}
         {['4', '5', '6'].map((d) => (
-          <button key={d} onClick={() => pushDigit(d)}
-            className={NUM_KEY}
-            style={{ height: 62, fontSize: 26, fontWeight: 700, color: '#2B1D1A', pointerEvents: isConfirmed ? 'none' : 'auto' }}>
+          <button key={d} onClick={() => numpadDisabled ? showToast('Select a product first.') : pushDigit(d)} className={NUM_KEY}
+            style={{ height: 62, fontSize: 26, fontWeight: 700, color: '#2B1D1A' }}>
             {d}
           </button>
         ))}
@@ -334,16 +438,14 @@ export default function TerminalPage() {
             boxShadow: transactionType === 'SL'
               ? '0 4px 0 #3E2723, 0 6px 12px rgba(62,39,35,0.28), 0 0 0 1px #D4A373'
               : '0 4px 0 #3E2723, 0 6px 12px rgba(62,39,35,0.28)',
-            pointerEvents: isConfirmed ? 'none' : 'auto',
           }}>
           SL
         </button>
 
-        {/* Row 3 — 1 2 3 ENT (spans rows 3-4) */}
+        {/* Row 3 — 1 2 3 ENT (spans 2 rows) */}
         {['1', '2', '3'].map((d) => (
-          <button key={d} onClick={() => pushDigit(d)}
-            className={NUM_KEY}
-            style={{ height: 62, fontSize: 26, fontWeight: 700, color: '#2B1D1A', pointerEvents: isConfirmed ? 'none' : 'auto' }}>
+          <button key={d} onClick={() => numpadDisabled ? showToast('Select a product first.') : pushDigit(d)} className={NUM_KEY}
+            style={{ height: 62, fontSize: 26, fontWeight: 700, color: '#2B1D1A' }}>
             {d}
           </button>
         ))}
@@ -351,31 +453,28 @@ export default function TerminalPage() {
           onClick={handleENT}
           className="flex items-center justify-center select-none rounded-xl active:translate-y-[4px] transition-all duration-75"
           style={{
-            gridRow: 'span 2',
-            fontSize: 15, fontWeight: 800, letterSpacing: '0.08em',
-            cursor: canConfirm ? 'pointer' : 'default',
-            background: canConfirm
-              ? 'linear-gradient(180deg, #3E2723 0%, #2A1715 100%)'
-              : 'linear-gradient(180deg, #3E2723 0%, #2A1715 100%)',
-            color: '#fff',
-            border: '1px solid #1f100e',
-            boxShadow: '0 4px 0 #150b09, 0 6px 12px rgba(21,11,9,0.35)',
-            opacity: 1,
-            transition: 'background 0.2s, box-shadow 0.2s',
+            gridRow: 'span 2', fontSize: 15, fontWeight: 800, letterSpacing: '0.08em',
+            cursor: canAddToCart ? 'pointer' : 'default',
+            background: 'linear-gradient(180deg, #3E2723 0%, #2A1715 100%)',
+            color: canAddToCart ? '#fff' : 'rgba(255,255,255,0.45)',
+            border: canAddToCart ? '2px solid #D4A373' : '1px solid #1f100e',
+            boxShadow: canAddToCart
+              ? '0 4px 0 #150b09, 0 6px 12px rgba(21,11,9,0.35), 0 0 0 1px #D4A373'
+              : '0 4px 0 #150b09, 0 6px 12px rgba(21,11,9,0.35)',
+            transition: 'color 0.15s, border 0.15s, box-shadow 0.15s',
           }}
         >
-          {isConfirmed ? <span style={{ fontSize: 22 }}>✓</span> : 'ENT'}
+          ENT
         </button>
 
-        {/* Row 4 — ⌫ 0 CLR (ENT col 4) */}
-        <button onClick={handleBackspace}
+        {/* Row 4 — ⌫ 0 CLR */}
+        <button onClick={() => numpadDisabled ? showToast('Select a product first.') : handleBackspace()}
           className="flex items-center justify-center select-none cursor-pointer rounded-xl active:translate-y-[4px] transition-all duration-75"
-          style={{ height: 62, background: '#F5F0EC', color: '#3E2723', border: '1px solid #DDD2CC', boxShadow: '0 4px 0 #c4b8b2, 0 6px 12px rgba(0,0,0,0.06)', pointerEvents: isConfirmed ? 'none' : 'auto' }}>
+          style={{ height: 62, background: '#F5F0EC', color: '#3E2723', border: '1px solid #DDD2CC', boxShadow: '0 4px 0 #c4b8b2, 0 6px 12px rgba(0,0,0,0.06)' }}>
           <BackspaceOutlinedIcon sx={{ fontSize: 22 }} />
         </button>
-        <button onClick={() => pushDigit('0')}
-          className={NUM_KEY}
-          style={{ height: 62, fontSize: 26, fontWeight: 700, color: '#2B1D1A', pointerEvents: isConfirmed ? 'none' : 'auto' }}>
+        <button onClick={() => numpadDisabled ? showToast('Select a product first.') : pushDigit('0')} className={NUM_KEY}
+          style={{ height: 62, fontSize: 26, fontWeight: 700, color: '#2B1D1A' }}>
           0
         </button>
         <button onClick={handleClear}
@@ -385,63 +484,116 @@ export default function TerminalPage() {
         </button>
       </div>
 
-      {/* ── Product Entry divider ── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+      {/* ══════════════════════════════════════════
+          SECTION 3 — BILLING DETAILS (receipt style)
+          ══════════════════════════════════════════ */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
         <div style={{ flex: 1, height: 1, background: '#DDD2CC' }} />
         <span style={{ fontSize: 10, fontWeight: 700, color: '#A09490', letterSpacing: '0.12em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-          Product Entry
+          Billing Details
         </span>
         <div style={{ flex: 1, height: 1, background: '#DDD2CC' }} />
       </div>
 
-      {/* ── Product grid ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 20 }}>
-        {productsLoading && (
-          <div style={{ gridColumn: 'span 3', textAlign: 'center', padding: '16px 0', fontSize: 12, fontWeight: 600, color: '#A09490' }}>
-            Loading products…
-          </div>
-        )}
-        {!productsLoading && products.length === 0 && (
-          <div style={{ gridColumn: 'span 3', textAlign: 'center', padding: '16px 0', fontSize: 12, fontWeight: 600, color: '#A09490' }}>
-            No quick-slot products configured.
-          </div>
-        )}
-        {products.map((product) => {
-          const { code, name } = product;
-          const isSelected = selectedProduct?.code === code;
-          return (
-            <button key={code} onClick={() => handleProduct(product)}
-              className="flex flex-col items-center justify-center select-none rounded-xl border transition-all duration-75"
-              style={{
-                height: 66,
-                cursor: isConfirmed ? 'pointer' : 'default',
-                pointerEvents: isConfirmed ? 'auto' : 'none',
-                background: isSelected ? '#3E2723' : '#ffffff',
-                borderColor: isSelected ? '#2A1715' : '#DDD2CC',
-                boxShadow: isSelected
-                  ? '0 4px 0 #150b09, 0 6px 12px rgba(42,23,21,0.30)'
-                  : '0 4px 0 #c4b8b2, 0 6px 12px rgba(0,0,0,0.06)',
-                opacity: 1,
-                transform: 'translateY(0)',
-              }}
-              onMouseDown={(e) => { if (isConfirmed) e.currentTarget.style.transform = 'translateY(4px)'; }}
-              onMouseUp={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
-            >
-              <span style={{ fontSize: 18, fontWeight: 800, color: isSelected ? '#fff' : '#2B1D1A', lineHeight: 1 }}>{code}</span>
-              <span style={{ fontSize: 10, fontWeight: 500, color: isSelected ? 'rgba(255,255,255,0.65)' : '#8A7B77', marginTop: 4, letterSpacing: '0.02em' }}>{name}</span>
-            </button>
-          );
-        })}
-      </div>
+      <CornerCard borderColor="#DDD2CC" style={{ marginBottom: 18 }}>
+        {/* Receipt header strip */}
+        <div style={{
+          background: '#FAF7F5', borderBottom: '1px solid #DDD2CC',
+          padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 6,
+        }}>
+          <ReceiptLongOutlinedIcon style={{ fontSize: 14, color: '#A09490' }} />
+          <span style={{ fontSize: 10, fontWeight: 700, color: '#A09490', letterSpacing: '0.14em', textTransform: 'uppercase' }}>
+            Billing Details
+          </span>
+        </div>
 
-      {/* ── Checkout button — label switches to "Refund Product" in RF mode ── */}
+        <div style={{ padding: '4px 16px 12px' }}>
+          {cartItems.length === 0 ? (
+            <div style={{ padding: '14px 0', textAlign: 'center', fontSize: 12, fontWeight: 500, color: '#C4B5B0', fontStyle: 'italic' }}>
+              No items yet — select a product and press ENT
+            </div>
+          ) : (
+            <>
+              {/* Line items */}
+              {cartItems.map((item) => {
+                const vp = item.product.price > 0
+                  ? Math.abs((item.sellingPrice - item.product.price) / item.product.price) * 100
+                  : 0;
+                const above = item.sellingPrice > item.product.price;
+                const vpColor = vp === 0 ? '#2E7D4F' : above ? '#B26A00' : '#B71C1C';
+                return (
+                  <div key={item.id} style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '9px 0', borderBottom: '1px solid #F0E8E3',
+                  }}>
+                    {/* Left: code badge + name */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0, flex: 1 }}>
+                      <span style={{
+                        padding: '2px 7px', borderRadius: 5, flexShrink: 0,
+                        background: '#3E2723', color: '#fff',
+                        fontSize: 10, fontWeight: 800, letterSpacing: '0.04em',
+                      }}>
+                        {item.product.code}
+                      </span>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: '#2B1D1A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {item.product.name}
+                        </div>
+                        <div style={{ fontSize: 11, color: '#A09490', fontWeight: 500, marginTop: 1 }}>
+                          {item.qty} × ${item.sellingPrice}
+                          {item.product.price > 0 && (
+                            <span style={{ marginLeft: 6, color: vpColor, fontWeight: 700 }}>
+                              {vp === 0 ? 'AT PRICE' : `${above ? '+' : '−'}${vp.toFixed(1)}%`}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right: total + remove */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 10 }}>
+                      <span style={{ fontSize: 14, fontWeight: 800, color: '#2B1D1A', fontVariantNumeric: 'tabular-nums' }}>
+                        ${item.sellingPrice * item.qty}
+                      </span>
+                      <button
+                        onClick={() => removeCartItem(item.id)}
+                        style={{
+                          width: 22, height: 22, borderRadius: '50%',
+                          border: '1px solid #DDD2CC', background: '#F5F0EC',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          cursor: 'pointer', padding: 0,
+                        }}
+                      >
+                        <CloseIcon sx={{ fontSize: 13, color: '#A09490' }} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Dashed divider */}
+              <div style={{ borderTop: '1.5px dashed #E6DAD5', margin: '8px 0' }} />
+
+              {/* Subtotal row */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0' }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: '#A09490', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                  Subtotal · {cartItems.length} item{cartItems.length > 1 ? 's' : ''}
+                </span>
+                <span style={{ fontSize: 18, fontWeight: 800, color: '#2B1D1A', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.4px' }}>
+                  ${cartSubtotal}
+                </span>
+              </div>
+            </>
+          )}
+        </div>
+      </CornerCard>
+
+      {/* ── Checkout button ── */}
       <button
         onClick={handleCheckout}
         className="w-full flex items-center justify-center gap-2 rounded-xl transition-all duration-75 active:translate-y-[4px]"
         style={{
-          height: 54, background: canCheckout ? '#5D4037' : '#5D4037',
-          color: '#fff',
+          height: 54, background: '#5D4037', color: '#fff',
           fontSize: 15, fontWeight: 800, letterSpacing: '0.08em',
           border: canCheckout ? '2px solid #D4A373' : '1px solid #4a3329',
           boxShadow: canCheckout
@@ -452,7 +604,7 @@ export default function TerminalPage() {
         }}
       >
         <ShoppingCartCheckoutIcon sx={{ fontSize: 20 }} />
-        {isRefundMode ? 'Refund Product' : 'Check Out'}
+        {isRefundMode ? 'Refund Product' : `Check Out${cartItems.length > 0 ? ` · $${cartSubtotal}` : ''}`}
       </button>
 
     </div>
