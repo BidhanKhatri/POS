@@ -331,6 +331,7 @@ function OverrideCard({ item, onAuthorize, onDeny, denying, isDesktop }) {
   const p    = PRIORITY[meta.priority];
   const Icon = meta.icon;
   const isDiscount = item.actionType === 'DISCOUNT';
+  const isVoid     = item.actionType === 'VOID';
   const originalAmount = (item.amount || 0) + (item.discountAmount || 0);
   const finalTotal = item.amount || 0;
   const discountTypeSub = item.discountType === 'PERCENTAGE'
@@ -341,6 +342,11 @@ function OverrideCard({ item, onAuthorize, onDeny, denying, isDesktop }) {
         { label: 'Original Price', value: formatMoney(originalAmount),       sub: null,             errorColor: false },
         { label: 'Discount Off',   value: `−${formatMoney(item.discountAmount)}`, sub: discountTypeSub, errorColor: false },
         { label: 'Final Total',    value: formatMoney(finalTotal),          sub: null,             accent: true      },
+      ]
+    : isVoid
+    ? [
+        { label: 'Sale Total', value: formatMoney(item.amount), errorColor: true },
+        { label: 'Invoice',    value: item.invoiceNo || '—' },
       ]
     : [
         { label: 'Amount', value: formatMoney(item.amount), errorColor: true },
@@ -425,18 +431,20 @@ function OverrideCard({ item, onAuthorize, onDeny, denying, isDesktop }) {
               </div>
             )}
           </div>
-        ) : (
-          <div style={{ marginTop: 8, display: 'flex', flexDirection: isDesktop ? 'row' : 'column', flexWrap: 'wrap', gap: isDesktop ? 16 : 3 }}>
-            <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: C.textSec }}>Buyer: <strong style={{ color: C.textPri }}>{item.buyer?.name || '—'}</strong>{item.buyer?.phone ? ` · ${item.buyer.phone}` : ''}</p>
-            <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: C.textSec }}>Refund via: <strong style={{ color: C.textPri }}>{item.paymentMethod}</strong>{item.card?.last4 ? ` •••• ${item.card.last4}` : ''}</p>
-          </div>
-        )}
-        {!isDiscount && (item.methodOverridden || !item.buyerVerified) && (
-          <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {item.methodOverridden && <span style={{ fontSize: 10, fontWeight: 800, padding: '3px 9px', borderRadius: 20, background: 'rgba(183,28,28,0.09)', border: '1px solid rgba(183,28,28,0.25)', color: C.error }}>⚠ Refund method differs from original payment</span>}
-            {!item.buyerVerified   && <span style={{ fontSize: 10, fontWeight: 800, padding: '3px 9px', borderRadius: 20, background: 'rgba(178,106,0,0.10)', border: '1px solid rgba(178,106,0,0.30)', color: C.warning }}>⚠ Buyer not verified against invoice</span>}
-          </div>
-        )}
+        ) : !isVoid ? (
+          <>
+            <div style={{ marginTop: 8, display: 'flex', flexDirection: isDesktop ? 'row' : 'column', flexWrap: 'wrap', gap: isDesktop ? 16 : 3 }}>
+              <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: C.textSec }}>Buyer: <strong style={{ color: C.textPri }}>{item.buyer?.name || '—'}</strong>{item.buyer?.phone ? ` · ${item.buyer.phone}` : ''}</p>
+              <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: C.textSec }}>Refund via: <strong style={{ color: C.textPri }}>{item.paymentMethod}</strong>{item.card?.last4 ? ` •••• ${item.card.last4}` : ''}</p>
+            </div>
+            {(item.methodOverridden || !item.buyerVerified) && (
+              <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {item.methodOverridden && <span style={{ fontSize: 10, fontWeight: 800, padding: '3px 9px', borderRadius: 20, background: 'rgba(183,28,28,0.09)', border: '1px solid rgba(183,28,28,0.25)', color: C.error }}>⚠ Refund method differs from original payment</span>}
+                {!item.buyerVerified   && <span style={{ fontSize: 10, fontWeight: 800, padding: '3px 9px', borderRadius: 20, background: 'rgba(178,106,0,0.10)', border: '1px solid rgba(178,106,0,0.30)', color: C.warning }}>⚠ Buyer not verified against invoice</span>}
+              </div>
+            )}
+          </>
+        ) : null}
         {item.reason && (
           <div style={{ marginTop: 8 }}>
             <p style={{ margin: '0 0 4px', fontSize: 9, fontWeight: 700, color: C.textDim, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Reason</p>

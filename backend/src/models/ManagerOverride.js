@@ -146,5 +146,18 @@ managerOverrideSchema.index(
   { originalSaleItemId: 1 },
   { unique: true, partialFilterExpression: { status: 'PENDING', originalSaleItemId: { $type: 'objectId' } } }
 );
+// Only one PENDING void request may exist per sale at a time.
+managerOverrideSchema.index(
+  { originalSaleId: 1 },
+  {
+    unique: true,
+    name: 'unique_pending_void_per_sale',
+    partialFilterExpression: {
+      status: 'PENDING',
+      actionType: 'VOID',
+      originalSaleId: { $type: 'objectId' },
+    },
+  }
+);
 
 export default mongoose.model('ManagerOverride', managerOverrideSchema);

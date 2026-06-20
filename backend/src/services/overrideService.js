@@ -5,6 +5,7 @@ import Product from '../models/Product.js';
 import Sale from '../models/Sale.js';
 import Payment from '../models/Payment.js';
 import InventoryMovement from '../models/InventoryMovement.js';
+import Shift from '../models/Shift.js';
 import AuditLog from '../models/AuditLog.js';
 import User from '../models/User.js';
 
@@ -144,6 +145,80 @@ const approveOverride = async (overrideId, managerId, pin) => {
         afterData: { productName: override.productName, discountAmount: override.discountAmount },
         performedBy: managerId,
         role: 'Manager',
+      }], { session });
+
+      await session.commitTransaction();
+      session.endSession();
+      return override;
+    } catch (error) {
+      await session.abortTransaction();
+      session.endSession();
+      throw error;
+    }
+  }
+
+  if (pending.actionType === 'VOID') {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+      const override = await ManagerOverride.findOneAndUpdate(
+        { _id: overrideId, status: 'PENDING' },
+        { $set: { status: 'APPROVED', approvedBy: managerId, managerPinVerified: true, resolvedAt: new Date() } },
+        { new: true, session }
+      );
+      if (!override) throw new Error('Override request already resolved');
+
+      const sale = await Sale.findById(override.originalSaleId).session(session);
+      if (!sale) throw new Error('Original sale not found');
+      if (sale.status === 'VOIDED') throw new Error('Sale has already been voided');
+      const isVoidable = (sale.status === 'COMPLETED' || !sale.status) && sale.paymentStatus === 'PAID';
+      if (!isVoidable) throw new Error('Sale is no longer in a voidable state');
+
+      // Restore stock for every line item in the voided sale
+      for (const item of sale.items) {
+        const product = await Product.findById(item.productId).session(session);
+        if (product) {
+          const beforeQty = product.stockQty;
+          product.stockQty += item.quantity;
+          await product.save({ session });
+
+          await InventoryMovement.create([{
+            productId:     product._id,
+            movementType:  'VOID',
+            quantity:      item.quantity,
+            beforeQty,
+            afterQty:      product.stockQty,
+            referenceId:   sale._id,
+            referenceType: 'Void',
+            remarks:       `Void approved — invoice ${sale.invoiceNo} (override ${override._id})`,
+            createdBy:     managerId,
+          }], { session });
+        }
+      }
+
+      // Flip the sale to VOIDED
+      sale.status        = 'VOIDED';
+      sale.paymentStatus = 'VOIDED';
+      await sale.save({ session });
+
+      // Reverse shift totals so dashboard/reports stay accurate
+      if (sale.shiftId) {
+        const shift = await Shift.findById(sale.shiftId).session(session);
+        if (shift && shift.status === 'OPEN') {
+          shift.totalSales        = Math.max(0, shift.totalSales - sale.grandTotal);
+          shift.totalTransactions = Math.max(0, shift.totalTransactions - 1);
+          await shift.save({ session });
+        }
+      }
+
+      await AuditLog.create([{
+        action:     'VOID_APPROVED',
+        entity:     'ManagerOverride',
+        entityId:   override._id,
+        beforeData: { invoiceNo: sale.invoiceNo, grandTotal: sale.grandTotal, status: 'COMPLETED' },
+        afterData:  { invoiceNo: sale.invoiceNo, grandTotal: sale.grandTotal, status: 'VOIDED' },
+        performedBy: managerId,
+        role:        'Manager',
       }], { session });
 
       await session.commitTransaction();
@@ -363,6 +438,40 @@ const createDiscountOverride = async (employeeId, {
   return override;
 };
 
+// Employee-initiated void request for a completed sale. Creates a PENDING
+// ManagerOverride so the manager can approve/deny. The sale itself is not
+// touched until approval — keeps it COMPLETED and visible in transaction history.
+const createVoidRequest = async (employeeId, { saleId, reason }) => {
+  if (!saleId) throw new Error('A sale must be selected to void');
+  if (!reason || !reason.trim()) throw new Error('A reason is required for a void request');
+
+  const sale = await Sale.findById(saleId);
+  if (!sale) throw new Error('Sale not found');
+
+  const isVoidable = (sale.status === 'COMPLETED' || !sale.status) && sale.paymentStatus === 'PAID';
+  if (!isVoidable) {
+    throw new Error('Only completed, paid sales can be voided');
+  }
+
+  try {
+    return await ManagerOverride.create({
+      actionType:    'VOID',
+      status:        'PENDING',
+      reason:        reason.trim(),
+      employeeId,
+      originalSaleId: sale._id,
+      invoiceNo:     sale.invoiceNo,
+      amount:        sale.grandTotal,
+      productName:   sale.invoiceNo,  // surfaces as the card title in override history
+    });
+  } catch (error) {
+    if (error.code === 11000) {
+      throw new Error('A void request for this sale is already pending manager approval');
+    }
+    throw error;
+  }
+};
+
 // Polled by the employee's DiscountPage while waiting for manager approval.
 // Scoped to the requesting employee so employees can't peek at others' requests.
 const getOverrideById = async (overrideId, employeeId) => {
@@ -372,4 +481,4 @@ const getOverrideById = async (overrideId, employeeId) => {
   return override;
 };
 
-export { createRefundRequest, createDiscountOverride, getOverrideById, getOverrides, getMyOverrides, approveOverride, denyOverride };
+export { createRefundRequest, createDiscountOverride, createVoidRequest, getOverrideById, getOverrides, getMyOverrides, approveOverride, denyOverride };

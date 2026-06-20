@@ -95,6 +95,12 @@ export default function TransactionDetailPage() {
   // PDF state
   const [pdfLoading, setPdfLoading] = useState(false);
 
+  // Void request panel
+  const [voidOpen,       setVoidOpen]       = useState(false);
+  const [voidReason,     setVoidReason]     = useState('');
+  const [voidSubmitting, setVoidSubmitting] = useState(false);
+  const [voidResult,     setVoidResult]     = useState(null);
+
   const isEmployee   = user?.role === 'Employee';
   const isPrivileged = !isEmployee;
 
@@ -181,6 +187,34 @@ export default function TransactionDetailPage() {
   };
 
   const canRefund = sale && ['PAID', 'PARTIAL'].includes(sale.paymentStatus);
+
+  // Void is available on PAID COMPLETED sales that haven't been voided.
+  // Employees request a void; managers approve it via the overrides panel.
+  const canVoid = sale
+    && sale.paymentStatus === 'PAID'
+    && (sale.status === 'COMPLETED' || !sale.status)
+    && !voidResult?.ok;
+
+  const handleVoidRequest = async () => {
+    if (!voidReason.trim()) return;
+    setVoidSubmitting(true);
+    setVoidResult(null);
+    try {
+      const res  = await fetch(`${API}/api/overrides/void`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ saleId: sale._id, reason: voidReason.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to submit void request');
+      setVoidResult({ ok: true, msg: 'Void request submitted. Awaiting manager approval.' });
+      setVoidReason('');
+    } catch (e) {
+      setVoidResult({ ok: false, msg: e.message });
+    } finally {
+      setVoidSubmitting(false);
+    }
+  };
 
   // ── Loading state ──
   if (loading) {
@@ -438,6 +472,89 @@ export default function TransactionDetailPage() {
             <p style={{ margin: '6px 0 0', fontSize: 11, color: C.textDim, textAlign: 'center', lineHeight: '16px' }}>
               Refunds require manager approval. This will create a pending request.
             </p>
+          </div>
+        )}
+
+        {/* ── Void entry point ── */}
+        {canVoid && (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <div style={{ flex: 1, height: 1, background: C.border }} />
+              <span style={{ fontSize: 10, fontWeight: 700, color: C.textDim, letterSpacing: '0.12em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                Void Sale
+              </span>
+              <div style={{ flex: 1, height: 1, background: C.border }} />
+            </div>
+
+            <button
+              onClick={() => { setVoidOpen((o) => !o); setVoidResult(null); }}
+              style={{
+                width: '100%', padding: '13px', borderRadius: 12,
+                border: '1px solid rgba(107,91,87,0.30)',
+                background: 'rgba(107,91,87,0.04)',
+                color: C.textSec, fontSize: 13, fontWeight: 700,
+                cursor: 'pointer', fontFamily: FONT,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                boxShadow: '0 2px 0 rgba(107,91,87,0.08)',
+              }}
+            >
+              <CancelOutlinedIcon sx={{ fontSize: 18 }} />
+              Request Void
+            </button>
+            <p style={{ margin: '6px 0 0', fontSize: 11, color: C.textDim, textAlign: 'center', lineHeight: '16px' }}>
+              Voids cancel the sale and restore inventory. Requires manager approval.
+            </p>
+
+            {voidOpen && !voidResult?.ok && (
+              <div style={{
+                marginTop: 10, background: C.surface, border: `1px solid ${C.border}`,
+                borderRadius: 12, padding: '12px 14px',
+              }}>
+                <p style={{ margin: '0 0 8px', fontSize: 12, fontWeight: 700, color: C.textPri }}>Reason for void</p>
+                <textarea
+                  value={voidReason}
+                  onChange={(e) => { setVoidReason(e.target.value); setVoidResult(null); }}
+                  placeholder="e.g. Customer changed mind, entry error…"
+                  rows={3}
+                  style={{
+                    width: '100%', padding: '8px 11px', borderRadius: 8,
+                    border: `1px solid ${C.border}`, fontSize: 13, color: C.textPri,
+                    background: '#fff', outline: 'none', boxSizing: 'border-box',
+                    fontFamily: FONT, resize: 'none',
+                  }}
+                />
+                <button
+                  onClick={handleVoidRequest}
+                  disabled={voidSubmitting || !voidReason.trim()}
+                  style={{
+                    marginTop: 8, width: '100%', padding: '10px', borderRadius: 8,
+                    background: voidSubmitting || !voidReason.trim() ? '#EFE7E2' : C.textSec,
+                    color: voidSubmitting || !voidReason.trim() ? C.textDim : '#fff',
+                    border: 'none', fontSize: 13, fontWeight: 700,
+                    cursor: voidSubmitting ? 'wait' : 'pointer',
+                    fontFamily: FONT,
+                  }}
+                >
+                  {voidSubmitting ? 'Submitting…' : 'Submit Void Request'}
+                </button>
+                {voidResult && (
+                  <p style={{ margin: '6px 0 0', fontSize: 11, fontWeight: 600, color: voidResult.ok ? C.success : C.error }}>
+                    {voidResult.msg}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {voidResult?.ok && (
+              <div style={{
+                marginTop: 10, padding: '10px 14px', borderRadius: 10,
+                background: 'rgba(46,125,79,0.07)', border: '1px solid rgba(46,125,79,0.25)',
+              }}>
+                <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: C.success }}>
+                  {voidResult.msg}
+                </p>
+              </div>
+            )}
           </div>
         )}
 

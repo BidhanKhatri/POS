@@ -38,6 +38,17 @@ const createRefundRequest = async (req, res, next) => {
   }
 };
 
+const createVoidRequest = async (req, res, next) => {
+  try {
+    const { saleId, reason } = req.body;
+    const override = await overrideService.createVoidRequest(req.user._id, { saleId, reason });
+    res.status(201).json(override);
+  } catch (error) {
+    res.status(400);
+    next(error);
+  }
+};
+
 const getOverrides = async (req, res, next) => {
   try {
     const overrides = await overrideService.getOverrides(req.query.status);
@@ -86,4 +97,4 @@ const denyOverride = async (req, res, next) => {
   }
 };
 
-export { createRefundRequest, createDiscountOverride, getOverrideById, getOverrides, getMyOverrides, approveOverride, denyOverride };
+export { createRefundRequest, createDiscountOverride, createVoidRequest, getOverrideById, getOverrides, getMyOverrides, approveOverride, denyOverride };
