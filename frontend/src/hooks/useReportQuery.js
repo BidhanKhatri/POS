@@ -33,6 +33,11 @@ export function buildDateRange(preset, customStart, customEnd) {
   const startOfDay = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0);    return x; };
 
   switch (preset) {
+    case 'overall': {
+      const s = new Date('2020-01-01T00:00:00.000Z');
+      const e = endOfDay(now);
+      return { start: s.toISOString(), end: e.toISOString(), compareStart: null, compareEnd: null, groupBy: 'month' };
+    }
     case 'today': {
       const s  = startOfDay(now);
       const e  = endOfDay(now);

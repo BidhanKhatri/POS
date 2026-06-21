@@ -6,6 +6,8 @@ import InventoryMovement from '../models/InventoryMovement.js';
 import Shift from '../models/Shift.js';
 import AuditLog from '../models/AuditLog.js';
 import ManagerOverride from '../models/ManagerOverride.js';
+import User from '../models/User.js';
+import { upsertCustomerFromBuyer } from './customerService.js';
 
 const generateInvoiceNo = () => {
   return 'INV-' + Date.now().toString().slice(-6) + Math.floor(Math.random() * 1000);
@@ -173,6 +175,18 @@ const processSale = async (employeeId, shiftId, items, payments, discountTotal =
 
     await session.commitTransaction();
     session.endSession();
+
+    // Auto-link customer from buyer info — runs outside the transaction so a
+    // failure here never rolls back the sale.
+    try {
+      const primaryBuyer = payments[0]?.buyer;
+      if (primaryBuyer?.name?.trim()) {
+        const customerId = await upsertCustomerFromBuyer(primaryBuyer);
+        if (customerId) await Sale.findByIdAndUpdate(sale._id, { customerId });
+      }
+    } catch (e) {
+      console.warn('[customer-link] processSale skipped:', e.message);
+    }
 
     return sale;
   } catch (error) {
@@ -426,6 +440,18 @@ const completeSale = async (employeeId, saleId, shiftId) => {
 
     await session.commitTransaction();
     session.endSession();
+
+    // Auto-link customer from buyer info on the existing payment record.
+    try {
+      const payment = await Payment.findOne({ saleId: sale._id, direction: 'CHARGE' });
+      if (payment?.buyer?.name?.trim()) {
+        const customerId = await upsertCustomerFromBuyer(payment.buyer);
+        if (customerId) await Sale.findByIdAndUpdate(sale._id, { customerId });
+      }
+    } catch (e) {
+      console.warn('[customer-link] completeSale skipped:', e.message);
+    }
+
     return sale;
   } catch (error) {
     await session.abortTransaction();
@@ -434,4 +460,127 @@ const completeSale = async (employeeId, saleId, shiftId) => {
   }
 };
 
-export { processSale, completeSale, searchSales, getSaleDetail, listTransactions };
+/**
+ * Full manager-grade detail for a single sale.
+ * Returns sale, all payments (charges + refunds), linked overrides, audit trail.
+ * Managers and Admins can view any sale. Employees are scoped to their own.
+ */
+const getSaleDetailManager = async (saleId, requestingUser) => {
+  const isPrivileged = requestingUser.role === 'Manager' || requestingUser.role === 'Admin';
+
+  const sale = await Sale.findById(saleId)
+    .populate('employeeId', 'name employeeCode role')
+    .populate('shiftId', 'startedAt closedAt status')
+    .lean();
+  if (!sale) throw new Error('Sale not found');
+
+  if (!isPrivileged && String(sale.employeeId?._id || sale.employeeId) !== String(requestingUser._id)) {
+    throw new Error('Not authorized to view this sale');
+  }
+
+  // All payments: original charges first, then refund reversals
+  const payments = await Payment.find({ saleId: sale._id })
+    .sort({ createdAt: 1 })
+    .lean();
+
+  // All manager overrides linked to this sale (refund, void, discount, price-change)
+  const overrides = await ManagerOverride.find({
+    $or: [
+      { originalSaleId: sale._id },
+      { saleId: sale._id },
+      { completedSaleId: sale._id },
+    ],
+  })
+    .populate('employeeId', 'name employeeCode')
+    .populate('approvedBy', 'name employeeCode')
+    .sort({ createdAt: 1 })
+    .lean();
+
+  // Audit trail entries for this sale entity
+  const auditLogs = await AuditLog.find({ entity: 'Sale', entityId: sale._id })
+    .populate('performedBy', 'name employeeCode')
+    .sort({ timestamp: 1 })
+    .lean();
+
+  return { sale, payments, overrides, auditLogs };
+};
+
+/**
+ * Server-side aggregate KPIs for the filtered dataset.
+ * Accepts the same filters as listTransactions (minus search, page, limit).
+ * Returns: totalCount, grossRevenue, refundedAmount, netRevenue, discountTotal, voidCount.
+ */
+const getTransactionKpis = async (requestingUser, {
+  method     = '',
+  status     = '',
+  startDate  = '',
+  endDate    = '',
+  employeeId = '',
+} = {}) => {
+  const isPrivileged = requestingUser.role === 'Manager' || requestingUser.role === 'Admin';
+
+  const saleFilter = {
+    $or: [{ status: 'COMPLETED' }, { status: { $exists: false } }],
+  };
+
+  if (!isPrivileged) {
+    saleFilter.employeeId = requestingUser._id;
+  } else if (employeeId) {
+    saleFilter.employeeId = new mongoose.Types.ObjectId(employeeId);
+  }
+
+  if (status) saleFilter.paymentStatus = status;
+
+  if (startDate || endDate) {
+    saleFilter.createdAt = {};
+    if (startDate) saleFilter.createdAt.$gte = new Date(startDate);
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      saleFilter.createdAt.$lte = end;
+    }
+  }
+
+  // Method filter requires a Payment join; resolve sale IDs first
+  if (method) {
+    const methodPayments = await Payment.find({
+      method,
+      direction: { $ne: 'REFUND' },
+    }).select('saleId').lean();
+    const methodSaleIds = [...new Set(methodPayments.map((p) => p.saleId.toString()))];
+    if (methodSaleIds.length === 0) {
+      return { totalCount: 0, grossRevenue: 0, refundedAmount: 0, netRevenue: 0, discountTotal: 0, voidCount: 0 };
+    }
+    saleFilter._id = { $in: methodSaleIds.map((id) => new mongoose.Types.ObjectId(id)) };
+  }
+
+  const [result] = await Sale.aggregate([
+    { $match: saleFilter },
+    {
+      $group: {
+        _id: null,
+        totalCount:     { $sum: 1 },
+        grossRevenue:   { $sum: '$grandTotal' },
+        refundedAmount: { $sum: '$refundedAmount' },
+        discountTotal:  { $sum: '$discountTotal' },
+        voidCount:      { $sum: { $cond: [{ $eq: ['$paymentStatus', 'VOIDED'] }, 1, 0] } },
+      },
+    },
+  ]);
+
+  const r = result || { totalCount: 0, grossRevenue: 0, refundedAmount: 0, discountTotal: 0, voidCount: 0 };
+  return { ...r, netRevenue: (r.grossRevenue || 0) - (r.refundedAmount || 0) };
+};
+
+/**
+ * List all active employees (Manager/Admin only).
+ * Used to populate the employee filter dropdown on the manager transactions page.
+ */
+const listEmployees = async () => {
+  return User.find({ isActive: true })
+    .select('name employeeCode role')
+    .sort({ name: 1 })
+    .lean();
+};
+
+export { processSale, completeSale, searchSales, getSaleDetail, getSaleDetailManager, listTransactions, getTransactionKpis, listEmployees };

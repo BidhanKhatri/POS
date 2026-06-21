@@ -22,7 +22,7 @@ import EmojiEventsOutlinedIcon  from '@mui/icons-material/EmojiEventsOutlined';
 import {
   useReportSummary, useReportTrend, useReportPayments,
   useReportProducts, useReportAnomalies, useReportInsights,
-  buildDateRange, useExportCSV,
+  useReportCashiers, buildDateRange, useExportCSV,
 } from '../hooks/useReportQuery';
 
 const C = {
@@ -36,17 +36,44 @@ const C = {
 };
 
 const RANGES = [
-  { id: 'today', label: 'Today'  },
-  { id: 'week',  label: 'Week'   },
-  { id: 'month', label: 'Month'  },
-  { id: 'year',  label: 'Year'   },
+  { id: 'overall', label: 'All Time' },
+  { id: 'today',   label: 'Today'    },
+  { id: 'week',    label: 'Week'     },
+  { id: 'month',   label: 'Month'    },
+  { id: 'year',    label: 'Year'     },
 ];
 
 const METHOD_COLORS = { CASH: C.dataBlue, CREDIT: C.dataTeal, DEBIT: C.dataGreen, MISC: C.dataAmber };
+const YEAR_COLORS = [C.dataBlue, C.dataTeal, C.dataGreen, C.dataAmber, C.dataOrange, C.dataPurple];
 
 function fmt$(n) { return n == null ? '—' : `$${Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; }
 function fmtY(v) { return v >= 1000 ? `$${(v / 1000).toFixed(0)}k` : `$${v}`; }
 function axisStyle() { return { fontSize: 11, fontWeight: 600, fill: C.textDim, fontFamily: "'Plus Jakarta Sans', sans-serif" }; }
+
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function formatPeriod(period) {
+  if (!period) return period;
+  // Hourly: "2026-06-21T14"
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}$/.test(period)) {
+    const h = parseInt(period.slice(11), 10);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const h12  = h % 12 || 12;
+    return `${h12} ${ampm}`;
+  }
+  // Daily: "2026-06-21"
+  if (/^\d{4}-\d{2}-\d{2}$/.test(period)) {
+    const [, m, d] = period.split('-');
+    return `${MONTHS[parseInt(m, 10) - 1]} ${parseInt(d, 10)}`;
+  }
+  // Monthly: "2026-06"
+  if (/^\d{4}-\d{2}$/.test(period)) {
+    const [y, m] = period.split('-');
+    return `${MONTHS[parseInt(m, 10) - 1]} ${y}`;
+  }
+  // Weekly: "2026-W25"
+  if (/^\d{4}-W\d{2}$/.test(period)) return `Wk ${parseInt(period.slice(6), 10)}`;
+  return period;
+}
 
 function DeltaBadge({ value }) {
   if (value == null) return null;
@@ -99,7 +126,7 @@ function CustomTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
   return (
     <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: '9px 14px', boxShadow: '0 4px 16px rgba(62,39,35,0.10)' }}>
-      <p style={{ margin: '0 0 5px', fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</p>
+      <p style={{ margin: '0 0 5px', fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{formatPeriod(label)}</p>
       {payload.map((p) => (
         <div key={p.dataKey} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
           <span style={{ width: 8, height: 8, borderRadius: 2, background: p.color || p.stroke, flexShrink: 0 }} />
@@ -115,7 +142,7 @@ function TodayBarTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
   return (
     <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: '9px 14px', boxShadow: '0 4px 16px rgba(62,39,35,0.10)' }}>
-      <p style={{ margin: '0 0 4px', fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</p>
+      <p style={{ margin: '0 0 4px', fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{formatPeriod(label)}</p>
       {payload.map(p => (
         <div key={p.dataKey} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ width: 8, height: 8, borderRadius: 2, background: p.fill, flexShrink: 0 }} />
@@ -260,6 +287,112 @@ function TodayTrendChart({ data, summaryData }) {
   );
 }
 
+function AllTimeTrendChart({ data }) {
+  // Group monthly periods by year for the donut
+  const yearMap = {};
+  for (const d of data) {
+    const year = (d.period || '').slice(0, 4);
+    if (!year) continue;
+    yearMap[year] = (yearMap[year] || 0) + (d.Revenue || 0);
+  }
+
+  const total     = Object.values(yearMap).reduce((s, v) => s + v, 0);
+  const totalSafe = total || 1;
+
+  const pieData = Object.entries(yearMap)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([year, value], i) => ({
+      name:  year,
+      value,
+      color: YEAR_COLORS[i % YEAR_COLORS.length],
+      share: ((value / totalSafe) * 100).toFixed(1),
+    }));
+
+  // Assign each monthly bar the color of its year
+  const yearColorMap = {};
+  pieData.forEach(p => { yearColorMap[p.name] = p.color; });
+
+  const barData = data.map(d => ({
+    name:  d.period,
+    value: d.Revenue || 0,
+    fill:  yearColorMap[(d.period || '').slice(0, 4)] || C.dataBlue,
+  }));
+
+  const noData = total === 0;
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 220px', gap: 0, alignItems: 'center', padding: '0 8px 8px' }}>
+
+      {/* Monthly bar chart */}
+      <div>
+        <div style={{ display: 'flex', gap: 10, paddingLeft: 8, paddingBottom: 10, flexWrap: 'wrap' }}>
+          {pieData.map(p => (
+            <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ width: 10, height: 10, borderRadius: 3, background: p.color }} />
+              <span style={{ fontSize: 11, fontWeight: 600, color: C.textSec }}>{p.name}</span>
+            </div>
+          ))}
+        </div>
+        {noData ? (
+          <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <p style={{ fontSize: 12, color: C.textDim }}>No sales data available</p>
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={barData} margin={{ top: 4, right: 12, left: 0, bottom: 0 }} barCategoryGap="18%">
+              <CartesianGrid vertical={false} stroke="#EDE5E0" />
+              <XAxis dataKey="name" tickFormatter={formatPeriod} tick={axisStyle()} axisLine={false} tickLine={false} dy={8} interval="preserveStartEnd" />
+              <YAxis tickFormatter={fmtY} tick={axisStyle()} axisLine={false} tickLine={false} width={50} dx={-4} />
+              <Tooltip content={<TodayBarTooltip />} cursor={{ fill: 'rgba(237,229,224,0.35)' }} />
+              <Bar dataKey="value" radius={[4, 4, 0, 0]} maxBarSize={28}>
+                {barData.map((entry, index) => (
+                  <Cell key={`atbc-${index}`} fill={entry.fill} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+
+      {/* Yearly donut */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+        {noData ? (
+          <div style={{ width: 160, height: 160, borderRadius: '50%', border: `2px dashed ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <p style={{ fontSize: 10, color: C.textDim, textAlign: 'center', margin: 0, padding: '0 12px' }}>No data</p>
+          </div>
+        ) : (
+          <PieChart width={190} height={190}>
+            <Pie
+              data={pieData}
+              cx={95} cy={95}
+              innerRadius={54} outerRadius={82}
+              paddingAngle={3}
+              dataKey="value"
+              startAngle={90} endAngle={-270}
+            >
+              {pieData.map((entry, index) => (
+                <Cell key={`atpie-${index}`} fill={entry.color} stroke="none" />
+              ))}
+            </Pie>
+            <Tooltip content={<TodayPieTooltip />} />
+            <DonutLabel cx={95} cy={95} total={total} />
+          </PieChart>
+        )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 5, width: '100%', padding: '0 12px' }}>
+          {pieData.map(p => (
+            <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ width: 8, height: 8, borderRadius: 2, background: p.color, flexShrink: 0 }} />
+              <span style={{ flex: 1, fontSize: 10, fontWeight: 600, color: C.textSec }}>{p.name}</span>
+              <span style={{ fontSize: 11, fontWeight: 800, color: C.textPri }}>{p.share}%</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+    </div>
+  );
+}
+
 function SkeletonBlock({ h = 20, w = '100%', radius = 6 }) {
   return <div style={{ height: h, width: w, borderRadius: radius, background: C.elevated, animation: 'pulse 1.4s ease infinite alternate' }} />;
 }
@@ -342,6 +475,7 @@ export default function ManagerOverallReportPage() {
   const trend    = useReportTrend({ start, end, groupBy, compareStart, compareEnd });
   const payments = useReportPayments({ start, end });
   const products = useReportProducts({ start, end, limit: 10, sortBy: 'revenue' });
+  const cashiers = useReportCashiers({ start, end });
   const anomalies = useReportAnomalies({ start, end });
   const insights  = useReportInsights({ start, end });
   const exportCSV = useExportCSV();
@@ -375,7 +509,8 @@ export default function ManagerOverallReportPage() {
     return curr.map(d => ({ period: d.period, Revenue: d.netRevenue, 'Prior Period': priorMap[d.period] ?? null, Transactions: d.txnCount }));
   })();
 
-  const isToday = range === 'today';
+  const isToday   = range === 'today';
+  const isOverall = range === 'overall';
 
   return (
     <div style={{ padding: '28px 32px 40px', background: C.bg, minHeight: '100dvh', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
@@ -434,10 +569,14 @@ export default function ManagerOverallReportPage() {
           title="Revenue Trend"
           sub={isToday
             ? 'Opening sale · total revenue · last sale — with composition breakdown'
+            : isOverall
+            ? 'Monthly revenue bars colored by year · donut shows each year\'s share of all-time revenue'
             : `Net revenue over the selected period${compareStart ? ' vs. prior period' : ''}`}
         >
           {trend.isLoading ? <SkeletonBlock h={248} radius={0} /> : isToday ? (
             <TodayTrendChart data={trendData} summaryData={cur} />
+          ) : isOverall ? (
+            <AllTimeTrendChart data={trendData} />
           ) : (
             <ResponsiveContainer width="100%" height={230}>
               <AreaChart data={trendData} margin={{ top: 4, right: 24, left: 0, bottom: 0 }}>
@@ -452,7 +591,7 @@ export default function ManagerOverallReportPage() {
                   </linearGradient>
                 </defs>
                 <CartesianGrid vertical={false} stroke="#EDE5E0" />
-                <XAxis dataKey="period" tick={axisStyle()} axisLine={false} tickLine={false} dy={8} interval="preserveStartEnd" />
+                <XAxis dataKey="period" tickFormatter={formatPeriod} tick={axisStyle()} axisLine={false} tickLine={false} dy={8} interval="preserveStartEnd" />
                 <YAxis tickFormatter={fmtY} tick={axisStyle()} axisLine={false} tickLine={false} width={50} dx={-4} />
                 <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#EDE5E0', strokeWidth: 1.5, strokeDasharray: '4 3' }} />
                 <Legend iconType="square" iconSize={8} wrapperStyle={{ fontSize: 11, fontWeight: 600, color: C.textSec, paddingTop: 6 }} />
@@ -481,7 +620,7 @@ export default function ManagerOverallReportPage() {
                 <div style={{ marginTop: 12 }}>
                   <ResponsiveContainer width="100%" height={90}>
                     <BarChart data={payments.data.dailySeries} barSize={8} barCategoryGap="20%">
-                      <XAxis dataKey="date" tick={{ fontSize: 9, fill: C.textDim }} axisLine={false} tickLine={false} dy={4} interval="preserveStartEnd" />
+                      <XAxis dataKey="date" tickFormatter={formatPeriod} tick={{ fontSize: 9, fill: C.textDim }} axisLine={false} tickLine={false} dy={4} interval="preserveStartEnd" />
                       <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(237,229,224,0.4)' }} />
                       {['CASH', 'CREDIT', 'DEBIT', 'MISC'].map(m => (
                         <Bar key={m} dataKey={m} stackId="a" fill={METHOD_COLORS[m]} radius={m === 'MISC' ? [2, 2, 0, 0] : [0, 0, 0, 0]} />
@@ -533,6 +672,94 @@ export default function ManagerOverallReportPage() {
               <p style={{ textAlign: 'center', padding: '32px 0', fontSize: 12, color: C.textDim }}>No sales data for this period</p>
             )}
           </>
+        )}
+      </div>
+
+      {/* Employee Sales Report */}
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden', marginTop: 16 }}>
+        <div style={{ padding: '14px 20px 10px', borderBottom: `1px solid ${C.border}` }}>
+          <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: C.textPri }}>Employee Sales Report</p>
+          <p style={{ margin: '2px 0 0', fontSize: 11, color: C.textDim }}>Detailed performance breakdown per employee · ranked by net revenue</p>
+        </div>
+        {cashiers.isLoading ? (
+          <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {[1, 2, 3, 4].map(i => <SkeletonBlock key={i} h={16} />)}
+          </div>
+        ) : cashiers.data?.length ? (
+          <>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
+                <thead>
+                  <tr style={{ background: C.tableHdr }}>
+                    {['#', 'Employee', 'Role', 'Transactions', 'Items Sold', 'Gross Revenue', 'Net Revenue', 'Discounts', 'Avg Ticket', 'Rev / Hr', 'Voids', 'Refunds', 'Hours'].map(h => (
+                      <th key={h} style={{ padding: '8px 14px', fontSize: 10, fontWeight: 700, color: C.primary, textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap', textAlign: h === '#' ? 'center' : 'left', borderBottom: `1px solid ${C.border}` }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {cashiers.data.map((emp, i) => (
+                    <tr key={String(emp.employeeId)} style={{ background: i % 2 ? '#FDFCFB' : C.surface }}>
+                      <td style={{ padding: '12px 14px', textAlign: 'center' }}>
+                        <span style={{ width: 22, height: 22, borderRadius: 6, background: i === 0 ? C.primary : C.elevated, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, color: i === 0 ? C.accent : C.textDim }}>{i + 1}</span>
+                      </td>
+                      <td style={{ padding: '12px 14px' }}>
+                        <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri }}>{emp.name}</p>
+                        <p style={{ margin: '1px 0 0', fontSize: 10, fontWeight: 600, color: C.textDim, fontFamily: 'monospace' }}>{emp.employeeCode}</p>
+                      </td>
+                      <td style={{ padding: '12px 14px' }}>
+                        <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 5, background: C.elevated, color: C.textSec }}>{emp.role}</span>
+                      </td>
+                      <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 600, color: C.textSec }}>{emp.txnCount}</td>
+                      <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 600, color: C.textSec }}>{emp.itemsSold}</td>
+                      <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 700, color: C.textPri }}>{fmt$(emp.revenue)}</td>
+                      <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 800, color: C.success }}>{fmt$(emp.netRevenue)}</td>
+                      <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 600, color: emp.discountTotal > 0 ? C.warning : C.textDim }}>{fmt$(emp.discountTotal)}</td>
+                      <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 600, color: C.textSec }}>{fmt$(emp.avgTicket)}</td>
+                      <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 600, color: emp.revenuePerHour > 0 ? C.info : C.textDim }}>{emp.revenuePerHour > 0 ? fmt$(emp.revenuePerHour) : '—'}</td>
+                      <td style={{ padding: '12px 14px' }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: emp.voidCount > 0 ? C.error : C.textDim }}>{emp.voidCount}</span>
+                        {emp.voidCount > 0 && <span style={{ fontSize: 10, color: C.textDim, marginLeft: 4 }}>({emp.voidRate.toFixed(1)}%)</span>}
+                      </td>
+                      <td style={{ padding: '12px 14px' }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: emp.approvedRefunds > 0 ? C.error : C.textDim }}>{emp.approvedRefunds}</span>
+                        {emp.approvedRefunds > 0 && <span style={{ fontSize: 10, color: C.textDim, marginLeft: 4 }}>({emp.refundRate.toFixed(1)}%)</span>}
+                      </td>
+                      <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 600, color: C.textSec }}>{emp.hoursWorked > 0 ? `${emp.hoursWorked}h` : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {/* Summary footer row */}
+            <div style={{ display: 'flex', gap: 24, padding: '12px 20px', borderTop: `1px solid ${C.border}`, background: C.tableHdr, flexWrap: 'wrap' }}>
+              <div>
+                <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Total Employees</p>
+                <p style={{ margin: '2px 0 0', fontSize: 15, fontWeight: 800, color: C.textPri }}>{cashiers.data.length}</p>
+              </div>
+              <div>
+                <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Total Transactions</p>
+                <p style={{ margin: '2px 0 0', fontSize: 15, fontWeight: 800, color: C.textPri }}>{cashiers.data.reduce((s, e) => s + e.txnCount, 0)}</p>
+              </div>
+              <div>
+                <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Total Net Revenue</p>
+                <p style={{ margin: '2px 0 0', fontSize: 15, fontWeight: 800, color: C.success }}>{fmt$(cashiers.data.reduce((s, e) => s + e.netRevenue, 0))}</p>
+              </div>
+              <div>
+                <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Total Discounts</p>
+                <p style={{ margin: '2px 0 0', fontSize: 15, fontWeight: 800, color: C.warning }}>{fmt$(cashiers.data.reduce((s, e) => s + e.discountTotal, 0))}</p>
+              </div>
+              <div>
+                <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Total Voids</p>
+                <p style={{ margin: '2px 0 0', fontSize: 15, fontWeight: 800, color: C.error }}>{cashiers.data.reduce((s, e) => s + e.voidCount, 0)}</p>
+              </div>
+              <div>
+                <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Total Refunds</p>
+                <p style={{ margin: '2px 0 0', fontSize: 15, fontWeight: 800, color: C.error }}>{cashiers.data.reduce((s, e) => s + e.approvedRefunds, 0)}</p>
+              </div>
+            </div>
+          </>
+        ) : (
+          <p style={{ textAlign: 'center', padding: '32px 0', fontSize: 12, color: C.textDim }}>No employee sales data for this period</p>
         )}
       </div>
 

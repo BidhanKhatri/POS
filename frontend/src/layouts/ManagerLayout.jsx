@@ -5,25 +5,29 @@ import GridViewOutlinedIcon              from '@mui/icons-material/GridViewOutli
 import Inventory2OutlinedIcon            from '@mui/icons-material/Inventory2Outlined';
 import AdminPanelSettingsOutlinedIcon    from '@mui/icons-material/AdminPanelSettingsOutlined';
 import BarChartOutlinedIcon              from '@mui/icons-material/BarChartOutlined';
+import ReceiptLongOutlinedIcon           from '@mui/icons-material/ReceiptLongOutlined';
 import LogoutOutlinedIcon                from '@mui/icons-material/LogoutOutlined';
 import ExpandMoreIcon                    from '@mui/icons-material/ExpandMore';
 import AssessmentOutlinedIcon            from '@mui/icons-material/AssessmentOutlined';
 import PersonOutlinedIcon                from '@mui/icons-material/PersonOutlined';
 import GroupsOutlinedIcon                from '@mui/icons-material/GroupsOutlined';
+import PeopleOutlinedIcon                from '@mui/icons-material/PeopleOutlined';
 import useAuthStore from '../store/useAuthStore';
 
 const NAV_ITEMS = [
   { label: 'Dashboard', path: '/manager/dashboard', icon: GridViewOutlinedIcon           },
   {
-    label: 'Reports', path: '/manager/reports', icon: BarChartOutlinedIcon,
+    label: 'Reports', path: '/manager/reports/overall', icon: BarChartOutlinedIcon,
     children: [
       { label: 'Overall Reports',    path: '/manager/reports/overall',     icon: AssessmentOutlinedIcon },
       { label: 'Individual Reports', path: '/manager/reports/individual',  icon: PersonOutlinedIcon     },
       { label: 'Group Reports',      path: '/manager/reports/group',       icon: GroupsOutlinedIcon     },
     ],
   },
-  { label: 'Overrides', path: '/manager/overrides', icon: AdminPanelSettingsOutlinedIcon  },
-  { label: 'Inventory', path: '/manager/inventory', icon: Inventory2OutlinedIcon          },
+  { label: 'Transactions', path: '/manager/transactions', icon: ReceiptLongOutlinedIcon      },
+  { label: 'Overrides',   path: '/manager/overrides',   icon: AdminPanelSettingsOutlinedIcon },
+  { label: 'Customers',  path: '/manager/customers',   icon: PeopleOutlinedIcon              },
+  { label: 'Inventory',  path: '/manager/inventory',   icon: Inventory2OutlinedIcon          },
 ];
 
 const SIDEBAR_W = 232;

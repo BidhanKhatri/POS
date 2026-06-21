@@ -20,12 +20,17 @@ import ManagerShiftPage from './ManagerPages/ManagerShiftPage';
 import ManagerDashboardPage from './ManagerPages/ManagerDashboardPage';
 import ManagerInventoryPage from './ManagerPages/ManagerInventoryPage';
 import ManagerOverridePage from './ManagerPages/ManagerOverridePage';
-import ManagerReportPage           from './ManagerPages/ManagerReportPage';
 import ManagerOverallReportPage    from './ManagerPages/ManagerOverallReportPage';
 import ManagerIndividualReportPage from './ManagerPages/ManagerIndividualReportPage';
 import ManagerGroupReportPage      from './ManagerPages/ManagerGroupReportPage';
-import TransactionsPage       from './EmployeePages/TransactionsPage';
-import TransactionDetailPage  from './EmployeePages/TransactionDetailPage';
+import ManagerTransactionPage       from './ManagerPages/ManagerTransactionPage';
+import ManagerTransactionDetailPage from './ManagerPages/ManagerTransactionDetailPage';
+import ManagerCustomersPage         from './ManagerPages/ManagerCustomersPage';
+import ManagerCustomerDetailPage    from './ManagerPages/ManagerCustomerDetailPage';
+import TransactionsPage        from './EmployeePages/TransactionsPage';
+import TransactionDetailPage   from './EmployeePages/TransactionDetailPage';
+import CustomerSearchPage      from './EmployeePages/CustomerSearchPage';
+import CustomerProfilePage     from './EmployeePages/CustomerProfilePage';
 import useAuthStore from './store/useAuthStore';
 import PointOfSaleIcon from '@mui/icons-material/PointOfSale';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
@@ -204,15 +209,17 @@ function LocalAuthRoutes({ role }) {
         <Route path="overrides" element={<OverridesPage />} />
         <Route path="settings"      element={<SettingsPage />} />
         <Route path="profile"       element={<ProfilePage />} />
-        <Route path="transactions"  element={<TransactionsPage />} />
-        <Route path="transactions/:id" element={<TransactionDetailPage />} />
+        <Route path="transactions"      element={<TransactionsPage />} />
+        <Route path="transactions/:id"  element={<TransactionDetailPage />} />
+        <Route path="customers"         element={<CustomerSearchPage />} />
+        <Route path="customers/:id"     element={<CustomerProfilePage />} />
       </Route>
 
       {/* Manager routes */}
       <Route path="/manager" element={<ManagerLayout />}>
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<ManagerDashboardPage />} />
-        <Route path="reports"   element={<ManagerReportPage />} />
+        <Route path="reports"            element={<Navigate to="reports/overall" replace />} />
         <Route path="reports/overall"    element={<ManagerOverallReportPage />} />
         <Route path="reports/individual" element={<ManagerIndividualReportPage />} />
         <Route path="reports/group"      element={<ManagerGroupReportPage />} />
@@ -221,8 +228,10 @@ function LocalAuthRoutes({ role }) {
         <Route path="shift"          element={<ManagerShiftPage />} />
         <Route path="overrides" element={<ManagerOverridePage />} />
         <Route path="inventory" element={<ManagerInventoryPage />} />
-        <Route path="transactions"     element={<TransactionsPage />} />
-        <Route path="transactions/:id" element={<TransactionDetailPage />} />
+        <Route path="transactions"      element={<ManagerTransactionPage />} />
+        <Route path="transactions/:id"  element={<ManagerTransactionDetailPage />} />
+        <Route path="customers"         element={<ManagerCustomersPage />} />
+        <Route path="customers/:id"     element={<ManagerCustomerDetailPage />} />
       </Route>
 
       <Route path="/login"  element={<Navigate to={home} replace />} />

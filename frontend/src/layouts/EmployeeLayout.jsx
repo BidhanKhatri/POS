@@ -8,6 +8,7 @@ import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import AdminPanelSettingsOutlinedIcon from '@mui/icons-material/AdminPanelSettingsOutlined';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import PersonOutlineOutlinedIcon from '@mui/icons-material/PersonOutlineOutlined';
+import PeopleOutlinedIcon        from '@mui/icons-material/PeopleOutlined';
 import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
 import MenuIcon from '@mui/icons-material/Menu';
 import CloseIcon from '@mui/icons-material/Close';
@@ -22,6 +23,7 @@ const NAV_ITEMS = [
 const MENU_ITEMS = [
   { label: 'Shift',              path: '/employee/shift',     icon: AccessTimeOutlinedIcon },
   { label: 'Inventory',          path: '/employee/inventory', icon: Inventory2OutlinedIcon },
+  { label: 'Customers',          path: '/employee/customers', icon: PeopleOutlinedIcon              },
   { label: 'Overrides Request',  path: '/employee/overrides', icon: AdminPanelSettingsOutlinedIcon },
   { label: 'Settings',           path: '/employee/settings',  icon: SettingsOutlinedIcon },
   { label: 'Profile',            path: '/employee/profile',   icon: PersonOutlineOutlinedIcon },

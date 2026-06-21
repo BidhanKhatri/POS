@@ -1,6 +1,4 @@
 import * as saleService from '../services/saleService.js';
-// completeSale is exported from saleService
-// listTransactions is exported from saleService
 import * as shiftService from '../services/shiftService.js';
 import { sendReceiptEmail } from '../services/emailService.js';
 import Sale from '../models/Sale.js';
@@ -124,4 +122,39 @@ const completeSale = async (req, res, next) => {
   }
 };
 
-export { processSale, completeSale, searchSales, getSaleDetail, listTransactions, emailReceipt };
+const managerSaleDetail = async (req, res, next) => {
+  try {
+    const detail = await saleService.getSaleDetailManager(req.params.id, req.user);
+    res.status(200).json(detail);
+  } catch (error) {
+    res.status(error.message === 'Sale not found' ? 404 : 403);
+    next(error);
+  }
+};
+
+const transactionKpis = async (req, res, next) => {
+  try {
+    const { method, status, startDate, endDate, employeeId } = req.query;
+    const result = await saleService.getTransactionKpis(req.user, {
+      method:     method     || '',
+      status:     status     || '',
+      startDate:  startDate  || '',
+      endDate:    endDate    || '',
+      employeeId: employeeId || '',
+    });
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const listEmployees = async (req, res, next) => {
+  try {
+    const employees = await saleService.listEmployees();
+    res.json(employees);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export { processSale, completeSale, searchSales, getSaleDetail, listTransactions, emailReceipt, managerSaleDetail, transactionKpis, listEmployees };

@@ -52,6 +52,10 @@ const saleSchema = new mongoose.Schema({
     required: true,
     unique: true,
   },
+  customerId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Customer',
+  },
   shiftId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Shift',
@@ -103,8 +107,12 @@ const saleSchema = new mongoose.Schema({
   timestamps: true,
 });
 
+saleSchema.index({ customerId: 1, createdAt: -1 });
 saleSchema.index({ shiftId: 1 });
-saleSchema.index({ employeeId: 1 });
-saleSchema.index({ createdAt: 1 });
+saleSchema.index({ employeeId: 1, createdAt: -1 });
+saleSchema.index({ createdAt: -1 });
+saleSchema.index({ paymentStatus: 1, createdAt: -1 });
+saleSchema.index({ 'items.sku': 1 });
+saleSchema.index({ status: 1, createdAt: -1 });
 
 export default mongoose.model('Sale', saleSchema);

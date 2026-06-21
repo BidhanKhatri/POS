@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   ResponsiveContainer, LineChart, Line,
   BarChart, Bar,
@@ -37,6 +38,7 @@ const C = {
 };
 
 const TABS = [
+  { id: 'overall',  label: 'Overall',  short: 'All'  },
   { id: 'daily',    label: 'Daily',    short: 'Day'  },
   { id: 'weekly',   label: 'Weekly',   short: 'Wks'  },
   { id: 'monthly',  label: 'Monthly',  short: 'Mth'  },
@@ -498,46 +500,58 @@ function WeeklyView() {
 /* ── Main page ── */
 export default function ManagerReportPage() {
   const [activeTab, setActiveTab] = useState('daily');
+  const navigate = useNavigate();
 
   const views = { daily: <DailyView />, weekly: <WeeklyView />, monthly: <MonthlyView />, annual: <AnnualView />, employee: <EmployeeView /> };
+
+  function handleTabClick(id) {
+    if (id === 'overall') {
+      navigate('/manager/reports/overall');
+    } else {
+      setActiveTab(id);
+    }
+  }
 
   return (
     <div style={{ padding: '20px 16px 32px', maxWidth: 480, margin: '0 auto' }}>
 
-      {/* ── Page header + inline tab selector ── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 20 }}>
-        <div style={{ flexShrink: 0 }}>
-          <p style={{ margin: '0 0 1px', fontSize: 10, fontWeight: 600, color: C.textDim, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
-            Manager Portal
-          </p>
-          <h1 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: C.textPri, letterSpacing: '-0.1px' }}>
-            Reports
-          </h1>
-        </div>
+      {/* ── Page header ── */}
+      <div style={{ marginBottom: 14 }}>
+        <p style={{ margin: '0 0 1px', fontSize: 10, fontWeight: 600, color: C.textDim, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+          Manager Portal
+        </p>
+        <h1 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: C.textPri, letterSpacing: '-0.1px' }}>
+          Reports
+        </h1>
+      </div>
 
-        {/* Compact tab pills */}
-        <div style={{ display: 'flex', gap: 3, background: C.elevated, borderRadius: 9, padding: 3 }}>
-          {TABS.map(({ id, label, short }) => {
+      {/* ── Filter tab bar (scrollable) ── */}
+      <div style={{ overflowX: 'auto', marginBottom: 20, paddingBottom: 2, scrollbarWidth: 'none' }}>
+        <div style={{ display: 'flex', gap: 6, background: C.elevated, borderRadius: 10, padding: 4, width: 'max-content', minWidth: '100%' }}>
+          {TABS.map(({ id, label }) => {
             const active = activeTab === id;
             return (
               <button
                 key={id}
-                onClick={() => setActiveTab(id)}
-                title={label}
+                onClick={() => handleTabClick(id)}
                 style={{
-                  padding: '4px 9px', height: 28, borderRadius: 6,
+                  padding: '6px 14px', height: 32, borderRadius: 7,
                   border: 'none',
                   background: active ? C.surface : 'transparent',
                   cursor: 'pointer',
-                  boxShadow: active ? '0 1px 3px rgba(62,39,35,0.12)' : 'none',
-                  fontSize: 11, fontWeight: active ? 700 : 600,
+                  boxShadow: active ? '0 1px 4px rgba(62,39,35,0.13)' : 'none',
+                  fontSize: 12, fontWeight: active ? 700 : 500,
                   color: active ? C.primary : C.textDim,
-                  letterSpacing: '0.03em',
+                  letterSpacing: '0.02em',
                   transition: 'background 0.15s, color 0.15s',
                   whiteSpace: 'nowrap',
+                  display: 'flex', alignItems: 'center', gap: id === 'overall' ? 5 : 0,
                 }}
               >
-                {short}
+                {id === 'overall' && (
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: active ? C.primary : C.textDim, flexShrink: 0, transition: 'background 0.15s' }} />
+                )}
+                {label}
               </button>
             );
           })}
@@ -546,6 +560,8 @@ export default function ManagerReportPage() {
 
       {/* ── Tab content ── */}
       {views[activeTab]}
+
+      <style>{`::-webkit-scrollbar { display: none; }`}</style>
     </div>
   );
 }
