@@ -111,8 +111,11 @@ export async function getBarcodes({ search, page = 1, limit = 20 }) {
   };
 }
 
-export async function getBarcodeByValue(barcodeValue) {
-  const barcode = await Barcode.findOne({ barcodeValue, isActive: true })
+export async function getBarcodeByValue(value) {
+  const barcode = await Barcode.findOne({
+    $or: [{ barcodeValue: value }, { sku: new RegExp(`^${value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }],
+    isActive: true,
+  })
     .populate('productId', 'name sku price stockQty isActive categoryId')
     .lean();
 

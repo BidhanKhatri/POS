@@ -6,7 +6,7 @@ import {
 } from '@simplewebauthn/browser';
 import useAuthStore from '../store/useAuthStore';
 
-const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
+const API = import.meta.env.VITE_API_BASE_URL ?? '';
 
 async function apiPost(path, body, token) {
   const headers = { 'Content-Type': 'application/json' };
@@ -48,7 +48,8 @@ export function useWebAuthn() {
   const [authenticating, setAuthenticating] = useState(false);
   const [error, setError] = useState(null);
 
-  const supported = browserSupportsWebAuthn();
+  const isSecureContext = window.isSecureContext;
+  const supported = isSecureContext && browserSupportsWebAuthn();
 
   // ── Registration ────────────────────────────────────────────────────────────
 
@@ -167,6 +168,7 @@ export function useWebAuthn() {
 
   return {
     supported,
+    isSecureContext,
     registering,
     authenticating,
     error,

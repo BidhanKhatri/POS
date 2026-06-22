@@ -17,7 +17,7 @@ import OpenInNewOutlinedIcon                from '@mui/icons-material/OpenInNewO
 import PersonOutlineOutlinedIcon            from '@mui/icons-material/PersonOutlineOutlined';
 import useAuthStore                         from '../store/useAuthStore';
 
-const API  = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
+const API  = import.meta.env.VITE_API_BASE_URL ?? '';
 const FONT = "'Plus Jakarta Sans', sans-serif";
 
 const C = {

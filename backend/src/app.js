@@ -14,6 +14,10 @@ const allowedOrigins = [
   'http://127.0.0.1:5174',
   'http://localhost:5175',
   'http://127.0.0.1:5175',
+  // LAN access for mobile/Chrome testing
+  'http://192.168.1.95:5173',
+  'http://192.168.1.95:5174',
+  'http://192.168.1.95:5175',
 ];
 
 const corsOptions = {
@@ -21,7 +25,10 @@ const corsOptions = {
     if (!origin || allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
-
+    // Allow any ngrok tunnel (for local HTTPS mobile testing)
+    if (/^https:\/\/[a-z0-9-]+\.ngrok(-free)?\.(?:app|dev|io)$/.test(origin)) {
+      return callback(null, true);
+    }
     return callback(new Error(`Origin ${origin} is not allowed by CORS`));
   },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

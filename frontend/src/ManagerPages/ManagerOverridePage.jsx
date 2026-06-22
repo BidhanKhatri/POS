@@ -18,7 +18,7 @@ import ChevronRightOutlinedIcon      from '@mui/icons-material/ChevronRightOutli
 import useAuthStore from '../store/useAuthStore';
 import CornerPanel from '../components/CornerPanel/CornerPanel';
 
-const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
+const API = import.meta.env.VITE_API_BASE_URL ?? '';
 
 const C = {
   primary:  '#3E2723',

@@ -10,7 +10,7 @@ import QrCodeOutlinedIcon from '@mui/icons-material/QrCodeOutlined';
 import useAuthStore from '../store/useAuthStore';
 import CornerCard from '../components/CornerCard/CornerCard';
 
-const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
+const API = import.meta.env.VITE_API_BASE_URL ?? '';
 const LOW = 5;
 const FONT = "'Plus Jakarta Sans', sans-serif";
 

@@ -31,12 +31,12 @@ function periodAgg(employeeId, start, end) {
 }
 
 function shapePeriod(raw) {
-  const r = raw[0] || { revenue: 0, transactions: 0, avgTicket: 0, refundedAmount: 0 };
+  const r = raw[0] || {};
   return {
-    revenue:        Number(r.revenue.toFixed(2)),
-    transactions:   r.transactions,
-    avgTicket:      Number((r.avgTicket || 0).toFixed(2)),
-    refundedAmount: Number(r.refundedAmount.toFixed(2)),
+    revenue:        Number((r.revenue        ?? 0).toFixed(2)),
+    transactions:   r.transactions ?? 0,
+    avgTicket:      Number((r.avgTicket      ?? 0).toFixed(2)),
+    refundedAmount: Number((r.refundedAmount ?? 0).toFixed(2)),
   };
 }
 
@@ -217,7 +217,7 @@ export const employeeDashboard = async (req, res, next) => {
     ]);
 
     // ── Shape KPIs ────────────────────────────────────────────────────────────
-    const kpi = kpiResult[0] || { revenue: 0, transactions: 0, avgTicket: 0, refundedAmount: 0 };
+    const kpi = kpiResult[0] ?? {};
 
     // ── Shape hourly — fill all 24 slots ─────────────────────────────────────
     const hourlyMap = Object.fromEntries(hourlyRaw.map((h) => [h._id, h]));
@@ -243,10 +243,10 @@ export const employeeDashboard = async (req, res, next) => {
 
     res.json({
       kpi: {
-        revenue:          Number(kpi.revenue.toFixed(2)),
-        transactions:     kpi.transactions,
-        avgTicket:        Number((kpi.avgTicket || 0).toFixed(2)),
-        refundedAmount:   Number(kpi.refundedAmount.toFixed(2)),
+        revenue:          Number((kpi.revenue        ?? 0).toFixed(2)),
+        transactions:     kpi.transactions     ?? 0,
+        avgTicket:        Number((kpi.avgTicket      ?? 0).toFixed(2)),
+        refundedAmount:   Number((kpi.refundedAmount ?? 0).toFixed(2)),
         pendingApprovals: pendingCount,
       },
       periods: {

@@ -39,7 +39,7 @@ import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import BarChartOutlinedIcon from '@mui/icons-material/BarChartOutlined';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
 function AuthPage() {
   return <LoginScreen />;

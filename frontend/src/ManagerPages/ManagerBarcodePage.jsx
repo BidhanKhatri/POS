@@ -12,7 +12,7 @@ import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined';
 import CloseIcon from '@mui/icons-material/Close';
 import useAuthStore from '../store/useAuthStore';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? '';
 
 const C = {
   brown: '#3E2723',

@@ -12,7 +12,7 @@
 import { useQuery } from '@tanstack/react-query';
 import useAuthStore from '../store/useAuthStore';
 
-const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
+const API = import.meta.env.VITE_API_BASE_URL ?? '';
 
 // ─── Core fetch helper ───────────────────────────────────────────────────────
 async function reportFetch(path, token) {

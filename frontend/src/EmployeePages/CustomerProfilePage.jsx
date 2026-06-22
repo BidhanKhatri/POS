@@ -15,7 +15,7 @@ import OpenInNewOutlinedIcon      from '@mui/icons-material/OpenInNewOutlined';
 import useAuthStore               from '../store/useAuthStore';
 import CornerCard                 from '../components/CornerCard/CornerCard';
 
-const API  = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
+const API  = import.meta.env.VITE_API_BASE_URL ?? '';
 const FONT = "'Plus Jakarta Sans', sans-serif";
 
 const C = {

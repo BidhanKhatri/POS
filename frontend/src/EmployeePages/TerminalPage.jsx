@@ -10,7 +10,7 @@ import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import CornerCard from '../components/CornerCard/CornerCard';
 import useAuthStore from '../store/useAuthStore';
 
-const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
+const API = import.meta.env.VITE_API_BASE_URL ?? '';
 
 const NUM_KEY =
   'flex items-center justify-center select-none cursor-pointer rounded-xl ' +
@@ -25,7 +25,8 @@ function toDisplay(raw) {
 
 export default function TerminalPage() {
   const navigate          = useNavigate();
-  const { pathname }      = useLocation();
+  const location          = useLocation();
+  const { pathname }      = location;
   const tenderPath        = pathname.startsWith('/manager') ? '/manager/tender'         : '/employee/tender';
   const discountPath      = pathname.startsWith('/manager') ? '/manager/discount'       : '/employee/discount';
   const refundPath        = pathname.startsWith('/manager') ? '/manager/refund'         : '/employee/refund';
@@ -46,6 +47,17 @@ export default function TerminalPage() {
   const toastTimer  = useRef(null);
   const audioCtx    = useRef(null);
   const itemIdRef   = useRef(0);
+
+  /* ── Pre-select product from barcode scanner ── */
+  useEffect(() => {
+    const bp = location.state?.barcodeProduct;
+    if (bp) {
+      setCurrentProduct(bp);
+      setAmountRaw(String(Math.round(bp.price * 100)));
+      // clear the state so a back-navigation doesn't re-trigger
+      window.history.replaceState({}, '');
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Load quick-slot products (P1-P9) ── */
   useEffect(() => {
@@ -287,27 +299,36 @@ export default function TerminalPage() {
           {displayValue || '0'}
         </span>
       </div>
-      {showVarianceStrip && (
-        <div style={{
-          marginTop: 8,
-          background: currentVariancePct === 0 ? 'rgba(46,125,79,0.06)' : 'rgba(178,106,0,0.07)',
-          border: `1px solid ${currentVariancePct === 0 ? 'rgba(46,125,79,0.20)' : 'rgba(178,106,0,0.28)'}`,
-          borderRadius: 8, padding: '6px 12px',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-        }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            <span style={{ fontSize: 9, fontWeight: 700, color: '#A09490', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Catalog</span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#6B5B57', fontVariantNumeric: 'tabular-nums' }}>${currentProduct.price}</span>
-          </div>
-          <span style={{ fontSize: 11, fontWeight: 800, color: currentVarColor, letterSpacing: '0.04em' }}>
-            {currentVariancePct === 0 ? 'AT PRICE' : `${currentVarAbove ? '+' : '−'}${currentVariancePct.toFixed(1)}%`}
+      <div style={{
+        marginTop: 8,
+        background: showVarianceStrip
+          ? (currentVariancePct === 0 ? 'rgba(46,125,79,0.06)' : 'rgba(178,106,0,0.07)')
+          : 'rgba(160,148,144,0.05)',
+        border: `1px solid ${showVarianceStrip
+          ? (currentVariancePct === 0 ? 'rgba(46,125,79,0.20)' : 'rgba(178,106,0,0.28)')
+          : 'rgba(160,148,144,0.18)'}`,
+        borderRadius: 8, padding: '6px 12px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+        transition: 'background 0.15s, border-color 0.15s',
+      }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <span style={{ fontSize: 9, fontWeight: 700, color: '#A09490', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Catalog</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: showVarianceStrip ? '#6B5B57' : '#C4B5B0', fontVariantNumeric: 'tabular-nums' }}>
+            {showVarianceStrip ? `$${currentProduct.price}` : '—'}
           </span>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 1, alignItems: 'flex-end' }}>
-            <span style={{ fontSize: 9, fontWeight: 700, color: '#A09490', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Selling</span>
-            <span style={{ fontSize: 13, fontWeight: 800, color: '#2B1D1A', fontVariantNumeric: 'tabular-nums' }}>${currentSellingPrice}</span>
-          </div>
         </div>
-      )}
+        <span style={{ fontSize: 11, fontWeight: 800, color: showVarianceStrip ? currentVarColor : '#C4B5B0', letterSpacing: '0.04em' }}>
+          {showVarianceStrip
+            ? (currentVariancePct === 0 ? 'AT PRICE' : `${currentVarAbove ? '+' : '−'}${currentVariancePct.toFixed(1)}%`)
+            : '—'}
+        </span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 1, alignItems: 'flex-end' }}>
+          <span style={{ fontSize: 9, fontWeight: 700, color: '#A09490', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Selling</span>
+          <span style={{ fontSize: 13, fontWeight: 800, color: showVarianceStrip ? '#2B1D1A' : '#C4B5B0', fontVariantNumeric: 'tabular-nums' }}>
+            {showVarianceStrip ? `$${currentSellingPrice}` : '—'}
+          </span>
+        </div>
+      </div>
     </div>
   );
 
@@ -767,27 +788,36 @@ export default function TerminalPage() {
         </div>
 
         {/* ── Live variance strip for current line ── */}
-        {showVarianceStrip && (
-          <div style={{
-            marginTop: 8,
-            background: currentVariancePct === 0 ? 'rgba(46,125,79,0.06)' : 'rgba(178,106,0,0.07)',
-            border: `1px solid ${currentVariancePct === 0 ? 'rgba(46,125,79,0.20)' : 'rgba(178,106,0,0.28)'}`,
-            borderRadius: 8, padding: '6px 12px',
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-          }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-              <span style={{ fontSize: 9, fontWeight: 700, color: '#A09490', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Catalog</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: '#6B5B57', fontVariantNumeric: 'tabular-nums' }}>${currentProduct.price}</span>
-            </div>
-            <span style={{ fontSize: 11, fontWeight: 800, color: currentVarColor, letterSpacing: '0.04em' }}>
-              {currentVariancePct === 0 ? 'AT PRICE' : `${currentVarAbove ? '+' : '−'}${currentVariancePct.toFixed(1)}%`}
+        <div style={{
+          marginTop: 8,
+          background: showVarianceStrip
+            ? (currentVariancePct === 0 ? 'rgba(46,125,79,0.06)' : 'rgba(178,106,0,0.07)')
+            : 'rgba(160,148,144,0.05)',
+          border: `1px solid ${showVarianceStrip
+            ? (currentVariancePct === 0 ? 'rgba(46,125,79,0.20)' : 'rgba(178,106,0,0.28)')
+            : 'rgba(160,148,144,0.18)'}`,
+          borderRadius: 8, padding: '6px 12px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+          transition: 'background 0.15s, border-color 0.15s',
+        }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <span style={{ fontSize: 9, fontWeight: 700, color: '#A09490', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Catalog</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: showVarianceStrip ? '#6B5B57' : '#C4B5B0', fontVariantNumeric: 'tabular-nums' }}>
+              {showVarianceStrip ? `$${currentProduct.price}` : '—'}
             </span>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 1, alignItems: 'flex-end' }}>
-              <span style={{ fontSize: 9, fontWeight: 700, color: '#A09490', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Selling</span>
-              <span style={{ fontSize: 13, fontWeight: 800, color: '#2B1D1A', fontVariantNumeric: 'tabular-nums' }}>${currentSellingPrice}</span>
-            </div>
           </div>
-        )}
+          <span style={{ fontSize: 11, fontWeight: 800, color: showVarianceStrip ? currentVarColor : '#C4B5B0', letterSpacing: '0.04em' }}>
+            {showVarianceStrip
+              ? (currentVariancePct === 0 ? 'AT PRICE' : `${currentVarAbove ? '+' : '−'}${currentVariancePct.toFixed(1)}%`)
+              : '—'}
+          </span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 1, alignItems: 'flex-end' }}>
+            <span style={{ fontSize: 9, fontWeight: 700, color: '#A09490', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Selling</span>
+            <span style={{ fontSize: 13, fontWeight: 800, color: showVarianceStrip ? '#2B1D1A' : '#C4B5B0', fontVariantNumeric: 'tabular-nums' }}>
+              {showVarianceStrip ? `$${currentSellingPrice}` : '—'}
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* ══════════════════════════════════════════

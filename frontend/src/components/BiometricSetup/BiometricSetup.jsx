@@ -122,7 +122,7 @@ function CredentialCard({ cred, onRevoke, onRename, revoking }) {
  * Shows currently registered passkeys and allows the user to add new ones or revoke existing ones.
  */
 export default function BiometricSetup() {
-  const { supported, registering, error, setError, registerBiometric, fetchCredentials, revokeCredential, renameCredential } = useWebAuthn();
+  const { supported, isSecureContext, registering, error, setError, registerBiometric, fetchCredentials, revokeCredential, renameCredential } = useWebAuthn();
 
   const [credentials, setCredentials] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -165,12 +165,19 @@ export default function BiometricSetup() {
   };
 
   if (!supported) {
+    const httpsRequired = !isSecureContext;
     return (
-      <div style={{ background: 'rgba(178,106,0,0.08)', border: `1px solid rgba(178,106,0,0.25)`, borderRadius: 12, padding: '16px 18px', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-        <WarningAmberOutlinedIcon sx={{ fontSize: 20, color: C.warning, flexShrink: 0, mt: '1px' }} />
+      <div style={{ background: httpsRequired ? 'rgba(21,101,192,0.07)' : 'rgba(178,106,0,0.08)', border: `1px solid ${httpsRequired ? 'rgba(21,101,192,0.25)' : 'rgba(178,106,0,0.25)'}`, borderRadius: 12, padding: '16px 18px', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+        <WarningAmberOutlinedIcon sx={{ fontSize: 20, color: httpsRequired ? '#1565C0' : C.warning, flexShrink: 0 }} />
         <div>
-          <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri }}>Biometric login not supported</p>
-          <p style={{ margin: '3px 0 0', fontSize: 12, color: C.textSec }}>Your browser or device does not support passkeys. Try Chrome, Safari, or Edge on a device with a biometric sensor.</p>
+          <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri }}>
+            {httpsRequired ? 'HTTPS required for biometric login' : 'Biometric login not supported'}
+          </p>
+          <p style={{ margin: '3px 0 0', fontSize: 12, color: C.textSec }}>
+            {httpsRequired
+              ? 'Face ID and Touch ID require a secure connection. Access this app via https:// or on the same device it\'s running on.'
+              : 'Your browser or device does not support passkeys. Try Chrome, Safari, or Edge on a device with a biometric sensor.'}
+          </p>
         </div>
       </div>
     );

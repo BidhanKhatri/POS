@@ -18,7 +18,7 @@ import KeyboardArrowDownIcon      from '@mui/icons-material/KeyboardArrowDown';
 import FilterListOutlinedIcon     from '@mui/icons-material/FilterListOutlined';
 import useAuthStore               from '../store/useAuthStore';
 
-const API  = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
+const API  = import.meta.env.VITE_API_BASE_URL ?? '';
 const FONT = "'Plus Jakarta Sans', sans-serif";
 
 const C = {
