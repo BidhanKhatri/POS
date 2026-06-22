@@ -31,6 +31,8 @@ import TransactionsPage        from './EmployeePages/TransactionsPage';
 import TransactionDetailPage   from './EmployeePages/TransactionDetailPage';
 import CustomerSearchPage      from './EmployeePages/CustomerSearchPage';
 import CustomerProfilePage     from './EmployeePages/CustomerProfilePage';
+import BarcodeScannerPage      from './EmployeePages/BarcodeScannerPage';
+import ManagerBarcodePage      from './ManagerPages/ManagerBarcodePage';
 import useAuthStore from './store/useAuthStore';
 import PointOfSaleIcon from '@mui/icons-material/PointOfSale';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
@@ -213,6 +215,7 @@ function LocalAuthRoutes({ role }) {
         <Route path="transactions/:id"  element={<TransactionDetailPage />} />
         <Route path="customers"         element={<CustomerSearchPage />} />
         <Route path="customers/:id"     element={<CustomerProfilePage />} />
+        <Route path="barcode"           element={<BarcodeScannerPage />} />
       </Route>
 
       {/* Manager routes */}
@@ -232,6 +235,7 @@ function LocalAuthRoutes({ role }) {
         <Route path="transactions/:id"  element={<ManagerTransactionDetailPage />} />
         <Route path="customers"         element={<ManagerCustomersPage />} />
         <Route path="customers/:id"     element={<ManagerCustomerDetailPage />} />
+        <Route path="barcodes"          element={<ManagerBarcodePage />} />
       </Route>
 
       <Route path="/login"  element={<Navigate to={home} replace />} />

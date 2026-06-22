@@ -12,6 +12,9 @@ import AssessmentOutlinedIcon            from '@mui/icons-material/AssessmentOut
 import PersonOutlinedIcon                from '@mui/icons-material/PersonOutlined';
 import GroupsOutlinedIcon                from '@mui/icons-material/GroupsOutlined';
 import PeopleOutlinedIcon                from '@mui/icons-material/PeopleOutlined';
+import QrCodeScannerOutlinedIcon         from '@mui/icons-material/QrCodeScannerOutlined';
+import MenuIcon                          from '@mui/icons-material/Menu';
+import CloseIcon                         from '@mui/icons-material/Close';
 import useAuthStore from '../store/useAuthStore';
 
 const NAV_ITEMS = [
@@ -28,6 +31,22 @@ const NAV_ITEMS = [
   { label: 'Overrides',   path: '/manager/overrides',   icon: AdminPanelSettingsOutlinedIcon },
   { label: 'Customers',  path: '/manager/customers',   icon: PeopleOutlinedIcon              },
   { label: 'Inventory',  path: '/manager/inventory',   icon: Inventory2OutlinedIcon          },
+  { label: 'Barcodes',  path: '/manager/barcodes',    icon: QrCodeScannerOutlinedIcon       },
+];
+
+// Mobile bottom bar — only the 3 most-used destinations
+const MOBILE_NAV_ITEMS = [
+  { label: 'Dashboard',     path: '/manager/dashboard',         icon: GridViewOutlinedIcon      },
+  { label: 'Reports',       path: '/manager/reports/overall',   icon: BarChartOutlinedIcon      },
+  { label: 'Transactions',  path: '/manager/transactions',      icon: ReceiptLongOutlinedIcon   },
+];
+
+// Mobile right-side drawer — everything else
+const MOBILE_MENU_ITEMS = [
+  { label: 'Overrides',  path: '/manager/overrides',  icon: AdminPanelSettingsOutlinedIcon },
+  { label: 'Customers',  path: '/manager/customers',  icon: PeopleOutlinedIcon             },
+  { label: 'Inventory',  path: '/manager/inventory',  icon: Inventory2OutlinedIcon         },
+  { label: 'Barcodes',   path: '/manager/barcodes',   icon: QrCodeScannerOutlinedIcon      },
 ];
 
 const SIDEBAR_W = 232;
@@ -40,6 +59,7 @@ export default function ManagerLayout() {
 
   const reportsActive = pathname.startsWith('/manager/reports');
   const [reportsOpen, setReportsOpen] = useState(true);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   /* keep submenu open when navigating into a reports sub-path */
   useEffect(() => {
@@ -51,9 +71,18 @@ export default function ManagerLayout() {
     navigate('/login', { replace: true });
   };
 
-  const activeIndex = NAV_ITEMS.findIndex(
+  const activeIndex = MOBILE_NAV_ITEMS.findIndex(
     ({ path }) => pathname === path || pathname.startsWith(path + '/')
   );
+
+  const isMenuRoute = MOBILE_MENU_ITEMS.some(
+    ({ path }) => pathname === path || pathname.startsWith(path + '/')
+  );
+
+  const goTo = (path) => {
+    setMenuOpen(false);
+    navigate(path);
+  };
 
   /* ── Desktop: sidebar layout ── */
   if (isDesktop) {
@@ -401,29 +430,31 @@ export default function ManagerLayout() {
           zIndex: 100,
         }}
       >
-        {/* Sliding active indicator */}
-        <span
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: `${(activeIndex / NAV_ITEMS.length) * 100}%`,
-            width: `${100 / NAV_ITEMS.length}%`,
-            display: 'flex',
-            justifyContent: 'center',
-            pointerEvents: 'none',
-            transition: 'left 0.28s cubic-bezier(0.4, 0, 0.2, 1)',
-          }}
-        >
+        {/* Sliding active indicator — only on bottom-nav routes */}
+        {activeIndex >= 0 && (
           <span
             style={{
-              width: 48, height: 3,
-              borderRadius: '0 0 4px 4px',
-              background: '#D4A373',
+              position: 'absolute',
+              top: 0,
+              left: `${(activeIndex / (MOBILE_NAV_ITEMS.length + 1)) * 100}%`,
+              width: `${100 / (MOBILE_NAV_ITEMS.length + 1)}%`,
+              display: 'flex',
+              justifyContent: 'center',
+              pointerEvents: 'none',
+              transition: 'left 0.28s cubic-bezier(0.4, 0, 0.2, 1)',
             }}
-          />
-        </span>
+          >
+            <span
+              style={{
+                width: 48, height: 3,
+                borderRadius: '0 0 4px 4px',
+                background: '#D4A373',
+              }}
+            />
+          </span>
+        )}
 
-        {NAV_ITEMS.map(({ label, path, icon: Icon }) => {
+        {MOBILE_NAV_ITEMS.map(({ label, path, icon: Icon }) => {
           const active = pathname === path || pathname.startsWith(path + '/');
           return (
             <button
@@ -450,7 +481,167 @@ export default function ManagerLayout() {
             </button>
           );
         })}
+
+        {/* Hamburger — opens right-side drawer */}
+        <button
+          onClick={() => setMenuOpen(true)}
+          style={{
+            flex: 1,
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center',
+            gap: 4, background: 'none', border: 'none',
+            cursor: 'pointer', padding: '8px 0 6px',
+          }}
+        >
+          <MenuIcon sx={{ fontSize: 28, color: isMenuRoute ? '#3E2723' : '#A09490', transition: 'color 0.2s' }} />
+          <span style={{
+            fontSize: 11,
+            fontWeight: isMenuRoute ? 700 : 500,
+            color: isMenuRoute ? '#3E2723' : '#A09490',
+            letterSpacing: '0.02em', lineHeight: '14px',
+            transition: 'color 0.2s',
+          }}>
+            Menu
+          </span>
+        </button>
       </nav>
+
+      {/* ── Backdrop ── */}
+      <div
+        onClick={() => setMenuOpen(false)}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 200,
+          background: 'rgba(43,29,26,0.32)',
+          backdropFilter: 'blur(3px)',
+          WebkitBackdropFilter: 'blur(3px)',
+          opacity: menuOpen ? 1 : 0,
+          pointerEvents: menuOpen ? 'auto' : 'none',
+          transition: 'opacity 0.3s ease',
+        }}
+      />
+
+      {/* ── Right-side menu drawer ── */}
+      <aside
+        style={{
+          position: 'fixed',
+          top: 0, right: 0, bottom: 0,
+          width: 'min(70vw, 300px)',
+          background: '#ffffff',
+          zIndex: 201,
+          boxShadow: '-8px 0 28px rgba(42,23,21,0.18)',
+          transform: menuOpen ? 'translateX(0)' : 'translateX(100%)',
+          transition: 'transform 0.32s cubic-bezier(0.32, 0.72, 0, 1)',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
+        {/* Drawer header */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '18px 16px',
+          borderBottom: '1px solid #DDD2CC',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+            <div style={{
+              width: 28, height: 28, borderRadius: 8,
+              background: '#3E2723',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <span style={{ fontSize: 12, fontWeight: 800, color: '#D4A373' }}>M</span>
+            </div>
+            <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: '#2B1D1A' }}>Menu</p>
+          </div>
+          <button
+            onClick={() => setMenuOpen(false)}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 34, height: 34, borderRadius: 9,
+              border: '1px solid #DDD2CC', background: '#F5F0EC',
+              color: '#3E2723', cursor: 'pointer',
+            }}
+          >
+            <CloseIcon sx={{ fontSize: 18 }} />
+          </button>
+        </div>
+
+        {/* User card inside drawer */}
+        <div style={{ padding: '12px 14px', borderBottom: '1px solid #DDD2CC' }}>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            padding: '10px 10px', borderRadius: 10, background: '#F9F6F3',
+          }}>
+            {user?.imageUrl ? (
+              <img src={user.imageUrl} alt={user.name}
+                style={{ width: 30, height: 30, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
+            ) : (
+              <div style={{
+                width: 30, height: 30, borderRadius: 8, background: '#3E2723',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                flexShrink: 0, fontSize: 12, fontWeight: 700, color: '#D4A373',
+              }}>
+                {(user?.name || 'M').charAt(0).toUpperCase()}
+              </div>
+            )}
+            <div style={{ overflow: 'hidden', flex: 1 }}>
+              <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: '#2B1D1A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {user?.name || 'Manager'}
+              </p>
+              <p style={{ margin: 0, fontSize: 10, fontWeight: 500, color: '#A09490', letterSpacing: '0.03em' }}>
+                {user?.employeeCode || 'Manager'}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Drawer nav items */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '8px 0', overflowY: 'auto' }}>
+          {MOBILE_MENU_ITEMS.map(({ label, path, icon: Icon }) => {
+            const active = pathname === path || pathname.startsWith(path + '/');
+            return (
+              <button
+                key={path}
+                onClick={() => goTo(path)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  padding: '13px 18px',
+                  background: active ? '#F5F0EC' : 'transparent',
+                  borderLeft: active ? '3px solid #3E2723' : '3px solid transparent',
+                  border: 'none',
+                  borderLeftWidth: 3,
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                }}
+              >
+                <Icon sx={{ fontSize: 20, color: active ? '#3E2723' : '#6B5B57' }} />
+                <span style={{ fontSize: 14, fontWeight: active ? 700 : 600, color: active ? '#3E2723' : '#2B1D1A' }}>
+                  {label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Sign out at bottom of drawer */}
+        <div style={{ padding: '12px 14px 24px', borderTop: '1px solid #DDD2CC' }}>
+          <button
+            onClick={handleLogout}
+            style={{
+              width: '100%',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              padding: '9px 12px', borderRadius: 9,
+              background: 'transparent',
+              border: '1px solid #DDD5D0',
+              color: '#8C7E7A',
+              fontSize: 12, fontWeight: 600, cursor: 'pointer', letterSpacing: '0.04em',
+            }}
+          >
+            <LogoutOutlinedIcon sx={{ fontSize: 14, color: '#A09490' }} />
+            Sign out
+          </button>
+        </div>
+      </aside>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useMediaQuery } from '@mui/material';
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
 import BackspaceOutlinedIcon from '@mui/icons-material/BackspaceOutlined';
 import ShoppingCartCheckoutIcon from '@mui/icons-material/ShoppingCartCheckout';
@@ -30,6 +31,7 @@ export default function TerminalPage() {
   const refundPath        = pathname.startsWith('/manager') ? '/manager/refund'         : '/employee/refund';
   const priceVariancePath = pathname.startsWith('/manager') ? '/manager/price-variance' : '/employee/price-variance';
   const token             = useAuthStore((s) => s.token);
+  const isDesktop         = useMediaQuery('(min-width:1024px)');
 
   // ── Cart state ──
   const [cartItems, setCartItems]       = useState([]); // [{id, product, sellingPrice, qty}]
@@ -249,6 +251,463 @@ export default function TerminalPage() {
   const fieldBorder  = canAddToCart ? '#2E7D4F' : '#DDD2CC';
   const labelColor   = canAddToCart ? '#2E7D4F' : '#6B5B57';
 
+  // ── Shared sub-components (used by both layouts) ────────────────────────────
+
+  const renderPriceDisplay = () => (
+    <div style={{
+      background: 'linear-gradient(145deg, #ffffff 0%, #f5f0ec 100%)',
+      border: '1px solid #DDD2CC',
+      borderRadius: 12,
+      padding: '14px 14px 12px',
+      boxShadow: '0 4px 0 #c8bdb8, 0 6px 16px rgba(62,39,35,0.10), inset 0 1px 0 rgba(255,255,255,0.9)',
+    }}>
+      <div style={{
+        position: 'relative', background: '#ffffff',
+        border: `1.5px solid ${fieldBorder}`, borderRadius: 8,
+        boxShadow: 'inset 0 2px 4px rgba(62,39,35,0.06)',
+        padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8,
+        transition: 'border-color 0.2s',
+      }}>
+        <span style={{
+          position: 'absolute', top: -9, left: 10,
+          background: '#ffffff', padding: '0 4px',
+          fontSize: 12, fontWeight: 600, color: labelColor,
+          letterSpacing: '0.01em', lineHeight: 1, pointerEvents: 'none',
+          transition: 'color 0.2s',
+        }}>
+          Selling Price
+        </span>
+        <AttachMoneyIcon sx={{ fontSize: 22, color: displayValue ? '#3E2723' : '#A09490', flexShrink: 0 }} />
+        <span style={{
+          flex: 1, textAlign: 'right',
+          fontSize: 30, fontWeight: 800,
+          color: displayValue ? '#2B1D1A' : '#C4B5B0',
+          letterSpacing: '-0.5px', lineHeight: 1, fontVariantNumeric: 'tabular-nums',
+        }}>
+          {displayValue || '0'}
+        </span>
+      </div>
+      {showVarianceStrip && (
+        <div style={{
+          marginTop: 8,
+          background: currentVariancePct === 0 ? 'rgba(46,125,79,0.06)' : 'rgba(178,106,0,0.07)',
+          border: `1px solid ${currentVariancePct === 0 ? 'rgba(46,125,79,0.20)' : 'rgba(178,106,0,0.28)'}`,
+          borderRadius: 8, padding: '6px 12px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+        }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <span style={{ fontSize: 9, fontWeight: 700, color: '#A09490', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Catalog</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#6B5B57', fontVariantNumeric: 'tabular-nums' }}>${currentProduct.price}</span>
+          </div>
+          <span style={{ fontSize: 11, fontWeight: 800, color: currentVarColor, letterSpacing: '0.04em' }}>
+            {currentVariancePct === 0 ? 'AT PRICE' : `${currentVarAbove ? '+' : '−'}${currentVariancePct.toFixed(1)}%`}
+          </span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 1, alignItems: 'flex-end' }}>
+            <span style={{ fontSize: 9, fontWeight: 700, color: '#A09490', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Selling</span>
+            <span style={{ fontSize: 13, fontWeight: 800, color: '#2B1D1A', fontVariantNumeric: 'tabular-nums' }}>${currentSellingPrice}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  const renderProductGrid = () => (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+      {productsLoading && (
+        <div style={{ gridColumn: 'span 3', textAlign: 'center', padding: '16px 0', fontSize: 12, fontWeight: 600, color: '#A09490' }}>
+          Loading products…
+        </div>
+      )}
+      {!productsLoading && products.length === 0 && (
+        <div style={{ gridColumn: 'span 3', textAlign: 'center', padding: '16px 0', fontSize: 12, fontWeight: 600, color: '#A09490' }}>
+          No quick-slot products configured.
+        </div>
+      )}
+      {products.map((product) => {
+        const { code, name, price } = product;
+        const isSelected = currentProduct?.code === code;
+        return (
+          <button
+            key={code}
+            onClick={() => handleProduct(product)}
+            className="flex flex-col items-center justify-center select-none rounded-xl border transition-all duration-75"
+            style={{
+              height: 70, cursor: 'pointer',
+              background: isSelected ? '#6d4c41' : '#ffffff',
+              border: isSelected ? '2px solid #D4A373' : '1px solid #DDD2CC',
+              boxShadow: isSelected
+                ? '0 4px 0 #3E2723, 0 6px 12px rgba(62,39,35,0.28), 0 0 0 1px #D4A373'
+                : '0 4px 0 #c4b8b2, 0 6px 12px rgba(0,0,0,0.06)',
+            }}
+            onMouseDown={(e) => { e.currentTarget.style.transform = 'translateY(4px)'; }}
+            onMouseUp={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
+          >
+            <span style={{ fontSize: 18, fontWeight: 800, color: isSelected ? '#fff' : '#2B1D1A', lineHeight: 1 }}>{code}</span>
+            <span style={{ fontSize: 10, fontWeight: 500, color: isSelected ? '#fff' : '#8A7B77', marginTop: 3, letterSpacing: '0.02em' }}>{name}</span>
+            {price > 0 && (
+              <span style={{ fontSize: 10, fontWeight: 700, color: isSelected ? '#fff' : '#2E7D4F', marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>${price}</span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  const renderNumpad = () => (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+      {['7', '8', '9'].map((d) => (
+        <button key={d} onClick={() => numpadDisabled ? showToast('Select a product first.') : pushDigit(d)} className={NUM_KEY}
+          style={{ height: 62, fontSize: 26, fontWeight: 700, color: '#2B1D1A' }}>
+          {d}
+        </button>
+      ))}
+      <button
+        onClick={() => handleTransactionType('RF')}
+        className="flex items-center justify-center select-none cursor-pointer rounded-xl active:translate-y-[4px] transition-all duration-75"
+        style={{
+          height: 62, fontSize: 13, fontWeight: 800, letterSpacing: '0.08em',
+          background: transactionType === 'RF'
+            ? 'linear-gradient(180deg, #5a3a33 0%, #4a2820 100%)'
+            : 'linear-gradient(180deg, #4E342E 0%, #3E2723 100%)',
+          color: '#fff',
+          border: transactionType === 'RF' ? '2px solid #D4A373' : '1px solid #2A1715',
+          boxShadow: transactionType === 'RF'
+            ? '0 4px 0 #1f100e, 0 6px 12px rgba(42,23,21,0.30), 0 0 0 1px #D4A373'
+            : '0 4px 0 #1f100e, 0 6px 12px rgba(42,23,21,0.30)',
+        }}>
+        RF
+      </button>
+      {['4', '5', '6'].map((d) => (
+        <button key={d} onClick={() => numpadDisabled ? showToast('Select a product first.') : pushDigit(d)} className={NUM_KEY}
+          style={{ height: 62, fontSize: 26, fontWeight: 700, color: '#2B1D1A' }}>
+          {d}
+        </button>
+      ))}
+      <button
+        onClick={() => handleTransactionType('SL')}
+        className="flex items-center justify-center select-none cursor-pointer rounded-xl active:translate-y-[4px] transition-all duration-75"
+        style={{
+          height: 62, fontSize: 13, fontWeight: 800, letterSpacing: '0.08em',
+          background: transactionType === 'SL' ? '#6d4c41' : '#5D4037',
+          color: '#fff',
+          border: transactionType === 'SL' ? '2px solid #D4A373' : '1px solid #4a3329',
+          boxShadow: transactionType === 'SL'
+            ? '0 4px 0 #3E2723, 0 6px 12px rgba(62,39,35,0.28), 0 0 0 1px #D4A373'
+            : '0 4px 0 #3E2723, 0 6px 12px rgba(62,39,35,0.28)',
+        }}>
+        SL
+      </button>
+      {['1', '2', '3'].map((d) => (
+        <button key={d} onClick={() => numpadDisabled ? showToast('Select a product first.') : pushDigit(d)} className={NUM_KEY}
+          style={{ height: 62, fontSize: 26, fontWeight: 700, color: '#2B1D1A' }}>
+          {d}
+        </button>
+      ))}
+      <button
+        onClick={handleENT}
+        className="flex items-center justify-center select-none rounded-xl active:translate-y-[4px] transition-all duration-75"
+        style={{
+          gridRow: 'span 2', fontSize: 15, fontWeight: 800, letterSpacing: '0.08em',
+          cursor: canAddToCart ? 'pointer' : 'default',
+          background: 'linear-gradient(180deg, #3E2723 0%, #2A1715 100%)',
+          color: canAddToCart ? '#fff' : 'rgba(255,255,255,0.45)',
+          border: canAddToCart ? '2px solid #D4A373' : '1px solid #1f100e',
+          boxShadow: canAddToCart
+            ? '0 4px 0 #150b09, 0 6px 12px rgba(21,11,9,0.35), 0 0 0 1px #D4A373'
+            : '0 4px 0 #150b09, 0 6px 12px rgba(21,11,9,0.35)',
+          transition: 'color 0.15s, border 0.15s, box-shadow 0.15s',
+        }}
+      >
+        ENT
+      </button>
+      <button onClick={() => numpadDisabled ? showToast('Select a product first.') : handleBackspace()}
+        className="flex items-center justify-center select-none cursor-pointer rounded-xl active:translate-y-[4px] transition-all duration-75"
+        style={{ height: 62, background: '#F5F0EC', color: '#3E2723', border: '1px solid #DDD2CC', boxShadow: '0 4px 0 #c4b8b2, 0 6px 12px rgba(0,0,0,0.06)' }}>
+        <BackspaceOutlinedIcon sx={{ fontSize: 22 }} />
+      </button>
+      <button onClick={() => numpadDisabled ? showToast('Select a product first.') : pushDigit('0')} className={NUM_KEY}
+        style={{ height: 62, fontSize: 26, fontWeight: 700, color: '#2B1D1A' }}>
+        0
+      </button>
+      <button onClick={handleClear}
+        className="flex items-center justify-center select-none cursor-pointer rounded-xl active:translate-y-[4px] transition-all duration-75"
+        style={{ height: 62, fontSize: 13, fontWeight: 800, letterSpacing: '0.1em', background: '#B71C1C', color: '#fff', border: '1px solid #991717', boxShadow: '0 4px 0 #7a1111, 0 6px 12px rgba(183,28,28,0.22)' }}>
+        CLR
+      </button>
+    </div>
+  );
+
+  const renderCartItems = () => (
+    <>
+      {cartItems.length === 0 ? (
+        <div style={{ padding: '32px 0', textAlign: 'center', fontSize: 12, fontWeight: 500, color: '#C4B5B0', fontStyle: 'italic' }}>
+          No items yet — select a product and press ENT
+        </div>
+      ) : (
+        <>
+          {cartItems.map((item) => {
+            const vp = item.product.price > 0
+              ? Math.abs((item.sellingPrice - item.product.price) / item.product.price) * 100
+              : 0;
+            const above = item.sellingPrice > item.product.price;
+            const vpColor = vp === 0 ? '#2E7D4F' : above ? '#B26A00' : '#B71C1C';
+            return (
+              <div key={item.id} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '9px 0', borderBottom: '1px solid #F0E8E3',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0, flex: 1 }}>
+                  <span style={{
+                    padding: '2px 7px', borderRadius: 5, flexShrink: 0,
+                    background: '#3E2723', color: '#fff',
+                    fontSize: 10, fontWeight: 800, letterSpacing: '0.04em',
+                  }}>
+                    {item.product.code}
+                  </span>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#2B1D1A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {item.product.name}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#A09490', fontWeight: 500, marginTop: 1 }}>
+                      {item.qty} × ${item.sellingPrice}
+                      {item.product.price > 0 && (
+                        <span style={{ marginLeft: 6, color: vpColor, fontWeight: 700 }}>
+                          {vp === 0 ? 'AT PRICE' : `${above ? '+' : '−'}${vp.toFixed(1)}%`}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 10 }}>
+                  <span style={{ fontSize: 14, fontWeight: 800, color: '#2B1D1A', fontVariantNumeric: 'tabular-nums' }}>
+                    ${item.sellingPrice * item.qty}
+                  </span>
+                  <button
+                    onClick={() => removeCartItem(item.id)}
+                    style={{
+                      width: 22, height: 22, borderRadius: '50%',
+                      border: '1px solid #DDD2CC', background: '#F5F0EC',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      cursor: 'pointer', padding: 0,
+                    }}
+                  >
+                    <CloseIcon sx={{ fontSize: 13, color: '#A09490' }} />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+          <div style={{ borderTop: '1.5px dashed #E6DAD5', margin: '8px 0' }} />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0' }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: '#A09490', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+              Subtotal · {cartItems.length} item{cartItems.length > 1 ? 's' : ''}
+            </span>
+            <span style={{ fontSize: 18, fontWeight: 800, color: '#2B1D1A', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.4px' }}>
+              ${cartSubtotal}
+            </span>
+          </div>
+        </>
+      )}
+    </>
+  );
+
+  const renderSectionLabel = (children) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+      <div style={{ flex: 1, height: 1, background: '#DDD2CC' }} />
+      <span style={{ fontSize: 10, fontWeight: 700, color: '#A09490', letterSpacing: '0.12em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+        {children}
+      </span>
+      <div style={{ flex: 1, height: 1, background: '#DDD2CC' }} />
+    </div>
+  );
+
+  const renderCheckoutBtn = () => (
+    <button
+      onClick={handleCheckout}
+      className="w-full flex items-center justify-center gap-2 rounded-xl transition-all duration-75 active:translate-y-[4px]"
+      style={{
+        height: 54, background: '#5D4037', color: '#fff',
+        fontSize: 15, fontWeight: 800, letterSpacing: '0.08em',
+        border: canCheckout ? '2px solid #D4A373' : '1px solid #4a3329',
+        boxShadow: canCheckout
+          ? '0 4px 0 #3E2723, 0 6px 12px rgba(62,39,35,0.28), 0 0 0 1px #D4A373'
+          : '0 4px 0 #3E2723, 0 6px 12px rgba(62,39,35,0.28)',
+        opacity: canCheckout ? 1 : 0.4,
+        cursor: canCheckout ? 'pointer' : 'not-allowed',
+      }}
+    >
+      <ShoppingCartCheckoutIcon sx={{ fontSize: 20 }} />
+      {isRefundMode ? 'Refund Product' : `Check Out${cartItems.length > 0 ? ` · $${cartSubtotal}` : ''}`}
+    </button>
+  );
+
+  // ── Toast (shared, positioned absolutely so it works in both layouts) ────────
+  const renderToast = () => toast ? (
+    <div key={toast.key} style={{
+      position: 'fixed', top: 74, left: '50%', transform: 'translateX(-50%)',
+      zIndex: 1200, display: 'flex', alignItems: 'center', gap: 10,
+      padding: '11px 18px', borderRadius: 12, background: '#2B1D1A', color: '#fff',
+      fontSize: 13, fontWeight: 600, letterSpacing: '0.01em',
+      boxShadow: '0 8px 24px rgba(42,23,21,0.28), 0 2px 6px rgba(42,23,21,0.16)',
+      whiteSpace: 'nowrap', animation: 'toast-in 0.22s cubic-bezier(0.34,1.56,0.64,1)',
+    }}>
+      <SwapHorizRoundedIcon sx={{ fontSize: 18, color: '#D4A373', flexShrink: 0 }} />
+      {toast.message}
+    </div>
+  ) : null;
+
+  // ── Desktop two-column layout ─────────────────────────────────────────────────
+  if (isDesktop) {
+    return (
+      <div style={{
+        display: 'flex',
+        height: '100dvh',
+        overflow: 'hidden',
+        fontFamily: "'Plus Jakarta Sans', sans-serif",
+        background: '#F5F3F1',
+      }}>
+        {renderToast()}
+
+        {/* ── Left panel: price display + products + numpad ── */}
+        <div style={{
+          width: 400,
+          flexShrink: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 0,
+          borderRight: '1px solid #E4DAD5',
+          background: '#FDFBF9',
+          overflowY: 'auto',
+          padding: '20px 20px 24px',
+        }}>
+
+          {/* Price display */}
+          {renderPriceDisplay()}
+
+          {/* Section: Product Entry */}
+          <div style={{ marginTop: 20 }}>
+            {renderSectionLabel('Product Entry')}
+            {renderProductGrid()}
+          </div>
+
+          {/* Section: Amount Entry */}
+          <div style={{ marginTop: 20 }}>
+            {renderSectionLabel('Amount Entry')}
+            {renderNumpad()}
+          </div>
+        </div>
+
+        {/* ── Right panel: order summary + checkout ── */}
+        <div style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          padding: '20px 24px 24px',
+          minWidth: 0,
+        }}>
+
+          {/* Receipt panel header */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: 16,
+            flexShrink: 0,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <ReceiptLongOutlinedIcon sx={{ fontSize: 18, color: '#A09490' }} />
+              <span style={{ fontSize: 14, fontWeight: 700, color: '#2B1D1A' }}>Order Summary</span>
+              {cartItems.length > 0 && (
+                <span style={{
+                  background: '#3E2723', color: '#fff',
+                  fontSize: 11, fontWeight: 700,
+                  padding: '2px 8px', borderRadius: 20,
+                }}>
+                  {cartItems.length} item{cartItems.length > 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
+
+            {/* Transaction mode badges */}
+            <div style={{ display: 'flex', gap: 6 }}>
+              {[
+                { type: 'SL', label: 'Sale',   activeColor: '#5D4037', activeBorder: '#D4A373', activeShadow: '0 2px 0 #3E2723' },
+                { type: 'RF', label: 'Refund', activeColor: '#3E2723', activeBorder: '#D4A373', activeShadow: '0 2px 0 #1f100e' },
+              ].map(({ type, label, activeColor, activeBorder, activeShadow }) => {
+                const active = transactionType === type;
+                return (
+                  <button
+                    key={type}
+                    onClick={() => handleTransactionType(type)}
+                    style={{
+                      padding: '6px 14px', borderRadius: 8,
+                      fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
+                      cursor: 'pointer',
+                      background: active ? activeColor : '#F0EAE6',
+                      color: active ? '#fff' : '#8C7E7A',
+                      border: active ? `1.5px solid ${activeBorder}` : '1px solid #DDD2CC',
+                      boxShadow: active ? activeShadow : 'none',
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    {type} · {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Cart — scrollable */}
+          <div style={{
+            flex: 1,
+            overflowY: 'auto',
+            background: '#ffffff',
+            borderRadius: 12,
+            border: '1px solid #DDD2CC',
+            boxShadow: '0 2px 8px rgba(62,39,35,0.06)',
+            marginBottom: 16,
+          }}>
+            {/* Receipt header */}
+            <div style={{
+              background: '#FAF7F5',
+              borderBottom: '1px solid #DDD2CC',
+              padding: '12px 18px',
+              display: 'flex', alignItems: 'center', gap: 6,
+              borderRadius: '12px 12px 0 0',
+            }}>
+              <ReceiptLongOutlinedIcon style={{ fontSize: 14, color: '#A09490' }} />
+              <span style={{ fontSize: 10, fontWeight: 700, color: '#A09490', letterSpacing: '0.14em', textTransform: 'uppercase' }}>
+                Billing Details
+              </span>
+              {transactionType && (
+                <span style={{
+                  marginLeft: 'auto',
+                  padding: '2px 9px', borderRadius: 20,
+                  background: transactionType === 'RF' ? '#3E2723' : '#5D4037',
+                  color: '#D4A373',
+                  fontSize: 10, fontWeight: 800, letterSpacing: '0.08em',
+                }}>
+                  {transactionType === 'RF' ? 'REFUND MODE' : 'SALE MODE'}
+                </span>
+              )}
+            </div>
+            <div style={{ padding: '4px 18px 16px' }}>
+              {renderCartItems()}
+            </div>
+          </div>
+
+          {/* Checkout */}
+          <div style={{ flexShrink: 0 }}>
+            {renderCheckoutBtn()}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Mobile layout (unchanged) ─────────────────────────────────────────────────
   return (
     <div style={{ padding: '14px 12px 20px', maxWidth: 480, margin: '0 auto', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
 

@@ -9,17 +9,21 @@ import AttachMoneyOutlinedIcon    from '@mui/icons-material/AttachMoneyOutlined'
 import EventOutlinedIcon          from '@mui/icons-material/EventOutlined';
 import ReceiptLongOutlinedIcon    from '@mui/icons-material/ReceiptLongOutlined';
 import MoneyOffOutlinedIcon       from '@mui/icons-material/MoneyOffOutlined';
+import ChevronLeftIcon            from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon           from '@mui/icons-material/ChevronRight';
+import OpenInNewOutlinedIcon      from '@mui/icons-material/OpenInNewOutlined';
 import useAuthStore               from '../store/useAuthStore';
+import CornerCard                 from '../components/CornerCard/CornerCard';
 
 const API  = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
 const FONT = "'Plus Jakarta Sans', sans-serif";
 
 const C = {
   primary: '#3E2723', accent: '#D4A373',
-  success: '#2E7D4F', error: '#B71C1C', info: '#0277BD',
+  success: '#2E7D4F', error: '#B71C1C', warning: '#B26A00', info: '#0277BD',
   textPri: '#2B1D1A', textSec: '#6B5B57', textDim: '#A09490',
-  border: '#DDD2CC', surface: '#ffffff', bg: '#F5F3F1', elevated: '#EFE7E2',
+  border: '#DDD2CC', surface: '#ffffff', bg: '#F5F3F1',
+  elevated: '#EFE7E2', tableHover: '#EFE7E2',
 };
 
 const STATUS_META = {
@@ -31,22 +35,46 @@ const STATUS_META = {
 };
 
 function fmt$(n) {
-  return '$' + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (n == null) return '—';
+  return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 function fmtDate(d) {
   if (!d) return '—';
-  return new Date(d).toLocaleDateString([], { month: 'short', day: 'numeric', year: '2-digit' });
+  return new Date(d).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
 }
 function fmtDateTime(d) {
   if (!d) return '—';
   const dt = new Date(d);
-  return dt.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' · ' +
+  return dt.toLocaleDateString([], { month: 'short', day: 'numeric', year: '2-digit' }) + ' · ' +
     dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function StatCard({ label, value, sub, icon: Icon, color, skeleton }) {
+  return (
+    <CornerCard accentColor={color} borderColor={C.border} borderRadius={12} cornerSize={22} cornerHeight={22}>
+      <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+        <div style={{ width: 32, height: 32, borderRadius: 8, background: `${color}14`, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Icon sx={{ fontSize: 16, color }} />
+        </div>
+        <div>
+          {skeleton
+            ? <div style={{ height: 18, width: 60, borderRadius: 4, background: C.elevated, marginBottom: 4 }} />
+            : <p style={{ margin: 0, fontSize: 16, fontWeight: 800, color: C.textPri, lineHeight: '22px' }}>{value}</p>}
+          {sub && <p style={{ margin: '1px 0 0', fontSize: 9, color: C.textDim, fontWeight: 600 }}>{sub}</p>}
+          <p style={{ margin: '2px 0 0', fontSize: 9, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</p>
+        </div>
+      </div>
+    </CornerCard>
+  );
 }
 
 function Badge({ status }) {
   const m = STATUS_META[status] || STATUS_META.PENDING;
-  return <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 8, background: m.bg, color: m.color }}>{m.label}</span>;
+  return (
+    <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 8, background: m.bg, color: m.color, whiteSpace: 'nowrap' }}>
+      {m.label}
+    </span>
+  );
 }
 
 const TABS = ['Purchases', 'Refunds'];
@@ -61,17 +89,17 @@ export default function CustomerProfilePage() {
   const [error,    setError]    = useState('');
   const [tab,      setTab]      = useState(0);
 
-  const [purchases,  setPurchases]  = useState([]);
-  const [pLoading,   setPLoading]   = useState(false);
-  const [pPage,      setPPage]      = useState(1);
-  const [pPages,     setPPages]     = useState(1);
-  const [pTotal,     setPTotal]     = useState(0);
+  const [purchases, setPurchases] = useState([]);
+  const [pLoading,  setPLoading]  = useState(false);
+  const [pPage,     setPPage]     = useState(1);
+  const [pPages,    setPPages]    = useState(1);
+  const [pTotal,    setPTotal]    = useState(0);
 
-  const [refunds,    setRefunds]    = useState([]);
-  const [rLoading,   setRLoading]   = useState(false);
-  const [rPage,      setRPage]      = useState(1);
-  const [rPages,     setRPages]     = useState(1);
-  const [rTotal,     setRTotal]     = useState(0);
+  const [refunds,   setRefunds]   = useState([]);
+  const [rLoading,  setRLoading]  = useState(false);
+  const [rPage,     setRPage]     = useState(1);
+  const [rPages,    setRPages]    = useState(1);
+  const [rTotal,    setRTotal]    = useState(0);
 
   const headers = { Authorization: `Bearer ${token}` };
 
@@ -121,11 +149,11 @@ export default function CustomerProfilePage() {
 
   if (loading) {
     return (
-      <div style={{ padding: '20px 16px', fontFamily: FONT }}>
+      <div style={{ padding: '16px 16px', fontFamily: FONT }}>
         <div style={{ height: 18, width: 80, borderRadius: 6, background: C.elevated, marginBottom: 20 }} />
-        <div style={{ height: 100, borderRadius: 14, background: C.surface, border: `1px solid ${C.border}`, marginBottom: 14 }} />
+        <div style={{ height: 110, borderRadius: 14, background: C.surface, border: `1px solid ${C.border}`, marginBottom: 12 }} />
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          {Array.from({ length: 4 }).map((_, i) => <div key={i} style={{ height: 72, borderRadius: 12, background: C.surface, border: `1px solid ${C.border}` }} />)}
+          {Array.from({ length: 4 }).map((_, i) => <div key={i} style={{ height: 70, borderRadius: 12, background: C.surface, border: `1px solid ${C.border}` }} />)}
         </div>
       </div>
     );
@@ -152,66 +180,59 @@ export default function CustomerProfilePage() {
         <ArrowBackOutlinedIcon sx={{ fontSize: 16 }} /> Customers
       </button>
 
-      {/* Customer card */}
-      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: '16px', marginBottom: 14 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-          <div style={{ width: 48, height: 48, borderRadius: 12, background: C.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 20, fontWeight: 800, color: C.accent }}>
-            {customer?.name?.charAt(0).toUpperCase()}
-          </div>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 17, fontWeight: 800, color: C.textPri }}>{customer?.name}</span>
-              <span style={{ padding: '2px 8px', borderRadius: 8, background: customer?.totalOrders > 1 ? 'rgba(46,125,79,0.10)' : 'rgba(2,119,189,0.10)', color: customer?.totalOrders > 1 ? C.success : C.info, fontSize: 10, fontWeight: 800 }}>
-                {customer?.totalOrders > 1 ? 'RETURNING' : 'NEW'}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {customer?.phone && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <PhoneOutlinedIcon sx={{ fontSize: 14, color: C.textDim }} />
-              <span style={{ fontSize: 13, color: C.textSec, fontFamily: 'monospace' }}>{customer.phone}</span>
-            </div>
-          )}
-          {customer?.email && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <EmailOutlinedIcon sx={{ fontSize: 14, color: C.textDim }} />
-              <span style={{ fontSize: 13, color: C.textSec }}>{customer.email}</span>
-            </div>
-          )}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <EventOutlinedIcon sx={{ fontSize: 14, color: C.textDim }} />
-            <span style={{ fontSize: 12, color: C.textDim }}>Member since {fmtDate(customer?.createdAt)}</span>
-          </div>
-        </div>
-
-        {customer?.notes && (
-          <p style={{ margin: '12px 0 0', fontSize: 12, color: C.textSec, background: C.bg, padding: '8px 10px', borderRadius: 8, borderLeft: `3px solid ${C.accent}` }}>
-            {customer.notes}
-          </p>
-        )}
-      </div>
-
-      {/* Stats grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 18 }}>
-        {[
-          { label: 'Total Orders',  value: customer?.totalOrders ?? 0,    icon: ShoppingBagOutlinedIcon, color: C.info    },
-          { label: 'Total Spend',   value: fmt$(customer?.totalSpent),     icon: AttachMoneyOutlinedIcon, color: C.success },
-          { label: 'Net Spend',     value: fmt$(customer?.netSpent),       icon: AttachMoneyOutlinedIcon, color: C.primary },
-          { label: 'Last Visit',    value: fmtDate(customer?.lastVisit),   icon: EventOutlinedIcon,       color: '#B26A00' },
-        ].map(({ label, value, icon: Icon, color }) => (
-          <div key={label} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px 14px', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-            <div style={{ width: 32, height: 32, borderRadius: 8, background: `${color}14`, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Icon sx={{ fontSize: 16, color }} />
+      {/* Customer info card */}
+      <CornerCard accentColor={C.accent} borderColor={C.border} borderRadius={14} cornerSize={30} cornerHeight={30} style={{ marginBottom: 14 }}>
+        <div style={{ padding: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+            <div style={{ width: 48, height: 48, borderRadius: 12, background: C.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <PersonOutlineOutlinedIcon sx={{ fontSize: 24, color: C.accent }} />
             </div>
             <div>
-              <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: C.textPri, lineHeight: '20px' }}>{value}</p>
-              <p style={{ margin: '2px 0 0', fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.07em' }}>{label}</p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 17, fontWeight: 800, color: C.textPri }}>{customer?.name}</span>
+                <span style={{ padding: '2px 8px', borderRadius: 8, background: customer?.totalOrders > 1 ? 'rgba(46,125,79,0.10)' : 'rgba(2,119,189,0.10)', color: customer?.totalOrders > 1 ? C.success : C.info, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em' }}>
+                  {customer?.totalOrders > 1 ? 'RETURNING' : 'NEW'}
+                </span>
+              </div>
             </div>
           </div>
-        ))}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {customer?.phone && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <PhoneOutlinedIcon sx={{ fontSize: 13, color: C.textDim }} />
+                <span style={{ fontSize: 13, color: C.textSec, fontFamily: 'monospace' }}>{customer.phone}</span>
+              </div>
+            )}
+            {customer?.email && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <EmailOutlinedIcon sx={{ fontSize: 13, color: C.textDim }} />
+                <span style={{ fontSize: 13, color: C.textSec }}>{customer.email}</span>
+              </div>
+            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <EventOutlinedIcon sx={{ fontSize: 13, color: C.textDim }} />
+              <span style={{ fontSize: 12, color: C.textDim }}>Member since {fmtDate(customer?.createdAt)}</span>
+            </div>
+          </div>
+
+          {customer?.notes && (
+            <p style={{ margin: '10px 0 0', fontSize: 12, color: C.textSec, background: C.bg, padding: '8px 10px', borderRadius: 8, borderLeft: `3px solid ${C.accent}` }}>
+              {customer.notes}
+            </p>
+          )}
+        </div>
+      </CornerCard>
+
+      {/* Stats grid — 2x2 + 1 full width on mobile */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+        <StatCard label="Total Orders" value={customer?.totalOrders ?? 0}       icon={ShoppingBagOutlinedIcon} color={C.info}    />
+        <StatCard label="Total Spend"  value={fmt$(customer?.totalSpent)}        icon={AttachMoneyOutlinedIcon} color={C.success} />
+        <StatCard label="Net Spend"    value={fmt$(customer?.netSpent)}           sub="After refunds" icon={AttachMoneyOutlinedIcon} color={C.primary} />
+        <StatCard label="Last Visit"   value={fmtDate(customer?.lastVisit)}      icon={EventOutlinedIcon}       color={C.warning} />
+      </div>
+      <div style={{ marginBottom: 16 }}>
+        <StatCard label="Refunded"     value={fmt$(customer?.refundedAmount)}    icon={MoneyOffOutlinedIcon}    color={C.error}   />
       </div>
 
       {/* Tabs */}
@@ -226,7 +247,7 @@ export default function CustomerProfilePage() {
         ))}
       </div>
 
-      {/* Purchases */}
+      {/* Purchases tab */}
       {tab === 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {pLoading && Array.from({ length: 4 }).map((_, i) => (
@@ -244,14 +265,23 @@ export default function CustomerProfilePage() {
           )}
 
           {!pLoading && purchases.map(s => (
-            <div key={s._id} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '14px 16px' }}>
+            <div key={s._id}
+              onClick={() => navigate(`/employee/transactions/${s._id}`)}
+              style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '14px 16px', cursor: 'pointer' }}
+              onTouchStart={e => e.currentTarget.style.background = C.tableHover}
+              onTouchEnd={e => e.currentTarget.style.background = C.surface}
+              onMouseEnter={e => e.currentTarget.style.background = C.tableHover}
+              onMouseLeave={e => e.currentTarget.style.background = C.surface}>
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
                 <div>
-                  <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: C.primary, fontFamily: 'monospace' }}>{s.invoiceNo}</p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: C.primary, fontFamily: 'monospace' }}>{s.invoiceNo}</p>
+                    <OpenInNewOutlinedIcon sx={{ fontSize: 11, color: C.textDim }} />
+                  </div>
                   <p style={{ margin: '2px 0 0', fontSize: 11, color: C.textDim }}>{fmtDateTime(s.createdAt)}</p>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: C.textPri }}>{fmt$(s.grandTotal)}</p>
+                  <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: C.textPri, fontVariantNumeric: 'tabular-nums' }}>{fmt$(s.grandTotal)}</p>
                   <Badge status={s.paymentStatus} />
                 </div>
               </div>
@@ -265,24 +295,24 @@ export default function CustomerProfilePage() {
           ))}
 
           {!pLoading && pPages > 1 && (
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 4 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 4 }}>
               <button onClick={() => loadPurchases(pPage - 1)} disabled={pPage === 1}
-                style={{ padding: '7px 14px', borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, fontSize: 12, fontWeight: 600, color: C.textSec, cursor: pPage === 1 ? 'default' : 'pointer', opacity: pPage === 1 ? 0.4 : 1, fontFamily: FONT }}>
-                Previous
+                style={{ width: 34, height: 34, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${C.border}`, background: C.surface, cursor: pPage === 1 ? 'default' : 'pointer', opacity: pPage === 1 ? 0.35 : 1 }}>
+                <ChevronLeftIcon sx={{ fontSize: 18, color: C.textSec }} />
               </button>
-              <span style={{ display: 'flex', alignItems: 'center', fontSize: 12, color: C.textDim }}>
-                {pPage} / {pPages}
+              <span style={{ fontSize: 12, color: C.textDim }}>
+                {pPage} / {pPages} · {pTotal} purchase{pTotal !== 1 ? 's' : ''}
               </span>
               <button onClick={() => loadPurchases(pPage + 1)} disabled={pPage === pPages}
-                style={{ padding: '7px 14px', borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, fontSize: 12, fontWeight: 600, color: C.textSec, cursor: pPage === pPages ? 'default' : 'pointer', opacity: pPage === pPages ? 0.4 : 1, fontFamily: FONT }}>
-                Next
+                style={{ width: 34, height: 34, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${C.border}`, background: C.surface, cursor: pPage === pPages ? 'default' : 'pointer', opacity: pPage === pPages ? 0.35 : 1 }}>
+                <ChevronRightIcon sx={{ fontSize: 18, color: C.textSec }} />
               </button>
             </div>
           )}
         </div>
       )}
 
-      {/* Refunds */}
+      {/* Refunds tab */}
       {tab === 1 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {rLoading && Array.from({ length: 3 }).map((_, i) => (
@@ -300,30 +330,44 @@ export default function CustomerProfilePage() {
           )}
 
           {!rLoading && refunds.map(s => (
-            <div key={s._id} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '14px 16px' }}>
+            <div key={s._id}
+              onClick={() => navigate(`/employee/transactions/${s._id}`)}
+              style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '14px 16px', cursor: 'pointer' }}
+              onTouchStart={e => e.currentTarget.style.background = C.tableHover}
+              onTouchEnd={e => e.currentTarget.style.background = C.surface}
+              onMouseEnter={e => e.currentTarget.style.background = C.tableHover}
+              onMouseLeave={e => e.currentTarget.style.background = C.surface}>
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
                 <div>
-                  <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: C.primary, fontFamily: 'monospace' }}>{s.invoiceNo}</p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: C.primary, fontFamily: 'monospace' }}>{s.invoiceNo}</p>
+                    <OpenInNewOutlinedIcon sx={{ fontSize: 11, color: C.textDim }} />
+                  </div>
                   <p style={{ margin: '2px 0 0', fontSize: 11, color: C.textDim }}>{fmtDateTime(s.createdAt)}</p>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: C.error }}>−{fmt$(s.refundedAmount)}</p>
+                  <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: C.error, fontVariantNumeric: 'tabular-nums' }}>−{fmt$(s.refundedAmount)}</p>
                   <p style={{ margin: '2px 0 0', fontSize: 11, color: C.textDim }}>of {fmt$(s.grandTotal)}</p>
                 </div>
+              </div>
+              <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${C.border}`, display: 'flex', justifyContent: 'flex-end' }}>
+                <Badge status={s.paymentStatus} />
               </div>
             </div>
           ))}
 
           {!rLoading && rPages > 1 && (
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 4 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 4 }}>
               <button onClick={() => loadRefunds(rPage - 1)} disabled={rPage === 1}
-                style={{ padding: '7px 14px', borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, fontSize: 12, fontWeight: 600, color: C.textSec, cursor: rPage === 1 ? 'default' : 'pointer', opacity: rPage === 1 ? 0.4 : 1, fontFamily: FONT }}>
-                Previous
+                style={{ width: 34, height: 34, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${C.border}`, background: C.surface, cursor: rPage === 1 ? 'default' : 'pointer', opacity: rPage === 1 ? 0.35 : 1 }}>
+                <ChevronLeftIcon sx={{ fontSize: 18, color: C.textSec }} />
               </button>
-              <span style={{ display: 'flex', alignItems: 'center', fontSize: 12, color: C.textDim }}>{rPage} / {rPages}</span>
+              <span style={{ fontSize: 12, color: C.textDim }}>
+                {rPage} / {rPages} · {rTotal} refund{rTotal !== 1 ? 's' : ''}
+              </span>
               <button onClick={() => loadRefunds(rPage + 1)} disabled={rPage === rPages}
-                style={{ padding: '7px 14px', borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, fontSize: 12, fontWeight: 600, color: C.textSec, cursor: rPage === rPages ? 'default' : 'pointer', opacity: rPage === rPages ? 0.4 : 1, fontFamily: FONT }}>
-                Next
+                style={{ width: 34, height: 34, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${C.border}`, background: C.surface, cursor: rPage === rPages ? 'default' : 'pointer', opacity: rPage === rPages ? 0.35 : 1 }}>
+                <ChevronRightIcon sx={{ fontSize: 18, color: C.textSec }} />
               </button>
             </div>
           )}
