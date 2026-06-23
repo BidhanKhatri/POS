@@ -7,9 +7,11 @@ const useAuthStore = create(
       user: null,
       token: null,
       lastEmail: '',
+      hasBiometric: false,
       setUser: (user) => set({ user }),
       setToken: (token) => set({ token }),
       setLastEmail: (email) => set({ lastEmail: email }),
+      setHasBiometric: (val) => set({ hasBiometric: val }),
       logout: () => set({ user: null, token: null }),
     }),
     {
@@ -18,6 +20,7 @@ const useAuthStore = create(
         lastEmail: state.lastEmail,
         token: state.token,
         user: state.user,
+        hasBiometric: state.hasBiometric,
       }),
     }
   )

@@ -8,6 +8,7 @@ import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined';
 import CloseOutlinedIcon       from '@mui/icons-material/CloseOutlined';
 import AddOutlinedIcon         from '@mui/icons-material/AddOutlined';
 import { useWebAuthn } from '../../hooks/useWebAuthn';
+import useAuthStore from '../../store/useAuthStore';
 
 const C = {
   primary: '#3E2723', accent: '#D4A373',
@@ -123,6 +124,7 @@ function CredentialCard({ cred, onRevoke, onRename, revoking }) {
  */
 export default function BiometricSetup() {
   const { supported, isSecureContext, registering, error, setError, registerBiometric, fetchCredentials, revokeCredential, renameCredential } = useWebAuthn();
+  const { setHasBiometric } = useAuthStore();
 
   const [credentials, setCredentials] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -132,10 +134,14 @@ export default function BiometricSetup() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    try { setCredentials(await fetchCredentials()); }
+    try {
+      const creds = await fetchCredentials();
+      setCredentials(creds);
+      setHasBiometric(Array.isArray(creds) && creds.length > 0);
+    }
     catch { /* non-fatal */ }
     finally { setLoading(false); }
-  }, [fetchCredentials]);
+  }, [fetchCredentials, setHasBiometric]);
 
   useEffect(() => { load(); }, [load]);
 

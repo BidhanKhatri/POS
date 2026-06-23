@@ -14,7 +14,6 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
-    "@clerk/backend": "^3.7.0",
     "@simplewebauthn/server": "^13.3.1",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
@@ -25,8 +24,7 @@
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.7.0",
     "node-cron": "^4.4.1",
-    "nodemailer": "^9.0.1",
-    "svix": "^1.95.2"
+    "nodemailer": "^9.0.1"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"

@@ -48,9 +48,6 @@ const limiter = rateLimit({
 });
 app.use('/api', limiter);
 
-// Clerk webhooks require the raw request body for Svix signature verification.
-app.use('/api/auth/clerk/webhook', express.raw({ type: 'application/json' }));
-
 // Body parser
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

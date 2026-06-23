@@ -12,6 +12,8 @@ import webauthnRoutes from './webauthnRoutes.js';
 import settingRoutes from './settingRoutes.js';
 import customerRoutes from './customerRoutes.js';
 import barcodeRoutes from './barcodeRoutes.js';
+import staffingRoutes from './staffingRoutes.js';
+import accountRoutes from './accountRoutes.js';
 
 router.use('/auth', authRoutes);
 router.use('/auth/webauthn', webauthnRoutes);
@@ -24,5 +26,7 @@ router.use('/reports', reportRoutes);
 router.use('/settings', settingRoutes);
 router.use('/customers', customerRoutes);
 router.use('/barcodes', barcodeRoutes);
+router.use('/staffing', staffingRoutes);
+router.use('/accounts', accountRoutes);
 
 export default router;

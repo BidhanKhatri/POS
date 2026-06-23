@@ -13,6 +13,9 @@ import PersonOutlinedIcon                from '@mui/icons-material/PersonOutline
 import GroupsOutlinedIcon                from '@mui/icons-material/GroupsOutlined';
 import PeopleOutlinedIcon                from '@mui/icons-material/PeopleOutlined';
 import QrCodeScannerOutlinedIcon         from '@mui/icons-material/QrCodeScannerOutlined';
+import CalendarMonthOutlinedIcon         from '@mui/icons-material/CalendarMonthOutlined';
+import ManageAccountsOutlinedIcon        from '@mui/icons-material/ManageAccountsOutlined';
+import SettingsOutlinedIcon              from '@mui/icons-material/SettingsOutlined';
 import MenuIcon                          from '@mui/icons-material/Menu';
 import CloseIcon                         from '@mui/icons-material/Close';
 import useAuthStore from '../store/useAuthStore';
@@ -32,6 +35,9 @@ const NAV_ITEMS = [
   { label: 'Customers',  path: '/manager/customers',   icon: PeopleOutlinedIcon              },
   { label: 'Inventory',  path: '/manager/inventory',   icon: Inventory2OutlinedIcon          },
   { label: 'Barcodes',  path: '/manager/barcodes',    icon: QrCodeScannerOutlinedIcon       },
+  { label: 'Schedule',  path: '/manager/scheduling',  icon: CalendarMonthOutlinedIcon       },
+  { label: 'Employees', path: '/manager/employee',     icon: ManageAccountsOutlinedIcon      },
+  { label: 'Settings',  path: '/manager/settings',    icon: SettingsOutlinedIcon             },
 ];
 
 // Mobile bottom bar — only the 3 most-used destinations
@@ -47,6 +53,9 @@ const MOBILE_MENU_ITEMS = [
   { label: 'Customers',  path: '/manager/customers',  icon: PeopleOutlinedIcon             },
   { label: 'Inventory',  path: '/manager/inventory',  icon: Inventory2OutlinedIcon         },
   { label: 'Barcodes',   path: '/manager/barcodes',   icon: QrCodeScannerOutlinedIcon      },
+  { label: 'Schedule',   path: '/manager/scheduling',  icon: CalendarMonthOutlinedIcon      },
+  { label: 'Employees', path: '/manager/employee',     icon: ManageAccountsOutlinedIcon     },
+  { label: 'Settings',  path: '/manager/settings',    icon: SettingsOutlinedIcon            },
 ];
 
 const SIDEBAR_W = 232;

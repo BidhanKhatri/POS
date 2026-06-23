@@ -52,4 +52,25 @@ router.patch('/price-variance-limit', protect, managerOrAdmin, async (req, res, 
   } catch (e) { next(e); }
 });
 
+// GET /api/settings/sync-staffing — any authenticated manager/admin
+router.get('/sync-staffing', protect, managerOrAdmin, async (req, res, next) => {
+  try {
+    const doc = await Setting.findById('global');
+    res.json({ syncStaffingBetit: doc?.syncStaffingBetit ?? false });
+  } catch (e) { next(e); }
+});
+
+// PATCH /api/settings/sync-staffing — managers only
+router.patch('/sync-staffing', protect, managerOrAdmin, async (req, res, next) => {
+  try {
+    const val = Boolean(req.body.syncStaffingBetit);
+    const doc = await Setting.findByIdAndUpdate(
+      'global',
+      { $set: { syncStaffingBetit: val } },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    res.json({ syncStaffingBetit: doc.syncStaffingBetit });
+  } catch (e) { next(e); }
+});
+
 export default router;

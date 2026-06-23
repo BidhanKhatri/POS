@@ -6,6 +6,7 @@ const settingSchema = new mongoose.Schema({
   _id: { type: String },
   maxDiscountPercent:      { type: Number, default: 10, min: 0, max: 100 },
   maxPriceVariancePercent: { type: Number, default: 10, min: 0, max: 100 },
+  syncStaffingBetit:       { type: Boolean, default: false },
 }, { timestamps: true });
 
 export default mongoose.model('Setting', settingSchema);

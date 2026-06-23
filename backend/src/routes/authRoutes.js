@@ -1,11 +1,9 @@
 import express from 'express';
 const router = express.Router();
-import { clerkWebhook, login, signup, syncClerkUser } from '../controllers/authController.js';
+import { login, signup, verifyEmail } from '../controllers/authController.js';
 
 router.post('/login', login);
 router.post('/signup', signup);
-router.post('/clerk/sync', syncClerkUser);
-router.post('/clerk/webhook', clerkWebhook);
-
+router.get('/verify-email', verifyEmail);
 
 export default router;
