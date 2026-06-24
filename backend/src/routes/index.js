@@ -14,6 +14,7 @@ import customerRoutes from './customerRoutes.js';
 import barcodeRoutes from './barcodeRoutes.js';
 import staffingRoutes from './staffingRoutes.js';
 import accountRoutes from './accountRoutes.js';
+import scheduleRoutes from './scheduleRoutes.js';
 
 router.use('/auth', authRoutes);
 router.use('/auth/webauthn', webauthnRoutes);
@@ -28,5 +29,6 @@ router.use('/customers', customerRoutes);
 router.use('/barcodes', barcodeRoutes);
 router.use('/staffing', staffingRoutes);
 router.use('/accounts', accountRoutes);
+router.use('/schedules', scheduleRoutes);
 
 export default router;

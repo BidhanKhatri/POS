@@ -67,7 +67,7 @@ export default function ManagerLayout() {
   const isDesktop = useMediaQuery('(min-width:1024px)');
 
   const reportsActive = pathname.startsWith('/manager/reports');
-  const [reportsOpen, setReportsOpen] = useState(true);
+  const [reportsOpen, setReportsOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
   /* keep submenu open when navigating into a reports sub-path */
@@ -96,6 +96,17 @@ export default function ManagerLayout() {
   /* ── Desktop: sidebar layout ── */
   if (isDesktop) {
     return (
+      <>
+      <style>{`
+        .mgr-nav-btn:hover:not(.mgr-nav-btn--active) { background: #F7F2EE !important; }
+        .mgr-nav-btn:hover:not(.mgr-nav-btn--active) span { color: #3E2723 !important; }
+        .mgr-nav-btn:hover:not(.mgr-nav-btn--active) .MuiSvgIcon-root { color: #3E2723 !important; }
+        .mgr-sub-btn:hover:not(.mgr-sub-btn--active) { background: #F7F2EE !important; }
+        .mgr-sub-btn:hover:not(.mgr-sub-btn--active) span { color: #3E2723 !important; }
+        .mgr-sub-btn:hover:not(.mgr-sub-btn--active) .MuiSvgIcon-root { color: #3E2723 !important; }
+        .mgr-logout-btn:hover { background: #F2EBE5 !important; border-color: #C4B5AE !important; color: #3E2723 !important; }
+        .mgr-logout-btn:hover .MuiSvgIcon-root { color: #3E2723 !important; }
+      `}</style>
       <div style={{
         display: 'flex',
         minHeight: '100dvh',
@@ -148,6 +159,7 @@ export default function ManagerLayout() {
                     {/* Toggle button */}
                     <button
                       onClick={() => setReportsOpen(o => !o)}
+                      className={`mgr-nav-btn${active ? ' mgr-nav-btn--active' : ''}`}
                       style={{
                         width: '100%',
                         display: 'flex', alignItems: 'center', gap: 10,
@@ -203,6 +215,7 @@ export default function ManagerLayout() {
                               <button
                                 key={childPath}
                                 onClick={() => navigate(childPath)}
+                                className={`mgr-sub-btn${childActive ? ' mgr-sub-btn--active' : ''}`}
                                 style={{
                                   width: '100%',
                                   display: 'flex', alignItems: 'center', gap: 8,
@@ -246,6 +259,7 @@ export default function ManagerLayout() {
                 <button
                   key={path}
                   onClick={() => navigate(path)}
+                  className={`mgr-nav-btn${active2 ? ' mgr-nav-btn--active' : ''}`}
                   style={{
                     width: '100%',
                     display: 'flex', alignItems: 'center', gap: 10,
@@ -318,6 +332,7 @@ export default function ManagerLayout() {
             </div>
             <button
               onClick={handleLogout}
+              className="mgr-logout-btn"
               style={{
                 width: '100%',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
@@ -326,7 +341,7 @@ export default function ManagerLayout() {
                 border: '1px solid #DDD5D0',
                 color: '#8C7E7A',
                 fontSize: 12, fontWeight: 600, cursor: 'pointer', letterSpacing: '0.04em',
-                transition: 'background 0.15s',
+                transition: 'background 0.15s, border-color 0.15s, color 0.15s',
               }}
             >
               <LogoutOutlinedIcon sx={{ fontSize: 14, color: '#A09490' }} />
@@ -345,6 +360,7 @@ export default function ManagerLayout() {
           <Outlet />
         </main>
       </div>
+      </>
     );
   }
 
