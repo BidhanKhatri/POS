@@ -12,6 +12,7 @@ import {
   getAnomalies,
   getInsights,
   exportReport,
+  getEmployeeDetail,
 } from '../controllers/reportController.js';
 
 const router = express.Router();
@@ -29,6 +30,7 @@ router.get('/heatmap',   getHeatmap);
 router.get('/groups',    getShiftGroups);
 router.get('/anomalies', getAnomalies);
 router.get('/insights',  getInsights);
-router.get('/export',    exportReport);
+router.get('/export',        exportReport);
+router.get('/employee/:id',  getEmployeeDetail);
 
 export default router;

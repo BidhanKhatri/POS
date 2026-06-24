@@ -220,6 +220,19 @@ export function useReportInsights({ start, end }, options = {}) {
   });
 }
 
+export function useEmployeeReport({ employeeId, start, end }, options = {}) {
+  const token = useAuthStore(s => s.token);
+  const live  = isLivePeriod(end);
+  return useQuery({
+    queryKey:       ['report', 'employee', employeeId, start, end],
+    queryFn:        () => reportFetch(`employee/${employeeId}${qs({ start, end })}`, token),
+    enabled:        !!token && !!employeeId && !!start && !!end,
+    staleTime:      0,
+    refetchInterval: live ? 60 * 1000 : false,
+    ...options,
+  });
+}
+
 // CSV export is a download action, not a query — returns a trigger function
 export function useExportCSV() {
   const token = useAuthStore(s => s.token);

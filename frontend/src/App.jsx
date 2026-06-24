@@ -36,6 +36,7 @@ import ManagerBarcodePage      from './ManagerPages/ManagerBarcodePage';
 import ManagerStaffingPage     from './ManagerPages/ManagerStaffingPage';
 import ManagerEmployeePage     from './ManagerPages/ManagerEmployeePage';
 import ManagerSettingsPage     from './ManagerPages/ManagerSettingsPage';
+import ManagerGroupsPage       from './ManagerPages/ManagerGroupsPage';
 import useAuthStore from './store/useAuthStore';
 
 function LocalAuthRoutes({ role }) {
@@ -84,6 +85,7 @@ function LocalAuthRoutes({ role }) {
         <Route path="customers/:id"     element={<ManagerCustomerDetailPage />} />
         <Route path="barcodes"          element={<ManagerBarcodePage />} />
         <Route path="scheduling"        element={<ManagerStaffingPage />} />
+        <Route path="groups"            element={<ManagerGroupsPage />} />
         <Route path="employee"           element={<ManagerEmployeePage />} />
         <Route path="settings"          element={<ManagerSettingsPage />} />
       </Route>

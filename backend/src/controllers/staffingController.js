@@ -1,6 +1,25 @@
 import * as staffingService from '../services/staffingService.js';
 
 /**
+ * GET /api/staffing/groups
+ * Access: Manager, Admin
+ *
+ * Returns all EMS groups with their member lists for read-only display
+ * in the Manager Groups page.
+ */
+export const getEmsGroups = async (req, res, next) => {
+  try {
+    const groups = await staffingService.fetchGroups();
+    res.status(200).json({ success: true, count: groups.length, data: groups });
+  } catch (error) {
+    if (error.message?.includes('EMS API error')) {
+      return res.status(502).json({ success: false, message: 'EMS service unavailable. Check that the staffing portal is running.' });
+    }
+    next(error);
+  }
+};
+
+/**
  * GET /api/staffing/shifts/current
  * Access: Employee, Manager, Admin
  *

@@ -31,9 +31,10 @@ const C = {
 };
 
 const TABS = [
+  { key: 'biometric', label: 'Biometric',           icon: FingerprintOutlinedIcon },
   { key: 'email',     label: 'Email Config',        icon: EmailOutlinedIcon },
   { key: 'managers',  label: 'Manager Management',  icon: AdminPanelSettingsOutlinedIcon },
-  { key: 'biometric', label: 'Biometric',           icon: FingerprintOutlinedIcon },
+  { key: 'sync',      label: 'Sync Data',           icon: SyncOutlinedIcon },
 ];
 
 /* ── Reusable toggle switch ── */
@@ -188,9 +189,9 @@ function SyncDataTab({ token }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <InfoBanner>
-        When <strong>Sync Staffing Betit</strong> is enabled, new employee signups are verified against your
-        Staffing Betit (EMS) account before a POS account is created. Employees must use their registered
-        work email and verify it via email link.
+        When <strong>Sync Staffing Betit</strong> is enabled, the Schedule page shows read-only shifts sourced
+        from your EMS account, and new employee signups are verified against Staffing Betit before a POS account
+        is created. Disable sync to manage schedules and signups entirely within POS.
       </InfoBanner>
 
       <SettingRow
@@ -200,8 +201,8 @@ function SyncDataTab({ token }) {
         title="Sync Staffing Betit"
         description={
           syncEnabled
-            ? 'Signups must use a valid Staffing Betit work email — email verification required'
-            : 'Any email is accepted — no EMS validation on signup'
+            ? 'Schedules read from EMS · signups require a valid Staffing Betit work email'
+            : 'Local mode — schedules managed in POS · any email accepted on signup'
         }
         control={
           <Toggle
@@ -227,13 +228,13 @@ function SyncDataTab({ token }) {
         background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '16px 18px',
       }}>
         <p style={{ margin: '0 0 10px', fontSize: 12, fontWeight: 800, color: C.textPri, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-          How it works
+          What sync affects
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {[
-            { n: '1', text: 'Employee visits the signup page and enters their Staffing Betit work email.' },
-            { n: '2', text: 'POS verifies the email against Staffing Betit in real time.' },
-            { n: '3', text: 'A verification link is sent to the employee\'s inbox (expires in 15 minutes).' },
+            { n: '1', text: 'Schedule page shows shifts pulled from Staffing Betit (EMS) — read-only within POS.' },
+            { n: '2', text: 'Employee signups are verified against Staffing Betit before a POS account is created.' },
+            { n: '3', text: 'A verification link is sent to the employee\'s Staffing Betit work email (expires in 15 minutes).' },
             { n: '4', text: 'After clicking the link, the account is created as Active — no manager approval needed.' },
           ].map(({ n, text }) => (
             <div key={n} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
@@ -1017,7 +1018,7 @@ function ManagerManagementTab({ token, currentUserId }) {
 ══════════════════════════════════ */
 export default function ManagerSettingsPage() {
   const { token, user } = useAuthStore();
-  const [activeTab, setActiveTab] = useState('email');
+  const [activeTab, setActiveTab] = useState('biometric');
 
   return (
     <div style={{
@@ -1070,6 +1071,7 @@ export default function ManagerSettingsPage() {
       {/* Tab content */}
       {activeTab === 'email'     && <EmailConfigTab        token={token} />}
       {activeTab === 'managers'  && <ManagerManagementTab  token={token} currentUserId={user?._id} />}
+      {activeTab === 'sync'      && <SyncDataTab token={token} />}
       {activeTab === 'biometric' && (
         <div style={{
           background: C.surface, border: `1px solid ${C.border}`,

@@ -1100,6 +1100,180 @@ async function exportCSV({ start, end }) {
   return rows.join('\n');
 }
 
+// ─── Employee Detail Report ──────────────────────────────────────────────────
+async function getEmployeeReport({ employeeId, start, end }) {
+  const { start: s, end: e } = parseRange(start, end);
+  const empObjId = new mongoose.Types.ObjectId(employeeId);
+
+  const [employee, salesAgg, trendAgg, productAgg, paymentAgg, transactions, activity, shifts] = await Promise.all([
+    // Employee info
+    User.findById(empObjId).select('name employeeCode role email').lean(),
+
+    // KPI aggregation from sales
+    Sale.aggregate([
+      { $match: { employeeId: empObjId, createdAt: { $gte: s, $lte: e }, paymentStatus: { $in: ['PAID', 'PARTIAL', 'REFUNDED', 'VOIDED'] } } },
+      { $group: {
+        _id: null,
+        revenue:        { $sum: { $cond: [{ $ne: ['$paymentStatus', 'VOIDED'] }, '$grandTotal', 0] } },
+        refundedAmount: { $sum: '$refundedAmount' },
+        discountTotal:  { $sum: '$discountTotal' },
+        txnCount:       { $sum: { $cond: [{ $ne: ['$paymentStatus', 'VOIDED'] }, 1, 0] } },
+        voidCount:      { $sum: { $cond: [{ $eq: ['$paymentStatus', 'VOIDED'] }, 1, 0] } },
+        itemsSold:      { $sum: { $sum: '$items.quantity' } },
+      } },
+    ]),
+
+    // Daily trend
+    Sale.aggregate([
+      { $match: { employeeId: empObjId, createdAt: { $gte: s, $lte: e }, paymentStatus: { $in: ['PAID', 'PARTIAL', 'REFUNDED'] } } },
+      { $group: {
+        _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+        revenue:  { $sum: { $subtract: ['$grandTotal', '$refundedAmount'] } },
+        txnCount: { $sum: 1 },
+      } },
+      { $sort: { _id: 1 } },
+    ]),
+
+    // Top products
+    Sale.aggregate([
+      { $match: { employeeId: empObjId, createdAt: { $gte: s, $lte: e }, paymentStatus: { $in: ['PAID', 'PARTIAL'] } } },
+      { $unwind: '$items' },
+      { $group: {
+        _id:     '$items.productName',
+        qty:     { $sum: '$items.quantity' },
+        revenue: { $sum: '$items.total' },
+        txnCount: { $sum: 1 },
+      } },
+      { $sort: { revenue: -1 } },
+      { $limit: 10 },
+    ]),
+
+    // Payment method breakdown (join Sales → Payments)
+    Payment.aggregate([
+      {
+        $lookup: {
+          from: 'sales',
+          localField: 'saleId',
+          foreignField: '_id',
+          as: 'sale',
+        },
+      },
+      { $unwind: '$sale' },
+      { $match: {
+        'sale.employeeId': empObjId,
+        'sale.createdAt':  { $gte: s, $lte: e },
+        direction:         'CHARGE',
+        status:            'SUCCESS',
+      } },
+      { $group: {
+        _id:    '$method',
+        amount: { $sum: '$amount' },
+        count:  { $sum: 1 },
+      } },
+      { $sort: { amount: -1 } },
+    ]),
+
+    // Recent transactions (last 50)
+    Sale.find({ employeeId: empObjId, createdAt: { $gte: s, $lte: e } })
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .select('invoiceNo createdAt grandTotal refundedAmount paymentStatus status items discountTotal')
+      .lean(),
+
+    // Audit / activity log (overrides)
+    ManagerOverride.find({ employeeId: empObjId, createdAt: { $gte: s, $lte: e } })
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .populate('approvedBy', 'name')
+      .lean(),
+
+    // Shift attendance
+    Shift.find({ employeeId: empObjId, shiftDate: { $gte: s, $lte: e } })
+      .sort({ shiftDate: -1 })
+      .lean(),
+  ]);
+
+  if (!employee) throw Object.assign(new Error('Employee not found'), { status: 404 });
+
+  const kpiRaw = salesAgg[0] || { revenue: 0, refundedAmount: 0, discountTotal: 0, txnCount: 0, voidCount: 0, itemsSold: 0 };
+  const netRevenue = kpiRaw.revenue - kpiRaw.refundedAmount;
+
+  // Override counts
+  const overridesAll = activity;
+  const overrideCount = overridesAll.length;
+  const refundCount   = overridesAll.filter(o => o.actionType === 'REFUND' && o.status === 'APPROVED').length;
+
+  // Shift hours
+  const closedShifts  = shifts.filter(sh => sh.status === 'CLOSED' && sh.clockInTime && sh.clockOutTime);
+  const totalMinutes  = closedShifts.reduce((acc, sh) => acc + (new Date(sh.clockOutTime) - new Date(sh.clockInTime)) / 60000, 0);
+  const hoursWorked   = Math.round((totalMinutes / 60) * 10) / 10;
+  const shiftCount    = shifts.length;
+
+  const avgTicket      = kpiRaw.txnCount > 0 ? Math.round((netRevenue / kpiRaw.txnCount) * 100) / 100 : 0;
+  const revenuePerHour = hoursWorked > 0 ? Math.round((netRevenue / hoursWorked) * 100) / 100 : 0;
+  const txnPerHour     = hoursWorked > 0 ? Math.round((kpiRaw.txnCount / hoursWorked) * 10) / 10 : 0;
+  const totalTxns      = kpiRaw.txnCount + kpiRaw.voidCount;
+  const voidRate       = totalTxns > 0 ? Math.round((kpiRaw.voidCount / totalTxns) * 10000) / 100 : 0;
+  const refundRate     = kpiRaw.txnCount > 0 ? Math.round((refundCount / kpiRaw.txnCount) * 10000) / 100 : 0;
+
+  return {
+    employee: { _id: employee._id, name: employee.name, employeeCode: employee.employeeCode, role: employee.role, email: employee.email },
+    kpis: {
+      revenue:         Math.round(kpiRaw.revenue         * 100) / 100,
+      netRevenue:      Math.round(netRevenue              * 100) / 100,
+      refundedAmount:  Math.round(kpiRaw.refundedAmount  * 100) / 100,
+      discountTotal:   Math.round(kpiRaw.discountTotal   * 100) / 100,
+      txnCount:        kpiRaw.txnCount,
+      voidCount:       kpiRaw.voidCount,
+      voidRate,
+      avgTicket,
+      revenuePerHour,
+      txnPerHour,
+      refundCount,
+      refundRate,
+      overrideCount,
+      itemsSold:       kpiRaw.itemsSold,
+      hoursWorked,
+      shiftCount,
+    },
+    trend: trendAgg.map(d => ({ date: d._id, revenue: Math.round(d.revenue * 100) / 100, txnCount: d.txnCount })),
+    products: productAgg.map(d => ({ name: d._id, qty: d.qty, revenue: Math.round(d.revenue * 100) / 100, txnCount: d.txnCount })),
+    payments: paymentAgg.map(d => ({ method: d._id, amount: Math.round(d.amount * 100) / 100, count: d.count })),
+    transactions: transactions.map(t => ({
+      id:            t._id,
+      invoiceNo:     t.invoiceNo,
+      date:          t.createdAt,
+      grandTotal:    Math.round(t.grandTotal    * 100) / 100,
+      refundedAmount:Math.round((t.refundedAmount || 0) * 100) / 100,
+      discountTotal: Math.round((t.discountTotal || 0) * 100) / 100,
+      netTotal:      Math.round((t.grandTotal - (t.refundedAmount || 0)) * 100) / 100,
+      paymentStatus: t.paymentStatus,
+      status:        t.status,
+      itemCount:     t.items?.reduce((a, i) => a + i.quantity, 0) || 0,
+    })),
+    activity: overridesAll.map(o => ({
+      id:         o._id,
+      date:       o.createdAt,
+      actionType: o.actionType,
+      status:     o.status,
+      reason:     o.reason,
+      approvedBy: o.approvedBy?.name || null,
+    })),
+    shifts: shifts.map(sh => ({
+      id:        sh._id,
+      date:      sh.shiftDate,
+      clockIn:   sh.clockInTime,
+      clockOut:  sh.clockOutTime,
+      status:    sh.status,
+      hours:     (sh.status === 'CLOSED' && sh.clockOutTime)
+                   ? Math.round(((new Date(sh.clockOutTime) - new Date(sh.clockInTime)) / 3600000) * 10) / 10
+                   : null,
+      totalSales:       sh.totalSales || 0,
+      totalTransactions: sh.totalTransactions || 0,
+    })),
+  };
+}
+
 export {
   getSummary,
   getTrend,
@@ -1112,4 +1286,5 @@ export {
   getAnomalies,
   getInsights,
   exportCSV,
+  getEmployeeReport,
 };

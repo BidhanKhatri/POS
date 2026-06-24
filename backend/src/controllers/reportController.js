@@ -124,6 +124,18 @@ const exportReport = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+// GET /api/reports/employee/:id
+const getEmployeeDetail = async (req, res, next) => {
+  try {
+    const { start, end } = parseDateRange(req.query);
+    const data = await reportService.getEmployeeReport({ employeeId: req.params.id, start, end });
+    res.json(data);
+  } catch (err) {
+    if (err.status === 404) return res.status(404).json({ message: err.message });
+    next(err);
+  }
+};
+
 export {
   getSummary,
   getTrend,
@@ -136,4 +148,5 @@ export {
   getAnomalies,
   getInsights,
   exportReport,
+  getEmployeeDetail,
 };

@@ -1,6 +1,6 @@
 import express from 'express';
 import { protect, managerOrAdmin } from '../middleware/authMiddleware.js';
-import { getCurrentShift, getAllSchedules } from '../controllers/staffingController.js';
+import { getCurrentShift, getAllSchedules, getEmsGroups } from '../controllers/staffingController.js';
 
 const router = express.Router();
 
@@ -18,5 +18,11 @@ router.get('/shifts/current', getCurrentShift);
  * Manager / Admin only — full schedule view with filters.
  */
 router.get('/shifts', managerOrAdmin, getAllSchedules);
+
+/**
+ * GET /api/staffing/groups
+ * Manager / Admin only — returns EMS groups with member lists.
+ */
+router.get('/groups', managerOrAdmin, getEmsGroups);
 
 export default router;

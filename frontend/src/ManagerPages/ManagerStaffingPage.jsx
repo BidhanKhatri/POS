@@ -1004,10 +1004,9 @@ export default function ManagerStaffingPage() {
   const [loading,     setLoading]     = useState(false);
   const [error,       setError]       = useState(null);
 
-  /* ── Sync toggle ── */
+  /* ── Sync state (read-only, controlled from Settings › Sync Data) ── */
   const [syncEnabled,  setSyncEnabled]  = useState(false);
   const [syncLoading,  setSyncLoading]  = useState(true);
-  const [syncToggling, setSyncToggling] = useState(false);
 
   /* ── Local schedule state ── */
   const [localEmployees, setLocalEmployees] = useState([]);
@@ -1055,20 +1054,6 @@ export default function ManagerStaffingPage() {
       .finally(() => setSyncLoading(false));
   }, [token]);
 
-  const toggleSync = async () => {
-    setSyncToggling(true);
-    try {
-      const res = await fetch(`${API}/api/settings/sync-staffing`, {
-        method: 'PATCH', headers: authHeaders,
-        body: JSON.stringify({ syncStaffingBetit: !syncEnabled }),
-      });
-      const data = await res.json();
-      setSyncEnabled(data.syncStaffingBetit);
-    } catch {
-    } finally {
-      setSyncToggling(false);
-    }
-  };
 
   /* ── EMS fetch (sync mode ON) ── */
   const fetchEmsWeek = useCallback(async () => {
@@ -1386,47 +1371,23 @@ export default function ManagerStaffingPage() {
         </div>
       </div>
 
-      {/* ── Sync toggle ── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '14px 18px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ width: 38, height: 38, borderRadius: 9, flexShrink: 0, background: syncEnabled ? 'rgba(46,125,79,0.10)' : C.elevated, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <SyncOutlinedIcon sx={{ fontSize: 19, color: syncEnabled ? C.success : C.textDim }} />
-          </div>
-          <div>
-            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri }}>Sync Staffing Betit</p>
-            <p style={{ margin: '2px 0 0', fontSize: 11, color: C.textSec }}>
-              {syncEnabled
-                ? 'Schedules sourced from EMS — read-only in POS'
-                : 'Local mode — manage schedules directly in POS'}
-            </p>
-          </div>
-        </div>
-        <button
-          onClick={toggleSync}
-          disabled={syncLoading || syncToggling}
-          aria-label="Toggle Staffing Betit sync"
-          style={{ position: 'relative', width: 46, height: 26, borderRadius: 13, background: syncEnabled ? C.success : C.border, border: 'none', cursor: (syncLoading || syncToggling) ? 'wait' : 'pointer', transition: 'background 0.2s', flexShrink: 0, opacity: (syncLoading || syncToggling) ? 0.55 : 1 }}>
-          <span style={{ position: 'absolute', top: 3, left: syncEnabled ? 23 : 3, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
-        </button>
-      </div>
-
       {/* ── Context banner ── */}
       {syncEnabled ? (
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, background: 'rgba(2,119,189,0.06)', border: '1px solid rgba(2,119,189,0.18)', borderRadius: 10, padding: '10px 14px' }}>
           <InfoOutlinedIcon sx={{ fontSize: 16, color: C.info, flexShrink: 0, marginTop: '1px' }} />
           <p style={{ margin: 0, fontSize: 12, color: '#01579B', fontWeight: 500, lineHeight: '18px' }}>
-            <strong>Read-only view</strong> — data sourced from Staffing Betit (EMS). To create or modify schedules, visit the{' '}
+            <strong>Read-only view</strong> — schedules are sourced from Staffing Betit (EMS). To create or modify schedules, visit the{' '}
             <a href="https://staffingbetit.com/admin/scheduling" target="_blank" rel="noopener noreferrer"
               style={{ color: '#0277BD', fontWeight: 700, textDecoration: 'underline' }}>
               Staffing Betit admin portal
-            </a>. Toggle sync OFF to manage schedules locally.
+            </a>. To switch to local scheduling, go to <strong>Settings › Sync Data</strong>.
           </p>
         </div>
       ) : (
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, background: `${C.primary}06`, border: `1px solid ${C.primary}20`, borderRadius: 10, padding: '10px 14px' }}>
           <EditOutlinedIcon sx={{ fontSize: 16, color: C.primary, flexShrink: 0, marginTop: '1px' }} />
           <p style={{ margin: 0, fontSize: 12, color: C.primaryLt, fontWeight: 500, lineHeight: '18px' }}>
-            <strong>Local scheduling active.</strong> Click any empty cell to add a shift. Click an existing shift to edit or delete it. Use <strong>Bulk Ops</strong> to replicate or clear schedules across weeks.
+            <strong>Local scheduling active.</strong> Click any empty cell to add a shift. Click an existing shift to edit or delete it. Use <strong>Bulk Ops</strong> to replicate or clear schedules across weeks. To sync with EMS, go to <strong>Settings › Sync Data</strong>.
           </p>
         </div>
       )}

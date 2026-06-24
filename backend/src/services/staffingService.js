@@ -140,3 +140,17 @@ export async function fetchSchedules({ employeeId, startDate, endDate } = {}) {
   cacheSet(cacheKey, data);
   return data;
 }
+
+/**
+ * Fetch all EMS groups with their member lists.
+ * Cached for 5 minutes — groups change infrequently.
+ */
+export async function fetchGroups() {
+  const cacheKey = 'ems:groups:all';
+  const cached = cacheGet(cacheKey);
+  if (cached) return cached;
+
+  const data = await emsRequest('/integrations/groups');
+  cacheSet(cacheKey, data);
+  return data;
+}
