@@ -7,6 +7,7 @@ import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined';
 import ErrorOutlineOutlinedIcon from '@mui/icons-material/ErrorOutlineOutlined';
 import RefreshOutlinedIcon from '@mui/icons-material/RefreshOutlined';
 import QrCodeOutlinedIcon from '@mui/icons-material/QrCodeOutlined';
+import BlockOutlinedIcon from '@mui/icons-material/BlockOutlined';
 import useAuthStore from '../store/useAuthStore';
 import CornerCard from '../components/CornerCard/CornerCard';
 
@@ -34,7 +35,15 @@ export default function InventoryPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [pageErr, setPageErr] = useState('');
+  const [stockTracking, setStockTracking] = useState(true);
   const isDesktop = useMediaQuery('(min-width:1024px)');
+
+  useEffect(() => {
+    fetch(`${API}/api/settings/stock-tracking`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(d => setStockTracking(d.stockTrackingEnabled ?? true))
+      .catch(() => {});
+  }, [token]);
 
   const fetchProducts = useCallback(async () => {
     setLoading(true); setPageErr('');
@@ -62,11 +71,24 @@ export default function InventoryPage() {
   const okCount    = products.filter(p => p.stockQty > LOW).length;
 
   const STATS = [
-    { label: 'Total Products', value: totalCount, color: C.primary, iconBg: 'rgba(62,39,35,0.09)',  Icon: Inventory2OutlinedIcon   },
-    { label: 'In Stock',       value: okCount,    color: C.success, iconBg: 'rgba(46,125,79,0.10)', Icon: Inventory2OutlinedIcon   },
-    { label: 'Low Stock',      value: lowCount,   color: C.warning, iconBg: 'rgba(178,106,0,0.10)', Icon: WarningAmberOutlinedIcon },
-    { label: 'Out of Stock',   value: outCount,   color: C.error,   iconBg: 'rgba(183,28,28,0.09)', Icon: ErrorOutlineOutlinedIcon },
+    { label: 'Total Products', value: totalCount,                           color: C.primary,                            iconBg: 'rgba(62,39,35,0.09)',                        Icon: Inventory2OutlinedIcon   },
+    { label: 'In Stock',       value: stockTracking ? okCount  : '—',       color: stockTracking ? C.success : C.textDim, iconBg: stockTracking ? 'rgba(46,125,79,0.10)' : C.elevated, Icon: Inventory2OutlinedIcon   },
+    { label: 'Low Stock',      value: stockTracking ? lowCount : '—',       color: stockTracking ? C.warning : C.textDim, iconBg: stockTracking ? 'rgba(178,106,0,0.10)' : C.elevated, Icon: WarningAmberOutlinedIcon },
+    { label: 'Out of Stock',   value: stockTracking ? outCount : '—',       color: stockTracking ? C.error   : C.textDim, iconBg: stockTracking ? 'rgba(183,28,28,0.09)' : C.elevated, Icon: ErrorOutlineOutlinedIcon },
   ];
+
+  const disabledBanner = !stockTracking && (
+    <div style={{
+      display: 'flex', alignItems: 'flex-start', gap: 10,
+      background: 'rgba(178,106,0,0.07)', border: '1px solid rgba(178,106,0,0.25)',
+      borderRadius: 10, padding: '10px 14px', marginBottom: 14,
+    }}>
+      <BlockOutlinedIcon sx={{ fontSize: 16, color: C.warning, flexShrink: 0, marginTop: '1px' }} />
+      <p style={{ margin: 0, fontSize: 12, color: '#7A4F00', fontWeight: 500, lineHeight: '18px', fontFamily: FONT }}>
+        <strong>Stock Tracking Disabled</strong> — quantity levels are not being updated. Product and price information remain active.
+      </p>
+    </div>
+  );
 
   // ── Mobile layout ────────────────────────────────────────────────────────────
   if (!isDesktop) {
@@ -103,6 +125,9 @@ export default function InventoryPage() {
             </CornerCard>
           ))}
         </div>
+
+        {/* Disabled banner */}
+        {disabledBanner}
 
         {/* Search bar */}
         <div style={{ position: 'relative', marginBottom: 14 }}>
@@ -145,8 +170,14 @@ export default function InventoryPage() {
                 <p style={{ margin: '1px 0 0', fontSize: 10, fontWeight: 600, color: C.textDim, letterSpacing: '0.04em' }}>{p.sku}{p.quickSlot ? ` · P${p.quickSlot}` : ''}</p>
               </div>
               <div>
-                <p style={{ margin: 0, fontSize: 14, fontWeight: 800, lineHeight: '18px', color: p.stockQty === 0 ? C.error : p.stockQty <= LOW ? C.warning : C.textPri }}>{p.stockQty}</p>
-                <StockPill qty={p.stockQty} />
+                {stockTracking ? (
+                  <>
+                    <p style={{ margin: 0, fontSize: 14, fontWeight: 800, lineHeight: '18px', color: p.stockQty === 0 ? C.error : p.stockQty <= LOW ? C.warning : C.textPri }}>{p.stockQty}</p>
+                    <StockPill qty={p.stockQty} />
+                  </>
+                ) : (
+                  <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textDim }}>—</p>
+                )}
               </div>
               <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri }}>${p.price.toFixed(2)}</p>
             </div>
@@ -156,8 +187,9 @@ export default function InventoryPage() {
         {filtered.length > 0 && (
           <p style={{ margin: '10px 0 0', fontSize: 11, color: C.textDim, textAlign: 'center' }}>
             {filtered.length} product{filtered.length !== 1 ? 's' : ''}{search ? ' matched' : ' total'}
-            {lowCount > 0 && <span style={{ color: C.warning, fontWeight: 700 }}> · {lowCount} low stock</span>}
-            {outCount > 0 && <span style={{ color: C.error, fontWeight: 700 }}> · {outCount} out of stock</span>}
+            {stockTracking && lowCount > 0 && <span style={{ color: C.warning, fontWeight: 700 }}> · {lowCount} low stock</span>}
+            {stockTracking && outCount > 0 && <span style={{ color: C.error, fontWeight: 700 }}> · {outCount} out of stock</span>}
+            {!stockTracking && <span style={{ color: C.textDim }}> · stock tracking disabled</span>}
           </p>
         )}
       </div>
@@ -211,6 +243,9 @@ export default function InventoryPage() {
           </CornerCard>
         ))}
       </div>
+
+      {/* Disabled banner */}
+      {disabledBanner}
 
       {/* Search + error */}
       <div style={{ marginBottom: 16 }}>
@@ -311,8 +346,14 @@ export default function InventoryPage() {
 
             {/* Stock */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: p.stockQty === 0 ? C.error : p.stockQty <= LOW ? C.warning : C.textPri }}>{p.stockQty}</p>
-              <StockPill qty={p.stockQty} />
+              {stockTracking ? (
+                <>
+                  <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: p.stockQty === 0 ? C.error : p.stockQty <= LOW ? C.warning : C.textPri }}>{p.stockQty}</p>
+                  <StockPill qty={p.stockQty} />
+                </>
+              ) : (
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textDim }}>—</p>
+              )}
             </div>
 
             {/* Price */}
@@ -325,8 +366,9 @@ export default function InventoryPage() {
         <p style={{ margin: '12px 0 0', fontSize: 12, color: C.textDim }}>
           Showing {filtered.length} of {totalCount} product{totalCount !== 1 ? 's' : ''}
           {search && ' matching search'}
-          {lowCount > 0 && <span style={{ color: C.warning, fontWeight: 700 }}> · {lowCount} low stock</span>}
-          {outCount > 0 && <span style={{ color: C.error, fontWeight: 700 }}> · {outCount} out of stock</span>}
+          {stockTracking && lowCount > 0 && <span style={{ color: C.warning, fontWeight: 700 }}> · {lowCount} low stock</span>}
+          {stockTracking && outCount > 0 && <span style={{ color: C.error, fontWeight: 700 }}> · {outCount} out of stock</span>}
+          {!stockTracking && <span style={{ color: C.textDim }}> · stock tracking disabled</span>}
         </p>
       )}
     </div>

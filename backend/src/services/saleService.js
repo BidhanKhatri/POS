@@ -7,6 +7,7 @@ import Shift from '../models/Shift.js';
 import AuditLog from '../models/AuditLog.js';
 import ManagerOverride from '../models/ManagerOverride.js';
 import User from '../models/User.js';
+import Setting from '../models/Setting.js';
 import { upsertCustomerFromBuyer } from './customerService.js';
 
 const generateInvoiceNo = () => {
@@ -57,6 +58,10 @@ const processSale = async (employeeId, shiftId, items, payments, discountTotal =
     // input fails fast before any stock or sale data is touched.
     const paymentRecords = payments.map((p) => buildPaymentRecord(null, p));
 
+    // Check whether stock tracking is active for this store.
+    const _setting = await Setting.findById('global');
+    const stockTracking = _setting?.stockTrackingEnabled ?? true;
+
     // 1. Calculate totals
     let subtotal = 0;
     const saleItems = [];
@@ -66,7 +71,8 @@ const processSale = async (employeeId, shiftId, items, payments, discountTotal =
       if (!product || !product.isActive) {
         throw new Error(`Product ${item.productId} not found or inactive`);
       }
-      if (product.stockQty < item.quantity) {
+
+      if (stockTracking && product.stockQty < item.quantity) {
         throw new Error(`Insufficient stock for product ${product.name}`);
       }
 
@@ -86,19 +92,21 @@ const processSale = async (employeeId, shiftId, items, payments, discountTotal =
         total,
       });
 
-      // Update product stock
-      const beforeQty = product.stockQty;
-      product.stockQty -= item.quantity;
-      await product.save({ session });
+      if (stockTracking) {
+        // Update product stock
+        const beforeQty = product.stockQty;
+        product.stockQty -= item.quantity;
+        await product.save({ session });
 
-      // Queue inventory movement (created later with saleId)
-      item._inventoryData = {
-        productId: product._id,
-        movementType: 'SALE',
-        quantity: -item.quantity,
-        beforeQty,
-        afterQty: product.stockQty,
-      };
+        // Queue inventory movement (created later with saleId)
+        item._inventoryData = {
+          productId: product._id,
+          movementType: 'SALE',
+          quantity: -item.quantity,
+          beforeQty,
+          afterQty: product.stockQty,
+        };
+      }
     }
 
     const taxTotal = 0; // Simplified for now
@@ -131,15 +139,19 @@ const processSale = async (employeeId, shiftId, items, payments, discountTotal =
       await payment.save({ session });
     }
 
-    // 5. Create Inventory Movements
-    for (let item of items) {
-      const movement = new InventoryMovement({
-        ...item._inventoryData,
-        referenceId: sale._id,
-        referenceType: 'Sale',
-        createdBy: employeeId,
-      });
-      await movement.save({ session });
+    // 5. Create Inventory Movements (skipped when stock tracking is disabled)
+    if (stockTracking) {
+      for (let item of items) {
+        if (item._inventoryData) {
+          const movement = new InventoryMovement({
+            ...item._inventoryData,
+            referenceId: sale._id,
+            referenceType: 'Sale',
+            createdBy: employeeId,
+          });
+          await movement.save({ session });
+        }
+      }
     }
 
     // 6. Update Shift totals (skipped when the employee has no open shift)
@@ -381,29 +393,34 @@ const completeSale = async (employeeId, saleId, shiftId) => {
       throw new Error('You are not authorized to complete this sale');
     }
 
-    // Decrement stock + record inventory movements for each item
-    for (const item of sale.items) {
-      const product = await Product.findById(item.productId).session(session);
-      if (!product || !product.isActive) {
-        throw new Error(`Product ${item.productName} not found or inactive`);
-      }
-      if (product.stockQty < item.quantity) {
-        throw new Error(`Insufficient stock for ${product.name}`);
-      }
-      const beforeQty = product.stockQty;
-      product.stockQty -= item.quantity;
-      await product.save({ session });
+    const _setting2 = await Setting.findById('global');
+    const stockTracking2 = _setting2?.stockTrackingEnabled ?? true;
 
-      await InventoryMovement.create([{
-        productId:     product._id,
-        movementType:  'SALE',
-        quantity:      -item.quantity,
-        beforeQty,
-        afterQty:      product.stockQty,
-        referenceId:   sale._id,
-        referenceType: 'Sale',
-        createdBy:     employeeId,
-      }], { session });
+    // Decrement stock + record inventory movements for each item (skipped when tracking disabled)
+    if (stockTracking2) {
+      for (const item of sale.items) {
+        const product = await Product.findById(item.productId).session(session);
+        if (!product || !product.isActive) {
+          throw new Error(`Product ${item.productName} not found or inactive`);
+        }
+        if (product.stockQty < item.quantity) {
+          throw new Error(`Insufficient stock for ${product.name}`);
+        }
+        const beforeQty = product.stockQty;
+        product.stockQty -= item.quantity;
+        await product.save({ session });
+
+        await InventoryMovement.create([{
+          productId:     product._id,
+          movementType:  'SALE',
+          quantity:      -item.quantity,
+          beforeQty,
+          afterQty:      product.stockQty,
+          referenceId:   sale._id,
+          referenceType: 'Sale',
+          createdBy:     employeeId,
+        }], { session });
+      }
     }
 
     // Finalize the Sale document

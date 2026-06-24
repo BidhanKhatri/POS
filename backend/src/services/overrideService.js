@@ -174,25 +174,28 @@ const approveOverride = async (overrideId, managerId, pin) => {
       const isVoidable = (sale.status === 'COMPLETED' || !sale.status) && sale.paymentStatus === 'PAID';
       if (!isVoidable) throw new Error('Sale is no longer in a voidable state');
 
-      // Restore stock for every line item in the voided sale
-      for (const item of sale.items) {
-        const product = await Product.findById(item.productId).session(session);
-        if (product) {
-          const beforeQty = product.stockQty;
-          product.stockQty += item.quantity;
-          await product.save({ session });
+      // Restore stock for every line item in the voided sale (skipped when tracking disabled)
+      const _voidSetting = await Setting.findById('global');
+      if (_voidSetting?.stockTrackingEnabled ?? true) {
+        for (const item of sale.items) {
+          const product = await Product.findById(item.productId).session(session);
+          if (product) {
+            const beforeQty = product.stockQty;
+            product.stockQty += item.quantity;
+            await product.save({ session });
 
-          await InventoryMovement.create([{
-            productId:     product._id,
-            movementType:  'VOID',
-            quantity:      item.quantity,
-            beforeQty,
-            afterQty:      product.stockQty,
-            referenceId:   sale._id,
-            referenceType: 'Void',
-            remarks:       `Void approved — invoice ${sale.invoiceNo} (override ${override._id})`,
-            createdBy:     managerId,
-          }], { session });
+            await InventoryMovement.create([{
+              productId:     product._id,
+              movementType:  'VOID',
+              quantity:      item.quantity,
+              beforeQty,
+              afterQty:      product.stockQty,
+              referenceId:   sale._id,
+              referenceType: 'Void',
+              remarks:       `Void approved — invoice ${sale.invoiceNo} (override ${override._id})`,
+              createdBy:     managerId,
+            }], { session });
+          }
         }
       }
 
@@ -329,7 +332,9 @@ const approveOverride = async (overrideId, managerId, pin) => {
     const product = await Product.findById(item.productId).session(session);
     let beforeQty = null;
     let afterQty = null;
-    if (product) {
+    const _refundSetting = await Setting.findById('global');
+    const _refundTracking = _refundSetting?.stockTrackingEnabled ?? true;
+    if (product && _refundTracking) {
       beforeQty = product.stockQty;
       product.stockQty += override.requestedQty;
       afterQty = product.stockQty;
@@ -348,7 +353,7 @@ const approveOverride = async (overrideId, managerId, pin) => {
     });
     await refundPayment.save({ session });
 
-    if (product) {
+    if (product && _refundTracking) {
       await InventoryMovement.create([{
         productId: product._id,
         movementType: 'REFUND',

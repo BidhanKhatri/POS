@@ -73,4 +73,25 @@ router.patch('/sync-staffing', protect, managerOrAdmin, async (req, res, next) =
   } catch (e) { next(e); }
 });
 
+// GET /api/settings/stock-tracking — any authenticated user (employees need it at terminal/inventory)
+router.get('/stock-tracking', protect, async (req, res, next) => {
+  try {
+    const doc = await Setting.findById('global');
+    res.json({ stockTrackingEnabled: doc?.stockTrackingEnabled ?? true });
+  } catch (e) { next(e); }
+});
+
+// PATCH /api/settings/stock-tracking — managers only
+router.patch('/stock-tracking', protect, managerOrAdmin, async (req, res, next) => {
+  try {
+    const val = req.body.stockTrackingEnabled === false ? false : true;
+    const doc = await Setting.findByIdAndUpdate(
+      'global',
+      { $set: { stockTrackingEnabled: val } },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    res.json({ stockTrackingEnabled: doc.stockTrackingEnabled });
+  } catch (e) { next(e); }
+});
+
 export default router;

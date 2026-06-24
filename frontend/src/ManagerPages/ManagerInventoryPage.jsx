@@ -12,8 +12,8 @@ import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined';
 import ErrorOutlineOutlinedIcon from '@mui/icons-material/ErrorOutlineOutlined';
 import RefreshOutlinedIcon from '@mui/icons-material/RefreshOutlined';
 import TuneOutlinedIcon from '@mui/icons-material/TuneOutlined';
-import LocalOfferOutlinedIcon from '@mui/icons-material/LocalOfferOutlined';
-import CheckOutlinedIcon from '@mui/icons-material/CheckOutlined';
+import BlockOutlinedIcon from '@mui/icons-material/BlockOutlined';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import useAuthStore from '../store/useAuthStore';
 
 const API = import.meta.env.VITE_API_BASE_URL ?? '';
@@ -38,7 +38,7 @@ const labelStyle = {
   textTransform: 'uppercase', display: 'block', marginBottom: 5,
 };
 
-const TABS = [
+const ALL_TABS = [
   { id: 'stock',   label: 'Stk Move'    },
   { id: 'history', label: 'Move Hstry'  },
   { id: 'edit',    label: 'Edit Product' },
@@ -54,8 +54,9 @@ function StockPill({ qty }) {
 }
 
 /* ── Unified Product Actions Dialog ─────────────────────────────── */
-function ProductActionsDialog({ open, product, token, onClose, onRefresh }) {
-  const [tab, setTab] = useState('stock');
+function ProductActionsDialog({ open, product, token, onClose, onRefresh, stockTracking = true }) {
+  const TABS = ALL_TABS.filter(t => stockTracking || t.id !== 'stock');
+  const [tab, setTab] = useState('history');
 
   const [moveType, setMoveType] = useState('RESTOCK');
   const [moveQty, setMoveQty] = useState('');
@@ -76,7 +77,7 @@ function ProductActionsDialog({ open, product, token, onClose, onRefresh }) {
 
   useEffect(() => {
     if (!open || !product) return;
-    setTab('stock');
+    setTab(stockTracking ? 'stock' : 'history');
     setMoveType('RESTOCK'); setMoveQty(''); setMoveRemarks(''); setMoveErr('');
     setMovements([]); setHistLoading(false);
     setEditForm({
@@ -196,9 +197,13 @@ function ProductActionsDialog({ open, product, token, onClose, onRefresh }) {
               SKU: <strong>{product.sku}</strong>
               {product.quickSlot ? ` · Slot P${product.quickSlot}` : ''}
               {' · '}
-              <span style={{ fontWeight: 700, color: product.stockQty === 0 ? C.error : product.stockQty <= LOW ? C.warning : C.success }}>
-                {product.stockQty} in stock
-              </span>
+              {stockTracking ? (
+                <span style={{ fontWeight: 700, color: product.stockQty === 0 ? C.error : product.stockQty <= LOW ? C.warning : C.success }}>
+                  {product.stockQty} in stock
+                </span>
+              ) : (
+                <span style={{ fontWeight: 700, color: C.textDim }}>tracking disabled</span>
+              )}
             </p>
           </div>
           <button
@@ -422,10 +427,12 @@ function ProductActionsDialog({ open, product, token, onClose, onRefresh }) {
               width: '100%', background: '#FFF5F5', border: '1px solid rgba(183,28,28,0.18)',
               borderRadius: 10, padding: '12px 14px', textAlign: 'left',
             }}>
-              <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: C.error }}>
-                · Current stock of <strong>{product.stockQty}</strong> units will no longer be tracked
-              </p>
-              <p style={{ margin: '4px 0 0', fontSize: 12, fontWeight: 600, color: C.error }}>
+              {stockTracking && (
+                <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: C.error }}>
+                  · Current stock of <strong>{product.stockQty}</strong> units will no longer be tracked
+                </p>
+              )}
+              <p style={{ margin: stockTracking ? '4px 0 0' : 0, fontSize: 12, fontWeight: 600, color: C.error }}>
                 · This action can be reversed by contacting an Admin
               </p>
             </div>
@@ -455,7 +462,7 @@ function ProductActionsDialog({ open, product, token, onClose, onRefresh }) {
 }
 
 /* ── Add Product Dialog ──────────────────────────────────────────── */
-function AddProductDialog({ open, onClose, onSave }) {
+function AddProductDialog({ open, onClose, onSave, stockTracking = true }) {
   const blank = { name: '', sku: '', barcode: '', price: '', costPrice: '', stockQty: '0', quickSlot: '' };
   const [form, setForm] = useState(blank);
   const [saving, setSaving] = useState(false);
@@ -534,10 +541,17 @@ function AddProductDialog({ open, onClose, onSave }) {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <div>
-            <label style={labelStyle}>Opening Stock</label>
-            <input style={inputStyle} type="number" min="0" value={form.stockQty} onChange={f('stockQty')} placeholder="0" />
-          </div>
+          {stockTracking ? (
+            <div>
+              <label style={labelStyle}>Opening Stock</label>
+              <input style={inputStyle} type="number" min="0" value={form.stockQty} onChange={f('stockQty')} placeholder="0" />
+            </div>
+          ) : (
+            <div>
+              <label style={{ ...labelStyle, color: C.textDim }}>Opening Stock</label>
+              <input style={{ ...inputStyle, color: C.textDim, background: C.elevated, cursor: 'not-allowed' }} value="—" readOnly />
+            </div>
+          )}
           <div>
             <label style={labelStyle}>Quick Slot (1–9)</label>
             <input style={inputStyle} type="number" min="1" max="9" value={form.quickSlot} onChange={f('quickSlot')} placeholder="Optional" />
@@ -554,134 +568,6 @@ function AddProductDialog({ open, onClose, onSave }) {
         </button>
       </div>
     </Dialog>
-  );
-}
-
-/* ── Discount Rules Card ─────────────────────────────────────────── */
-function DiscountRulesCard({ token, compact = false }) {
-  const [current, setCurrent]   = useState(null); // loaded value
-  const [input, setInput]       = useState('');
-  const [saving, setSaving]     = useState(false);
-  const [saved, setSaved]       = useState(false);
-  const [err, setErr]           = useState('');
-
-  const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
-
-  useEffect(() => {
-    fetch(`${API}/api/settings/discount-limit`, { headers })
-      .then(r => r.json())
-      .then(d => {
-        const v = d.maxDiscountPercent ?? 10;
-        setCurrent(v);
-        setInput(String(v));
-      })
-      .catch(() => {});
-  }, [token]);
-
-  const handleSave = async () => {
-    const val = parseFloat(input);
-    if (isNaN(val) || val < 0 || val > 100) { setErr('Enter a value between 0 and 100.'); return; }
-    setSaving(true); setErr(''); setSaved(false);
-    try {
-      const res = await fetch(`${API}/api/settings/discount-limit`, {
-        method: 'PATCH', headers,
-        body: JSON.stringify({ maxDiscountPercent: val }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Save failed');
-      setCurrent(data.maxDiscountPercent ?? val);
-      setInput(String(data.maxDiscountPercent ?? val));
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
-    } catch (e) { setErr(e.message); }
-    finally { setSaving(false); }
-  };
-
-  const dirty = current !== null && parseFloat(input) !== current;
-
-  return (
-    <div style={{
-      background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12,
-      overflow: 'hidden',
-    }}>
-      {/* Header */}
-      <div style={{
-        background: '#FAF7F5', borderBottom: `1px solid ${C.border}`,
-        padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 7,
-      }}>
-        <LocalOfferOutlinedIcon sx={{ fontSize: 15, color: C.primary }} />
-        <span style={{ fontSize: 11, fontWeight: 700, color: C.textSec, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-          Discount Rules
-        </span>
-      </div>
-
-      <div style={{
-        padding: compact ? '12px 14px' : '14px 16px',
-        display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
-      }}>
-        {/* Description */}
-        <div style={{ flex: '1 1 180px', minWidth: 0 }}>
-          <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri }}>
-            Max Employee Discount
-          </p>
-          <p style={{ margin: '3px 0 0', fontSize: 11, fontWeight: 500, color: C.textSec, lineHeight: '16px' }}>
-            Discounts above this limit require a manager override approval before the sale proceeds.
-          </p>
-        </div>
-
-        {/* Input + save */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          <div style={{ position: 'relative' }}>
-            <input
-              type="number"
-              min="0"
-              max="100"
-              step="0.5"
-              value={input}
-              onChange={e => { setInput(e.target.value); setErr(''); setSaved(false); }}
-              style={{
-                width: 76, padding: '8px 26px 8px 10px', borderRadius: 8,
-                border: `1.5px solid ${err ? C.error : dirty ? C.primary : C.border}`,
-                fontSize: 15, fontWeight: 800, color: C.textPri,
-                background: '#fff', outline: 'none', boxSizing: 'border-box',
-                fontFamily: "'Plus Jakarta Sans', sans-serif",
-                transition: 'border-color 0.15s',
-              }}
-            />
-            <span style={{
-              position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)',
-              fontSize: 13, fontWeight: 700, color: C.textDim, pointerEvents: 'none',
-            }}>%</span>
-          </div>
-          <button
-            onClick={handleSave}
-            disabled={saving || !dirty}
-            style={{
-              padding: '8px 14px', borderRadius: 8, border: 'none',
-              background: saved ? C.success : dirty ? C.primary : C.border,
-              color: '#fff', fontSize: 13, fontWeight: 700,
-              cursor: saving || !dirty ? 'not-allowed' : 'pointer',
-              opacity: saving ? 0.7 : 1,
-              display: 'flex', alignItems: 'center', gap: 5,
-              fontFamily: "'Plus Jakarta Sans', sans-serif",
-              transition: 'background 0.2s',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {saved
-              ? <><CheckOutlinedIcon sx={{ fontSize: 15 }} /> Saved</>
-              : saving ? 'Saving…' : 'Save'}
-          </button>
-        </div>
-
-        {/* Inline messages */}
-        {(err || saved) && (
-          <p style={{ margin: 0, width: '100%', fontSize: 11, fontWeight: 600, color: err ? C.error : C.success }}>
-            {err || `Discount limit updated to ${current}%`}
-          </p>
-        )}
-      </div>
-    </div>
   );
 }
 
@@ -712,6 +598,7 @@ export default function ManagerInventoryPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [pageErr, setPageErr] = useState('');
+  const [stockTracking, setStockTracking] = useState(true);
 
   const isDesktop = useMediaQuery('(min-width:1024px)');
   const isCompact = useMediaQuery('(max-width:430px)');
@@ -720,6 +607,13 @@ export default function ManagerInventoryPage() {
   const [actionsDlg, setActionsDlg] = useState({ open: false, product: null });
 
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+
+  useEffect(() => {
+    fetch(`${API}/api/settings/stock-tracking`, { headers })
+      .then(r => r.json())
+      .then(d => setStockTracking(d.stockTrackingEnabled ?? true))
+      .catch(() => {});
+  }, [token]);
 
   const fetchProducts = useCallback(async () => {
     setLoading(true); setPageErr('');
@@ -757,6 +651,7 @@ export default function ManagerInventoryPage() {
         open={addDlg}
         onClose={() => setAddDlg(false)}
         onSave={handleAddProduct}
+        stockTracking={stockTracking}
       />
       <ProductActionsDialog
         open={actionsDlg.open}
@@ -764,15 +659,30 @@ export default function ManagerInventoryPage() {
         token={token}
         onClose={() => setActionsDlg({ open: false, product: null })}
         onRefresh={fetchProducts}
+        stockTracking={stockTracking}
       />
     </>
+  );
+
+  const disabledBanner = !stockTracking && (
+    <div style={{
+      display: 'flex', alignItems: 'flex-start', gap: 10,
+      background: 'rgba(178,106,0,0.07)', border: '1px solid rgba(178,106,0,0.25)',
+      borderRadius: 10, padding: '10px 14px',
+    }}>
+      <BlockOutlinedIcon sx={{ fontSize: 16, color: C.warning, flexShrink: 0, marginTop: '1px' }} />
+      <p style={{ margin: 0, fontSize: 12, color: '#7A4F00', fontWeight: 500, lineHeight: '18px' }}>
+        <strong>Stock Tracking Disabled</strong> — quantity updates, low-stock alerts, and stock deductions are
+        inactive. To re-enable, go to <strong>Settings › Inventory</strong>.
+      </p>
+    </div>
   );
 
   /* ══════════════════════════════════════════
      DESKTOP
   ══════════════════════════════════════════ */
   if (isDesktop) {
-    const DESKTOP_COLS = '1fr 90px 120px 100px 100px 56px 90px 54px';
+    const DESKTOP_COLS = '1fr 90px 120px 100px 100px 56px 90px 42px';
 
     return (
       <div style={{ height: '100dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden', fontFamily: "'Plus Jakarta Sans', sans-serif", background: C.bg }}>
@@ -805,12 +715,12 @@ export default function ManagerInventoryPage() {
           {/* KPI Cards */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 240px))', gap: 14, marginBottom: 16 }}>
             <DesktopKpiCard label="Total Products"  value={totalCount} icon={Inventory2OutlinedIcon}   color={C.primary} iconBg="rgba(62,39,35,0.09)"  />
-            <DesktopKpiCard label="Low Stock"        value={lowCount}   icon={WarningAmberOutlinedIcon} color={C.warning} iconBg="rgba(178,106,0,0.10)" />
-            <DesktopKpiCard label="Out of Stock"     value={outCount}   icon={ErrorOutlineOutlinedIcon} color={C.error}   iconBg="rgba(183,28,28,0.09)" />
+            <DesktopKpiCard label="Low Stock"        value={stockTracking ? lowCount : '—'}   icon={WarningAmberOutlinedIcon} color={stockTracking ? C.warning : C.textDim} iconBg={stockTracking ? 'rgba(178,106,0,0.10)' : C.elevated} />
+            <DesktopKpiCard label="Out of Stock"     value={stockTracking ? outCount : '—'}   icon={ErrorOutlineOutlinedIcon} color={stockTracking ? C.error : C.textDim}   iconBg={stockTracking ? 'rgba(183,28,28,0.09)' : C.elevated} />
           </div>
 
-          {/* Discount Rules */}
-          <DiscountRulesCard token={token} />
+          {/* Disabled banner */}
+          {disabledBanner}
         </div>
 
         {/* Main content */}
@@ -922,10 +832,16 @@ export default function ManagerInventoryPage() {
 
                   {/* Stock */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <span style={{ fontSize: 14, fontWeight: 800, color: p.stockQty === 0 ? C.error : p.stockQty <= LOW ? C.warning : C.textPri, lineHeight: 1 }}>
-                      {p.stockQty}
-                    </span>
-                    <StockPill qty={p.stockQty} />
+                    {stockTracking ? (
+                      <>
+                        <span style={{ fontSize: 14, fontWeight: 800, color: p.stockQty === 0 ? C.error : p.stockQty <= LOW ? C.warning : C.textPri, lineHeight: 1 }}>
+                          {p.stockQty}
+                        </span>
+                        <StockPill qty={p.stockQty} />
+                      </>
+                    ) : (
+                      <span style={{ fontSize: 13, fontWeight: 700, color: C.textDim }}>—</span>
+                    )}
                   </div>
 
                   {/* Actions */}
@@ -933,20 +849,18 @@ export default function ManagerInventoryPage() {
                     onClick={() => setActionsDlg({ open: true, product: p })}
                     title="Manage product"
                     style={{
-                      display: 'flex', alignItems: 'center', gap: 5,
-                      padding: '6px 12px', borderRadius: 7,
+                      width: 34, height: 34, borderRadius: 8, flexShrink: 0,
                       border: `1px solid ${C.border}`,
                       background: C.surface,
                       cursor: 'pointer',
-                      fontSize: 12, fontWeight: 700, color: C.primary,
-                      fontFamily: "'Plus Jakarta Sans', sans-serif",
-                      whiteSpace: 'nowrap',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: C.primary,
+                      transition: 'background 0.15s, border-color 0.15s',
                     }}
-                    onMouseEnter={e => { e.currentTarget.style.background = C.primary; e.currentTarget.style.color = '#fff'; e.currentTarget.style.borderColor = C.primary; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = C.surface; e.currentTarget.style.color = C.primary; e.currentTarget.style.borderColor = C.border; }}
+                    onMouseEnter={e => { e.currentTarget.style.background = C.primary; e.currentTarget.style.borderColor = C.primary; e.currentTarget.querySelector('svg').style.color = '#fff'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = C.surface; e.currentTarget.style.borderColor = C.border; e.currentTarget.querySelector('svg').style.color = C.primary; }}
                   >
-                    <TuneOutlinedIcon sx={{ fontSize: 14 }} />
-                    Manage
+                    <TuneOutlinedIcon sx={{ fontSize: 16, color: C.primary, transition: 'color 0.15s' }} />
                   </button>
                 </div>
               ))}
@@ -955,8 +869,9 @@ export default function ManagerInventoryPage() {
             {filtered.length > 0 && (
               <p style={{ margin: '12px 0 0', fontSize: 11, color: C.textDim }}>
                 {filtered.length} product{filtered.length !== 1 ? 's' : ''}{search ? ' matched' : ' total'}
-                {lowCount > 0 && <span style={{ color: C.warning, fontWeight: 700 }}> · {lowCount} low stock</span>}
-                {outCount > 0 && <span style={{ color: C.error, fontWeight: 700 }}> · {outCount} out of stock</span>}
+                {stockTracking && lowCount > 0 && <span style={{ color: C.warning, fontWeight: 700 }}> · {lowCount} low stock</span>}
+                {stockTracking && outCount > 0 && <span style={{ color: C.error, fontWeight: 700 }}> · {outCount} out of stock</span>}
+                {!stockTracking && <span style={{ color: C.textDim, fontWeight: 600 }}> · stock tracking disabled</span>}
               </p>
             )}
           </div>
@@ -997,9 +912,9 @@ export default function ManagerInventoryPage() {
       {/* Stat strip */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 14 }}>
         {[
-          { label: 'Products',     short: 'Prdts',   value: totalCount, color: '#3E2723', iconBg: 'rgba(62,39,35,0.09)',  border: '#3E2723', Icon: Inventory2OutlinedIcon   },
-          { label: 'Low Stock',    short: 'Low Stk', value: lowCount,   color: C.warning, iconBg: 'rgba(178,106,0,0.10)', border: C.warning, Icon: WarningAmberOutlinedIcon },
-          { label: 'Out of Stock', short: 'No Stk',  value: outCount,   color: C.error,   iconBg: 'rgba(183,28,28,0.09)', border: C.error,   Icon: ErrorOutlineOutlinedIcon },
+          { label: 'Products',     short: 'Prdts',   value: totalCount,                                color: '#3E2723',                      iconBg: 'rgba(62,39,35,0.09)',                        border: '#3E2723', Icon: Inventory2OutlinedIcon   },
+          { label: 'Low Stock',    short: 'Low Stk', value: stockTracking ? lowCount   : '—',          color: stockTracking ? C.warning : C.textDim, iconBg: stockTracking ? 'rgba(178,106,0,0.10)' : C.elevated, border: stockTracking ? C.warning : C.border, Icon: WarningAmberOutlinedIcon },
+          { label: 'Out of Stock', short: 'No Stk',  value: stockTracking ? outCount   : '—',          color: stockTracking ? C.error   : C.textDim, iconBg: stockTracking ? 'rgba(183,28,28,0.09)' : C.elevated, border: stockTracking ? C.error   : C.border, Icon: ErrorOutlineOutlinedIcon },
         ].map(({ label, short, value, color, iconBg, border, Icon }) => (
           <div key={label} style={{
             background: C.surface, border: `1px solid ${C.border}`,
@@ -1019,10 +934,8 @@ export default function ManagerInventoryPage() {
         ))}
       </div>
 
-      {/* Discount Rules */}
-      <div style={{ marginBottom: 14 }}>
-        <DiscountRulesCard token={token} compact />
-      </div>
+      {/* Disabled banner */}
+      {disabledBanner && <div style={{ marginBottom: 14 }}>{disabledBanner}</div>}
 
       {/* Search bar */}
       <div style={{ position: 'relative', marginBottom: 14 }}>
@@ -1051,7 +964,7 @@ export default function ManagerInventoryPage() {
           display: 'grid', gridTemplateColumns: '1fr 58px 66px 36px',
           gap: 6, alignItems: 'center',
         }}>
-          {['Product', 'Stock', 'Price', 'Actn'].map((h, i) => (
+          {['Product', 'Stock', 'Price', ''].map((h, i) => (
             <span key={i} style={{ fontSize: 10, fontWeight: 700, color: C.primary, letterSpacing: '0.07em', textTransform: 'uppercase' }}>{h}</span>
           ))}
         </div>
@@ -1087,10 +1000,16 @@ export default function ManagerInventoryPage() {
             </div>
 
             <div>
-              <p style={{ margin: 0, fontSize: 14, fontWeight: 800, lineHeight: '18px', color: p.stockQty === 0 ? C.error : p.stockQty <= LOW ? C.warning : C.textPri }}>
-                {p.stockQty}
-              </p>
-              <StockPill qty={p.stockQty} />
+              {stockTracking ? (
+                <>
+                  <p style={{ margin: 0, fontSize: 14, fontWeight: 800, lineHeight: '18px', color: p.stockQty === 0 ? C.error : p.stockQty <= LOW ? C.warning : C.textPri }}>
+                    {p.stockQty}
+                  </p>
+                  <StockPill qty={p.stockQty} />
+                </>
+              ) : (
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textDim }}>—</p>
+              )}
             </div>
 
             <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri }}>
@@ -1099,19 +1018,20 @@ export default function ManagerInventoryPage() {
 
             <button
               onClick={() => setActionsDlg({ open: true, product: p })}
-              title="Product actions"
+              title="Manage product"
               style={{
-                width: 30, height: 30, borderRadius: 7,
+                width: 32, height: 32, borderRadius: 8,
                 border: `1px solid ${C.border}`,
-                background: C.hover,
+                background: C.surface,
                 cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 16, fontWeight: 900, color: C.primary,
-                fontFamily: "'Plus Jakarta Sans', sans-serif",
-                lineHeight: 1, flexShrink: 0,
+                color: C.primary, flexShrink: 0,
+                transition: 'background 0.15s, border-color 0.15s',
               }}
+              onMouseEnter={e => { e.currentTarget.style.background = C.primary; e.currentTarget.style.borderColor = C.primary; e.currentTarget.querySelector('svg').style.color = '#fff'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = C.surface; e.currentTarget.style.borderColor = C.border; e.currentTarget.querySelector('svg').style.color = C.primary; }}
             >
-              !
+              <TuneOutlinedIcon sx={{ fontSize: 16, color: C.primary, transition: 'color 0.15s' }} />
             </button>
           </div>
         ))}
@@ -1120,6 +1040,7 @@ export default function ManagerInventoryPage() {
       {filtered.length > 0 && (
         <p style={{ margin: '10px 0 0', fontSize: 11, color: C.textDim, textAlign: 'center' }}>
           {filtered.length} product{filtered.length !== 1 ? 's' : ''}{search ? ' matched' : ' total'}
+          {!stockTracking && <span style={{ color: C.textDim, fontWeight: 600 }}> · stock tracking disabled</span>}
         </p>
       )}
 

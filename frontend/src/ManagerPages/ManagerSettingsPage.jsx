@@ -17,6 +17,7 @@ import CloseOutlinedIcon             from '@mui/icons-material/CloseOutlined';
 import AddOutlinedIcon               from '@mui/icons-material/AddOutlined';
 import RefreshOutlinedIcon           from '@mui/icons-material/RefreshOutlined';
 import FingerprintOutlinedIcon       from '@mui/icons-material/FingerprintOutlined';
+import Inventory2OutlinedIcon        from '@mui/icons-material/Inventory2Outlined';
 import useAuthStore from '../store/useAuthStore';
 import BiometricSetup from '../components/BiometricSetup/BiometricSetup';
 
@@ -35,6 +36,7 @@ const TABS = [
   { key: 'email',     label: 'Email Config',        icon: EmailOutlinedIcon },
   { key: 'managers',  label: 'Manager Management',  icon: AdminPanelSettingsOutlinedIcon },
   { key: 'sync',      label: 'Sync Data',           icon: SyncOutlinedIcon },
+  { key: 'inventory', label: 'Inventory',           icon: Inventory2OutlinedIcon },
 ];
 
 /* ── Reusable toggle switch ── */
@@ -1014,6 +1016,219 @@ function ManagerManagementTab({ token, currentUserId }) {
 }
 
 /* ══════════════════════════════════
+   TAB: Inventory
+══════════════════════════════════ */
+function InventoryTab({ token }) {
+  const authHeaders = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+
+  const [trackingEnabled, setTrackingEnabled] = useState(true);
+  const [loading, setLoading]                 = useState(true);
+  const [toggling, setToggling]               = useState(false);
+  const [saved, setSaved]                     = useState(false);
+
+  // Discount limit state
+  const [discCurrent, setDiscCurrent] = useState(null);
+  const [discInput, setDiscInput]     = useState('');
+  const [discSaving, setDiscSaving]   = useState(false);
+  const [discSaved, setDiscSaved]     = useState(false);
+  const [discErr, setDiscErr]         = useState('');
+
+  useEffect(() => {
+    fetch(`${API}/api/settings/discount-limit`, { headers: authHeaders })
+      .then(r => r.json())
+      .then(d => { const v = d.maxDiscountPercent ?? 10; setDiscCurrent(v); setDiscInput(String(v)); })
+      .catch(() => {});
+  }, [token]);
+
+  const handleDiscSave = async () => {
+    const val = parseFloat(discInput);
+    if (isNaN(val) || val < 0 || val > 100) { setDiscErr('Enter a value between 0 and 100.'); return; }
+    setDiscSaving(true); setDiscErr(''); setDiscSaved(false);
+    try {
+      const res = await fetch(`${API}/api/settings/discount-limit`, {
+        method: 'PATCH', headers: authHeaders,
+        body: JSON.stringify({ maxDiscountPercent: val }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Save failed');
+      setDiscCurrent(data.maxDiscountPercent ?? val);
+      setDiscInput(String(data.maxDiscountPercent ?? val));
+      setDiscSaved(true);
+      setTimeout(() => setDiscSaved(false), 3000);
+    } catch (e) { setDiscErr(e.message); }
+    finally { setDiscSaving(false); }
+  };
+
+  const discDirty = discCurrent !== null && parseFloat(discInput) !== discCurrent;
+
+  useEffect(() => {
+    setLoading(true);
+    fetch(`${API}/api/settings/stock-tracking`, { headers: authHeaders })
+      .then(r => r.json())
+      .then(d => setTrackingEnabled(d.stockTrackingEnabled ?? true))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  const toggleTracking = async () => {
+    setToggling(true);
+    setSaved(false);
+    try {
+      const res = await fetch(`${API}/api/settings/stock-tracking`, {
+        method: 'PATCH',
+        headers: authHeaders,
+        body: JSON.stringify({ stockTrackingEnabled: !trackingEnabled }),
+      });
+      const data = await res.json();
+      setTrackingEnabled(data.stockTrackingEnabled);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch {
+    } finally {
+      setToggling(false);
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <InfoBanner>
+        When <strong>Stock Tracking</strong> is enabled (default), the system tracks product quantities,
+        validates stock availability at checkout, and records inventory movements on every sale, refund,
+        and void. Disable this for service businesses or manual-sales operations where stock counts are
+        not relevant.
+      </InfoBanner>
+
+      <SettingRow
+        icon={Inventory2OutlinedIcon}
+        iconColor={trackingEnabled ? C.success : C.textDim}
+        iconBg={trackingEnabled ? 'rgba(46,125,79,0.10)' : C.elevated}
+        title="Stock Tracking"
+        description={
+          trackingEnabled
+            ? 'Quantities are tracked · low-stock alerts active · stock deducted on every sale'
+            : 'Disabled — no quantity checks, no deductions, no low-stock alerts'
+        }
+        control={
+          <Toggle
+            enabled={trackingEnabled}
+            onToggle={toggleTracking}
+            disabled={loading || toggling}
+          />
+        }
+      />
+
+      {!trackingEnabled && (
+        <div style={{
+          display: 'flex', alignItems: 'flex-start', gap: 10,
+          background: 'rgba(178,106,0,0.07)', border: '1px solid rgba(178,106,0,0.25)',
+          borderRadius: 10, padding: '11px 14px',
+        }}>
+          <WarningAmberOutlinedIcon sx={{ fontSize: 15, color: C.warning, flexShrink: 0, marginTop: '1px' }} />
+          <p style={{ margin: 0, fontSize: 12, color: '#7A4F00', fontWeight: 500, lineHeight: '18px' }}>
+            Stock tracking is <strong>disabled</strong>. Sales will proceed without stock validation.
+            Inventory quantities will not be updated on sales, refunds, or voids.
+            Re-enable at any time to resume tracking.
+          </p>
+        </div>
+      )}
+
+      {saved && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          background: 'rgba(46,125,79,0.08)', border: '1px solid rgba(46,125,79,0.25)',
+          borderRadius: 8, padding: '9px 14px',
+        }}>
+          <CheckCircleOutlineIcon sx={{ fontSize: 15, color: C.success }} />
+          <span style={{ fontSize: 12, fontWeight: 600, color: C.success }}>Setting saved successfully.</span>
+        </div>
+      )}
+
+      {/* Discount Rules */}
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden' }}>
+        <div style={{ background: '#FAF7F5', borderBottom: `1px solid ${C.border}`, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 7 }}>
+          <KeyOutlinedIcon sx={{ fontSize: 15, color: C.primary }} />
+          <span style={{ fontSize: 11, fontWeight: 700, color: C.textSec, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+            Discount Rules
+          </span>
+        </div>
+        <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ flex: '1 1 180px', minWidth: 0 }}>
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri }}>Max Employee Discount</p>
+            <p style={{ margin: '3px 0 0', fontSize: 11, fontWeight: 500, color: C.textSec, lineHeight: '16px' }}>
+              Discounts above this limit require a manager override approval before the sale proceeds.
+            </p>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <div style={{ position: 'relative' }}>
+              <input
+                type="number" min="0" max="100" step="0.5"
+                value={discInput}
+                onChange={e => { setDiscInput(e.target.value); setDiscErr(''); setDiscSaved(false); }}
+                style={{
+                  width: 76, padding: '8px 26px 8px 10px', borderRadius: 8,
+                  border: `1.5px solid ${discErr ? C.error : discDirty ? C.primary : C.border}`,
+                  fontSize: 15, fontWeight: 800, color: C.textPri,
+                  background: '#fff', outline: 'none', boxSizing: 'border-box',
+                  fontFamily: "'Plus Jakarta Sans', sans-serif", transition: 'border-color 0.15s',
+                }}
+              />
+              <span style={{ position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)', fontSize: 13, fontWeight: 700, color: C.textDim, pointerEvents: 'none' }}>%</span>
+            </div>
+            <button
+              onClick={handleDiscSave}
+              disabled={discSaving || !discDirty}
+              style={{
+                padding: '8px 14px', borderRadius: 8, border: 'none',
+                background: discSaved ? C.success : discDirty ? C.primary : C.border,
+                color: '#fff', fontSize: 13, fontWeight: 700,
+                cursor: discSaving || !discDirty ? 'not-allowed' : 'pointer',
+                opacity: discSaving ? 0.7 : 1,
+                display: 'flex', alignItems: 'center', gap: 5,
+                fontFamily: "'Plus Jakarta Sans', sans-serif", transition: 'background 0.2s', whiteSpace: 'nowrap',
+              }}
+            >
+              {discSaved
+                ? <><CheckCircleOutlineIcon sx={{ fontSize: 15 }} /> Saved</>
+                : discSaving ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+          {(discErr || discSaved) && (
+            <p style={{ margin: 0, width: '100%', fontSize: 11, fontWeight: 600, color: discErr ? C.error : C.success }}>
+              {discErr || `Discount limit updated to ${discCurrent}%`}
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '16px 18px' }}>
+        <p style={{ margin: '0 0 10px', fontSize: 12, fontWeight: 800, color: C.textPri, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+          What changes when disabled
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {[
+            { n: '1', text: 'Sales proceed without checking product stock availability — no "insufficient stock" errors.' },
+            { n: '2', text: 'Product quantities are not decremented on sale or incremented on refund or void.' },
+            { n: '3', text: 'Low-stock and out-of-stock KPI cards display "—" in the Inventory page.' },
+            { n: '4', text: 'No new inventory movement records are created (existing history is preserved).' },
+            { n: '5', text: 'Barcode scanning continues to identify products normally — only quantity updates are skipped.' },
+            { n: '6', text: 'Sales, revenue, and transaction reports are unaffected.' },
+          ].map(({ n, text }) => (
+            <div key={n} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+              <span style={{
+                width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
+                background: C.elevated, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 10, fontWeight: 800, color: C.primary,
+              }}>{n}</span>
+              <p style={{ margin: 0, fontSize: 12, color: C.textSec, lineHeight: '18px' }}>{text}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════
    Main Settings Page
 ══════════════════════════════════ */
 export default function ManagerSettingsPage() {
@@ -1071,7 +1286,8 @@ export default function ManagerSettingsPage() {
       {/* Tab content */}
       {activeTab === 'email'     && <EmailConfigTab        token={token} />}
       {activeTab === 'managers'  && <ManagerManagementTab  token={token} currentUserId={user?._id} />}
-      {activeTab === 'sync'      && <SyncDataTab token={token} />}
+      {activeTab === 'sync'      && <SyncDataTab           token={token} />}
+      {activeTab === 'inventory' && <InventoryTab          token={token} />}
       {activeTab === 'biometric' && (
         <div style={{
           background: C.surface, border: `1px solid ${C.border}`,

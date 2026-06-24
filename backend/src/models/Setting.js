@@ -7,6 +7,7 @@ const settingSchema = new mongoose.Schema({
   maxDiscountPercent:      { type: Number, default: 10, min: 0, max: 100 },
   maxPriceVariancePercent: { type: Number, default: 10, min: 0, max: 100 },
   syncStaffingBetit:       { type: Boolean, default: false },
+  stockTrackingEnabled:    { type: Boolean, default: true  },
 }, { timestamps: true });
 
 export default mongoose.model('Setting', settingSchema);
