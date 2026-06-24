@@ -386,7 +386,7 @@ export default function ManagerBarcodePage() {
   const [barcodes, setBarcodes] = useState([]);
   const [barcodesTotal, setBarcodesTotal] = useState(0);
   const [barcodesPage, setBarcodesPage] = useState(1);
-  const [listLoading, setListLoading] = useState(false);
+  const [listLoading, setListLoading] = useState(true);
   const [listError, setListError] = useState('');
 
   // Generate tab state
@@ -395,6 +395,8 @@ export default function ManagerBarcodePage() {
   const [productsPage, setProductsPage] = useState(1);
   const [prodLoading, setProdLoading] = useState(false);
   const [prodError, setProdError] = useState('');
+
+  const searchInitRef = useRef(false);
 
   const showToast = useCallback((t) => setToast(t), []);
 
@@ -447,8 +449,9 @@ export default function ManagerBarcodePage() {
     setSearch('');
   }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Search debounce ────────────────────────────────────────────────────────
+  // ── Search debounce (skip on first mount — tab effect handles initial load) ──
   useEffect(() => {
+    if (!searchInitRef.current) { searchInitRef.current = true; return; }
     const t = setTimeout(() => {
       if (tab === 'list') fetchBarcodes(1, search);
       else fetchProducts(1, search);

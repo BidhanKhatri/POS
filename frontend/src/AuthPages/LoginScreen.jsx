@@ -11,6 +11,7 @@ import HourglassEmptyOutlinedIcon from '@mui/icons-material/HourglassEmptyOutlin
 import BlockOutlinedIcon from '@mui/icons-material/BlockOutlined';
 import useAuthStore from '../store/useAuthStore';
 import { useWebAuthn } from '../hooks/useWebAuthn';
+import { useLoading } from '../context/LoadingContext';
 import toast, { Toaster } from 'react-hot-toast';
 
 const MAX_ATTEMPTS = 3;
@@ -97,6 +98,7 @@ const LoginScreen = () => {
   const location = useLocation();
   const { lastEmail, setLastEmail, setUser, setToken, hasBiometric } = useAuthStore();
   const { supported, authenticating, loginWithBiometric } = useWebAuthn();
+  const { startLoading } = useLoading();
 
   // If arriving from email verification, the verified email takes priority over lastEmail
   const incomingEmail = location.state?.verifiedEmail || '';
@@ -197,6 +199,7 @@ const LoginScreen = () => {
       setLastEmail(email.trim());
       setUser(data);
       setToken(data.token);
+      startLoading();
       navigate('/employee/terminal', { replace: true });
     } catch (err) {
       const msg = err.message || 'Login failed';
@@ -227,6 +230,7 @@ const LoginScreen = () => {
       setLastEmail(data.email || email.trim());
       setUser(data);
       setToken(data.token);
+      startLoading();
       navigate('/employee/terminal', { replace: true });
     } catch (err) {
       setBiometricError(err.message || 'Biometric login failed. Try your PIN instead.');

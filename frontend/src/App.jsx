@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import SplashScreen from './components/SplashScreen';
+import { useLoading } from './context/LoadingContext';
 import LoginScreen from './AuthPages/LoginScreen';
 import SignupPage from './AuthPages/SignupPage';
 import VerifiedPage from './AuthPages/VerifiedPage';
@@ -112,14 +114,24 @@ function GuestRoutes() {
 
 function AuthGate() {
   const localUser = useAuthStore((s) => s.user);
+  const { stopLoading } = useLoading();
+
+  // Guest users land on the login page which has no async data — dismiss immediately
+  useEffect(() => {
+    if (!localUser) stopLoading();
+  }, [localUser, stopLoading]);
+
   return localUser ? <LocalAuthRoutes role={localUser.role} /> : <GuestRoutes />;
 }
 
 function App() {
   return (
-    <BrowserRouter>
-      <AuthGate />
-    </BrowserRouter>
+    <>
+      <SplashScreen />
+      <BrowserRouter>
+        <AuthGate />
+      </BrowserRouter>
+    </>
   );
 }
 

@@ -9,6 +9,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import CornerCard from '../components/CornerCard/CornerCard';
 import useAuthStore from '../store/useAuthStore';
+import { useLoading } from '../context/LoadingContext';
 
 const API = import.meta.env.VITE_API_BASE_URL ?? '';
 
@@ -33,6 +34,7 @@ export default function TerminalPage() {
   const priceVariancePath = pathname.startsWith('/manager') ? '/manager/price-variance' : '/employee/price-variance';
   const token             = useAuthStore((s) => s.token);
   const isDesktop         = useMediaQuery('(min-width:1024px)');
+  const { stopLoading }   = useLoading();
 
   // ── Cart state ──
   const [cartItems, setCartItems]       = useState([]); // [{id, product, sellingPrice, qty}]
@@ -81,7 +83,7 @@ export default function TerminalPage() {
           }));
         setProducts(quickSlots);
       })
-      .finally(() => { if (!cancelled) setProductsLoading(false); });
+      .finally(() => { if (!cancelled) { setProductsLoading(false); stopLoading(); } });
     return () => { cancelled = true; };
   }, [token]);
 

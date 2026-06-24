@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useMediaQuery } from '@mui/material';
 import PointOfSaleIcon               from '@mui/icons-material/PointOfSale';
@@ -15,6 +15,7 @@ import LogoutOutlinedIcon            from '@mui/icons-material/LogoutOutlined';
 import MenuIcon                      from '@mui/icons-material/Menu';
 import CloseIcon                     from '@mui/icons-material/Close';
 import useAuthStore from '../store/useAuthStore';
+import { useLoading } from '../context/LoadingContext';
 
 // ── Mobile bottom nav (primary 3 tabs) ────────────────────────────────────────
 const NAV_ITEMS = [
@@ -71,6 +72,13 @@ export default function EmployeeLayout() {
   const { user, logout } = useAuthStore();
   const [menuOpen, setMenuOpen] = useState(false);
   const isDesktop = useMediaQuery('(min-width:1024px)');
+  const { stopLoading } = useLoading();
+
+  // Safety net: dismiss the splash at most 1.2s after any navigation
+  useEffect(() => {
+    const t = setTimeout(stopLoading, 1200);
+    return () => clearTimeout(t);
+  }, [pathname, stopLoading]);
 
   const handleLogout = () => {
     logout();

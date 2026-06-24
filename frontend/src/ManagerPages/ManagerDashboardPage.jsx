@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ResponsiveContainer,
   LineChart,
@@ -15,6 +15,7 @@ import PeopleOutlinedIcon       from '@mui/icons-material/PeopleOutlined';
 import TrendingUpOutlinedIcon   from '@mui/icons-material/TrendingUpOutlined';
 import RefreshOutlinedIcon      from '@mui/icons-material/RefreshOutlined';
 import SpaceDashboardOutlinedIcon from '@mui/icons-material/SpaceDashboardOutlined';
+import { useLoading } from '../context/LoadingContext';
 
 const C = {
   primary:  '#3E2723',
@@ -202,6 +203,9 @@ export default function ManagerDashboardPage() {
   const [range, setRange] = useState('7D');
   const chartData  = DATA[range];
   const isDesktop  = useMediaQuery('(min-width:1024px)');
+  const { stopLoading } = useLoading();
+
+  useEffect(() => { stopLoading(); }, [stopLoading]);
 
   /* ══════════════════════════════════════════
      DESKTOP

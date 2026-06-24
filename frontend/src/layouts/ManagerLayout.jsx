@@ -21,6 +21,7 @@ import MenuIcon                          from '@mui/icons-material/Menu';
 import CloseIcon                         from '@mui/icons-material/Close';
 import ChevronLeftIcon                   from '@mui/icons-material/ChevronLeft';
 import useAuthStore from '../store/useAuthStore';
+import { useLoading } from '../context/LoadingContext';
 
 // ─── Navigation structure ─────────────────────────────────────────────────────
 const NAV_GROUPS = [
@@ -97,6 +98,13 @@ export default function ManagerLayout() {
   const { pathname } = useLocation();
   const { user, logout } = useAuthStore();
   const isDesktop = useMediaQuery('(min-width:1024px)');
+  const { stopLoading } = useLoading();
+
+  // Safety net: dismiss the splash at most 1.2s after any navigation
+  useEffect(() => {
+    const t = setTimeout(stopLoading, 1200);
+    return () => clearTimeout(t);
+  }, [pathname, stopLoading]);
 
   const { data: syncData } = useQuery({
     queryKey: ['settings-sync'],
