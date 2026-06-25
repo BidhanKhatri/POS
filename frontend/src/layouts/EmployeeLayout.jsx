@@ -24,16 +24,29 @@ const NAV_ITEMS = [
   { label: 'Dashboard',    path: '/employee/dashboard',    icon: GridViewOutlinedIcon     },
 ];
 
-// ── Mobile right-side drawer ───────────────────────────────────────────────────
-const MENU_ITEMS = [
-  { label: 'Shift',             path: '/employee/shift',     icon: AccessTimeOutlinedIcon          },
-  { label: 'Inventory',         path: '/employee/inventory', icon: Inventory2OutlinedIcon          },
-  { label: 'Customers',         path: '/employee/customers', icon: PeopleOutlinedIcon              },
-  { label: 'Barcode',           path: '/employee/barcode',   icon: QrCodeScannerOutlinedIcon       },
-  { label: 'Overrides Request', path: '/employee/overrides', icon: AdminPanelSettingsOutlinedIcon  },
-  { label: 'Settings',          path: '/employee/settings',  icon: SettingsOutlinedIcon            },
-  { label: 'Profile',           path: '/employee/profile',   icon: PersonOutlineOutlinedIcon       },
+// ── Mobile right-side drawer — grouped to match desktop sidebar ────────────────
+const MENU_SECTIONS = [
+  {
+    label: 'Operations',
+    items: [
+      { label: 'Shift',             path: '/employee/shift',     icon: AccessTimeOutlinedIcon          },
+      { label: 'Inventory',         path: '/employee/inventory', icon: Inventory2OutlinedIcon          },
+      { label: 'Customers',         path: '/employee/customers', icon: PeopleOutlinedIcon              },
+      { label: 'Barcode',           path: '/employee/barcode',   icon: QrCodeScannerOutlinedIcon       },
+      { label: 'Overrides Request', path: '/employee/overrides', icon: AdminPanelSettingsOutlinedIcon  },
+    ],
+  },
+  {
+    label: 'Account',
+    items: [
+      { label: 'Settings', path: '/employee/settings', icon: SettingsOutlinedIcon      },
+      { label: 'Profile',  path: '/employee/profile',  icon: PersonOutlineOutlinedIcon },
+    ],
+  },
 ];
+
+// flat list used only for isMenuRoute detection
+const MENU_ITEMS = MENU_SECTIONS.flatMap((s) => s.items);
 
 // ── Desktop sidebar — all routes organised into sections ───────────────────────
 const SIDEBAR_SECTIONS = [
@@ -477,32 +490,46 @@ export default function EmployeeLayout() {
           </button>
         </div>
 
-        {/* Drawer nav items */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '8px 0', overflowY: 'auto' }}>
-          {MENU_ITEMS.map(({ label, path, icon: Icon }) => {
-            const active = isActive(path);
-            return (
-              <button
-                key={path}
-                onClick={() => goTo(path)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 12,
-                  padding: '13px 18px',
-                  background: active ? '#F5F0EC' : 'transparent',
-                  borderLeft: active ? '3px solid #3E2723' : '3px solid transparent',
-                  border: 'none',
-                  borderLeftWidth: 3,
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                }}
-              >
-                <Icon sx={{ fontSize: 20, color: active ? '#3E2723' : '#6B5B57' }} />
-                <span style={{ fontSize: 14, fontWeight: active ? 700 : 600, color: active ? '#3E2723' : '#2B1D1A' }}>
-                  {label}
-                </span>
-              </button>
-            );
-          })}
+        {/* Drawer nav items — grouped */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '6px 0 16px' }}>
+          {MENU_SECTIONS.map(({ label: sectionLabel, items }, si) => (
+            <div key={sectionLabel}>
+              {si > 0 && (
+                <div style={{ height: 1, background: '#EFE7E2', margin: '6px 0' }} />
+              )}
+              <p style={{
+                margin: '10px 18px 4px',
+                fontSize: 9, fontWeight: 700, color: '#C0B5B0',
+                letterSpacing: '0.12em', textTransform: 'uppercase',
+              }}>
+                {sectionLabel}
+              </p>
+              {items.map(({ label, path, icon: Icon }) => {
+                const active = isActive(path);
+                return (
+                  <button
+                    key={path}
+                    onClick={() => goTo(path)}
+                    style={{
+                      width: '100%',
+                      display: 'flex', alignItems: 'center', gap: 12,
+                      padding: '11px 18px',
+                      background: active ? '#F5F0EC' : 'transparent',
+                      borderLeft: `3px solid ${active ? '#3E2723' : 'transparent'}`,
+                      border: 'none',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <Icon sx={{ fontSize: 20, color: active ? '#3E2723' : '#6B5B57' }} />
+                    <span style={{ fontSize: 14, fontWeight: active ? 700 : 600, color: active ? '#3E2723' : '#2B1D1A' }}>
+                      {label}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          ))}
         </div>
       </aside>
     </div>

@@ -1,5 +1,5 @@
 import express from 'express';
-import { protect, managerOrAdmin } from '../middleware/authMiddleware.js';
+import { protect } from '../middleware/authMiddleware.js';
 import {
   getProfile,
   updateAddress,
@@ -11,7 +11,7 @@ import {
 
 const router = express.Router();
 
-router.use(protect, managerOrAdmin);
+router.use(protect); // self-service only — all operations target req.user._id
 
 router.get('/', getProfile);
 router.patch('/address', updateAddress);

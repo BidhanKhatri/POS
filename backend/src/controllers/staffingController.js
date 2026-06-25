@@ -1,4 +1,103 @@
 import * as staffingService from '../services/staffingService.js';
+import Setting from '../models/Setting.js';
+import PosSchedule from '../models/PosSchedule.js';
+
+/**
+ * GET /api/staffing/my-schedule
+ * Access: Any authenticated user (employee, manager, admin)
+ *
+ * Returns the authenticated user's scheduled shifts for a 7-day window.
+ * If syncStaffingBetit is ON  → pulls from EMS (Staffing Betit).
+ * If syncStaffingBetit is OFF → pulls from POS local PosSchedule collection.
+ *
+ * Query: startDate (YYYY-MM-DD), endDate (YYYY-MM-DD)
+ * If omitted, defaults to the current Mon–Sun week.
+ */
+export const getMySchedule = async (req, res, next) => {
+  try {
+    let { startDate, endDate } = req.query;
+
+    // Default to current Mon–Sun week
+    if (!startDate || !endDate) {
+      const today = new Date();
+      const dow   = today.getDay(); // 0=Sun
+      const monday = new Date(today);
+      monday.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1));
+      monday.setHours(0, 0, 0, 0);
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      const fmt = (d) => d.toISOString().slice(0, 10);
+      startDate = fmt(monday);
+      endDate   = fmt(sunday);
+    }
+
+    const setting = await Setting.findById('global').lean();
+    const synced  = setting?.syncStaffingBetit === true;
+
+    let data = [];
+
+    if (synced) {
+      const { staffingBetitEmployeeId, email } = req.user;
+
+      if (!staffingBetitEmployeeId && !email) {
+        return res.json({ success: true, synced: true, linked: false, startDate, endDate, data: [] });
+      }
+
+      const raw = await staffingService.fetchMySchedule({
+        staffingBetitEmployeeId,
+        email,
+        startDate,
+        endDate,
+      });
+
+      data = (raw ?? []).map((s) => {
+        const [sh, sm] = s.startTime.split(':').map(Number);
+        const [eh, em] = s.endTime.split(':').map(Number);
+        let mins = (eh * 60 + em) - (sh * 60 + sm);
+        if (mins < 0) mins += 24 * 60;
+        return {
+          scheduleId: String(s._id),
+          date: s.date,
+          startTime: s.startTime,
+          endTime: s.endTime,
+          title: s.title ?? 'Shift',
+          color: s.color ?? '#3E2723',
+          scheduledHours: +(mins / 60).toFixed(2),
+        };
+      });
+    } else {
+      const docs = await PosSchedule.find({
+        employeeId: req.user._id,
+        date: { $gte: startDate, $lte: endDate },
+      })
+        .sort({ date: 1, startTime: 1 })
+        .lean();
+
+      data = docs.map((doc) => {
+        const [sh, sm] = doc.startTime.split(':').map(Number);
+        const [eh, em] = doc.endTime.split(':').map(Number);
+        let mins = (eh * 60 + em) - (sh * 60 + sm);
+        if (mins < 0) mins += 24 * 60;
+        return {
+          scheduleId: String(doc._id),
+          date: doc.date,
+          startTime: doc.startTime,
+          endTime: doc.endTime,
+          title: doc.title,
+          color: doc.color,
+          scheduledHours: +(mins / 60).toFixed(2),
+        };
+      });
+    }
+
+    res.json({ success: true, synced, linked: true, startDate, endDate, data });
+  } catch (err) {
+    if (err.message?.includes('EMS API error')) {
+      return res.status(502).json({ success: false, message: 'EMS service unavailable. Check that the staffing portal is running.' });
+    }
+    next(err);
+  }
+};
 
 /**
  * GET /api/staffing/groups

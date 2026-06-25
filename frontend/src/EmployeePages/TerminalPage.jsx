@@ -335,93 +335,57 @@ export default function TerminalPage() {
   );
 
   const renderProductGrid = () => (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-      {productsLoading && (
-        <div style={{ gridColumn: 'span 3', textAlign: 'center', padding: '16px 0', fontSize: 12, fontWeight: 600, color: '#A09490' }}>
-          Loading products…
-        </div>
-      )}
-      {!productsLoading && products.length === 0 && (
-        <div style={{ gridColumn: 'span 3', textAlign: 'center', padding: '16px 0', fontSize: 12, fontWeight: 600, color: '#A09490' }}>
-          No quick-slot products configured.
-        </div>
-      )}
-      {products.map((product) => {
-        const { code, name, price } = product;
-        const isSelected = currentProduct?.code === code;
-        return (
-          <button
-            key={code}
-            onClick={() => handleProduct(product)}
-            className="flex flex-col items-center justify-center select-none rounded-xl border transition-all duration-75"
-            style={{
-              height: 70, cursor: 'pointer',
-              background: isSelected ? '#6d4c41' : '#ffffff',
-              border: isSelected ? '2px solid #D4A373' : '1px solid #DDD2CC',
-              boxShadow: isSelected
-                ? '0 4px 0 #3E2723, 0 6px 12px rgba(62,39,35,0.28), 0 0 0 1px #D4A373'
-                : '0 4px 0 #c4b8b2, 0 6px 12px rgba(0,0,0,0.06)',
-            }}
-            onMouseDown={(e) => { e.currentTarget.style.transform = 'translateY(4px)'; }}
-            onMouseUp={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
-          >
-            <span style={{ fontSize: 18, fontWeight: 800, color: isSelected ? '#fff' : '#2B1D1A', lineHeight: 1 }}>{code}</span>
-            <span style={{ fontSize: 10, fontWeight: 500, color: isSelected ? '#fff' : '#8A7B77', marginTop: 3, letterSpacing: '0.02em' }}>{name}</span>
-            {price > 0 && (
-              <span style={{ fontSize: 10, fontWeight: 700, color: isSelected ? '#fff' : '#2E7D4F', marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>${price}</span>
-            )}
-          </button>
-        );
-      })}
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+      {productsLoading
+        ? Array.from({ length: 9 }).map((_, i) => (
+            <div
+              key={i}
+              className="animate-pulse rounded-xl"
+              style={{ height: 62, background: '#EFE7E2', border: '1px solid #DDD2CC' }}
+            />
+          ))
+        : products.length === 0
+          ? (
+            <div style={{ gridColumn: 'span 4', textAlign: 'center', padding: '16px 0', fontSize: 12, fontWeight: 600, color: '#A09490' }}>
+              No quick-slot products configured.
+            </div>
+          )
+          : products.map((product) => {
+              const { code, name, price } = product;
+              const isSelected = currentProduct?.code === code;
+              return (
+                <button
+                  key={code}
+                  onClick={() => handleProduct(product)}
+                  className="flex flex-col items-center justify-center select-none rounded-xl border transition-all duration-75"
+                  style={{
+                    height: 62, cursor: 'pointer',
+                    background: isSelected ? '#6d4c41' : '#ffffff',
+                    border: isSelected ? '2px solid #D4A373' : '1px solid #DDD2CC',
+                    boxShadow: isSelected
+                      ? '0 4px 0 #3E2723, 0 6px 12px rgba(62,39,35,0.28), 0 0 0 1px #D4A373'
+                      : '0 4px 0 #c4b8b2, 0 6px 12px rgba(0,0,0,0.06)',
+                  }}
+                  onMouseDown={(e) => { e.currentTarget.style.transform = 'translateY(4px)'; }}
+                  onMouseUp={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
+                >
+                  <span style={{ fontSize: 15, fontWeight: 800, color: isSelected ? '#fff' : '#2B1D1A', lineHeight: 1 }}>{code}</span>
+                  <span style={{ fontSize: 9, fontWeight: 500, color: isSelected ? '#fff' : '#8A7B77', marginTop: 3, letterSpacing: '0.02em', textAlign: 'center', padding: '0 2px' }}>{name}</span>
+                  {price > 0 && (
+                    <span style={{ fontSize: 9, fontWeight: 700, color: isSelected ? '#fff' : '#2E7D4F', marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>${price}</span>
+                  )}
+                </button>
+              );
+            })
+      }
     </div>
   );
 
   const renderNumpad = () => (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+      {/* Row 1 — 7 8 9 | ENT (spans rows 1-2) */}
       {['7', '8', '9'].map((d) => (
-        <button key={d} onClick={() => numpadDisabled ? showToast('Select a product first.') : pushDigit(d)} className={NUM_KEY}
-          style={{ height: 62, fontSize: 26, fontWeight: 700, color: '#2B1D1A' }}>
-          {d}
-        </button>
-      ))}
-      <button
-        onClick={() => handleTransactionType('RF')}
-        className="flex items-center justify-center select-none cursor-pointer rounded-xl active:translate-y-[4px] transition-all duration-75"
-        style={{
-          height: 62, fontSize: 13, fontWeight: 800, letterSpacing: '0.08em',
-          background: transactionType === 'RF'
-            ? 'linear-gradient(180deg, #5a3a33 0%, #4a2820 100%)'
-            : 'linear-gradient(180deg, #4E342E 0%, #3E2723 100%)',
-          color: '#fff',
-          border: transactionType === 'RF' ? '2px solid #D4A373' : '1px solid #2A1715',
-          boxShadow: transactionType === 'RF'
-            ? '0 4px 0 #1f100e, 0 6px 12px rgba(42,23,21,0.30), 0 0 0 1px #D4A373'
-            : '0 4px 0 #1f100e, 0 6px 12px rgba(42,23,21,0.30)',
-        }}>
-        RF
-      </button>
-      {['4', '5', '6'].map((d) => (
-        <button key={d} onClick={() => numpadDisabled ? showToast('Select a product first.') : pushDigit(d)} className={NUM_KEY}
-          style={{ height: 62, fontSize: 26, fontWeight: 700, color: '#2B1D1A' }}>
-          {d}
-        </button>
-      ))}
-      <button
-        onClick={() => handleTransactionType('SL')}
-        className="flex items-center justify-center select-none cursor-pointer rounded-xl active:translate-y-[4px] transition-all duration-75"
-        style={{
-          height: 62, fontSize: 13, fontWeight: 800, letterSpacing: '0.08em',
-          background: transactionType === 'SL' ? '#6d4c41' : '#5D4037',
-          color: '#fff',
-          border: transactionType === 'SL' ? '2px solid #D4A373' : '1px solid #4a3329',
-          boxShadow: transactionType === 'SL'
-            ? '0 4px 0 #3E2723, 0 6px 12px rgba(62,39,35,0.28), 0 0 0 1px #D4A373'
-            : '0 4px 0 #3E2723, 0 6px 12px rgba(62,39,35,0.28)',
-        }}>
-        SL
-      </button>
-      {['1', '2', '3'].map((d) => (
         <button key={d} onClick={() => numpadDisabled ? showToast('Select a product first.') : pushDigit(d)} className={NUM_KEY}
           style={{ height: 62, fontSize: 26, fontWeight: 700, color: '#2B1D1A' }}>
           {d}
@@ -444,6 +408,37 @@ export default function TerminalPage() {
       >
         ENT
       </button>
+      {/* Row 2 — 4 5 6 */}
+      {['4', '5', '6'].map((d) => (
+        <button key={d} onClick={() => numpadDisabled ? showToast('Select a product first.') : pushDigit(d)} className={NUM_KEY}
+          style={{ height: 62, fontSize: 26, fontWeight: 700, color: '#2B1D1A' }}>
+          {d}
+        </button>
+      ))}
+      {/* Row 3 — 1 2 3 | RF */}
+      {['1', '2', '3'].map((d) => (
+        <button key={d} onClick={() => numpadDisabled ? showToast('Select a product first.') : pushDigit(d)} className={NUM_KEY}
+          style={{ height: 62, fontSize: 26, fontWeight: 700, color: '#2B1D1A' }}>
+          {d}
+        </button>
+      ))}
+      <button
+        onClick={() => handleTransactionType('RF')}
+        className="flex items-center justify-center select-none cursor-pointer rounded-xl active:translate-y-[4px] transition-all duration-75"
+        style={{
+          height: 62, fontSize: 13, fontWeight: 800, letterSpacing: '0.08em',
+          background: transactionType === 'RF'
+            ? 'linear-gradient(180deg, #5a3a33 0%, #4a2820 100%)'
+            : 'linear-gradient(180deg, #4E342E 0%, #3E2723 100%)',
+          color: '#fff',
+          border: transactionType === 'RF' ? '2px solid #D4A373' : '1px solid #2A1715',
+          boxShadow: transactionType === 'RF'
+            ? '0 4px 0 #1f100e, 0 6px 12px rgba(42,23,21,0.30), 0 0 0 1px #D4A373'
+            : '0 4px 0 #1f100e, 0 6px 12px rgba(42,23,21,0.30)',
+        }}>
+        RF
+      </button>
+      {/* Row 4 — ⌫ 0 CLR | SL */}
       <button onClick={() => numpadDisabled ? showToast('Select a product first.') : handleBackspace()}
         className="flex items-center justify-center select-none cursor-pointer rounded-xl active:translate-y-[4px] transition-all duration-75"
         style={{ height: 62, background: '#F5F0EC', color: '#3E2723', border: '1px solid #DDD2CC', boxShadow: '0 4px 0 #c4b8b2, 0 6px 12px rgba(0,0,0,0.06)' }}>
@@ -457,6 +452,20 @@ export default function TerminalPage() {
         className="flex items-center justify-center select-none cursor-pointer rounded-xl active:translate-y-[4px] transition-all duration-75"
         style={{ height: 62, fontSize: 13, fontWeight: 800, letterSpacing: '0.1em', background: '#B71C1C', color: '#fff', border: '1px solid #991717', boxShadow: '0 4px 0 #7a1111, 0 6px 12px rgba(183,28,28,0.22)' }}>
         CLR
+      </button>
+      <button
+        onClick={() => handleTransactionType('SL')}
+        className="flex items-center justify-center select-none cursor-pointer rounded-xl active:translate-y-[4px] transition-all duration-75"
+        style={{
+          height: 62, fontSize: 13, fontWeight: 800, letterSpacing: '0.08em',
+          background: transactionType === 'SL' ? '#6d4c41' : '#5D4037',
+          color: '#fff',
+          border: transactionType === 'SL' ? '2px solid #D4A373' : '1px solid #4a3329',
+          boxShadow: transactionType === 'SL'
+            ? '0 4px 0 #3E2723, 0 6px 12px rgba(62,39,35,0.28), 0 0 0 1px #D4A373'
+            : '0 4px 0 #3E2723, 0 6px 12px rgba(62,39,35,0.28)',
+        }}>
+        SL
       </button>
     </div>
   );
@@ -833,45 +842,50 @@ export default function TerminalPage() {
         <div style={{ flex: 1, height: 1, background: '#DDD2CC' }} />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 18 }}>
-        {productsLoading && (
-          <div style={{ gridColumn: 'span 3', textAlign: 'center', padding: '16px 0', fontSize: 12, fontWeight: 600, color: '#A09490' }}>
-            Loading products…
-          </div>
-        )}
-        {!productsLoading && products.length === 0 && (
-          <div style={{ gridColumn: 'span 3', textAlign: 'center', padding: '16px 0', fontSize: 12, fontWeight: 600, color: '#A09490' }}>
-            No quick-slot products configured.
-          </div>
-        )}
-        {products.map((product) => {
-          const { code, name, price } = product;
-          const isSelected = currentProduct?.code === code;
-          return (
-            <button
-              key={code}
-              onClick={() => handleProduct(product)}
-              className="flex flex-col items-center justify-center select-none rounded-xl border transition-all duration-75"
-              style={{
-                height: 70, cursor: 'pointer',
-                background: isSelected ? '#6d4c41' : '#ffffff',
-                border: isSelected ? '2px solid #D4A373' : '1px solid #DDD2CC',
-                boxShadow: isSelected
-                  ? '0 4px 0 #3E2723, 0 6px 12px rgba(62,39,35,0.28), 0 0 0 1px #D4A373'
-                  : '0 4px 0 #c4b8b2, 0 6px 12px rgba(0,0,0,0.06)',
-              }}
-              onMouseDown={(e) => { e.currentTarget.style.transform = 'translateY(4px)'; }}
-              onMouseUp={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
-            >
-              <span style={{ fontSize: 18, fontWeight: 800, color: isSelected ? '#fff' : '#2B1D1A', lineHeight: 1 }}>{code}</span>
-              <span style={{ fontSize: 10, fontWeight: 500, color: isSelected ? '#fff' : '#8A7B77', marginTop: 3, letterSpacing: '0.02em' }}>{name}</span>
-              {price > 0 && (
-                <span style={{ fontSize: 10, fontWeight: 700, color: isSelected ? '#fff' : '#2E7D4F', marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>${price}</span>
-              )}
-            </button>
-          );
-        })}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 18 }}>
+        {productsLoading
+          ? Array.from({ length: 9 }).map((_, i) => (
+              <div
+                key={i}
+                className="animate-pulse rounded-xl"
+                style={{ height: 62, background: '#EFE7E2', border: '1px solid #DDD2CC' }}
+              />
+            ))
+          : products.length === 0
+            ? (
+              <div style={{ gridColumn: 'span 4', textAlign: 'center', padding: '16px 0', fontSize: 12, fontWeight: 600, color: '#A09490' }}>
+                No quick-slot products configured.
+              </div>
+            )
+            : products.map((product) => {
+                const { code, name, price } = product;
+                const isSelected = currentProduct?.code === code;
+                return (
+                  <button
+                    key={code}
+                    onClick={() => handleProduct(product)}
+                    className="flex flex-col items-center justify-center select-none rounded-xl border transition-all duration-75"
+                    style={{
+                      height: 62, cursor: 'pointer',
+                      background: isSelected ? '#6d4c41' : '#ffffff',
+                      border: isSelected ? '2px solid #D4A373' : '1px solid #DDD2CC',
+                      boxShadow: isSelected
+                        ? '0 4px 0 #3E2723, 0 6px 12px rgba(62,39,35,0.28), 0 0 0 1px #D4A373'
+                        : '0 4px 0 #c4b8b2, 0 6px 12px rgba(0,0,0,0.06)',
+                    }}
+                    onMouseDown={(e) => { e.currentTarget.style.transform = 'translateY(4px)'; }}
+                    onMouseUp={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
+                  >
+                    <span style={{ fontSize: 15, fontWeight: 800, color: isSelected ? '#fff' : '#2B1D1A', lineHeight: 1 }}>{code}</span>
+                    <span style={{ fontSize: 9, fontWeight: 500, color: isSelected ? '#fff' : '#8A7B77', marginTop: 3, letterSpacing: '0.02em', textAlign: 'center', padding: '0 2px' }}>{name}</span>
+                    {price > 0 && (
+                      <span style={{ fontSize: 9, fontWeight: 700, color: isSelected ? '#fff' : '#2E7D4F', marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>${price}</span>
+                    )}
+                  </button>
+                );
+              })
+        }
       </div>
 
       {/* ══════════════════════════════════════════
@@ -887,54 +901,8 @@ export default function TerminalPage() {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 18 }}>
 
-        {/* Row 1 — 7 8 9 RF */}
+        {/* Row 1 — 7 8 9 | ENT (spans rows 1-2) */}
         {['7', '8', '9'].map((d) => (
-          <button key={d} onClick={() => numpadDisabled ? showToast('Select a product first.') : pushDigit(d)} className={NUM_KEY}
-            style={{ height: 62, fontSize: 26, fontWeight: 700, color: '#2B1D1A' }}>
-            {d}
-          </button>
-        ))}
-        <button
-          onClick={() => handleTransactionType('RF')}
-          className="flex items-center justify-center select-none cursor-pointer rounded-xl active:translate-y-[4px] transition-all duration-75"
-          style={{
-            height: 62, fontSize: 13, fontWeight: 800, letterSpacing: '0.08em',
-            background: transactionType === 'RF'
-              ? 'linear-gradient(180deg, #5a3a33 0%, #4a2820 100%)'
-              : 'linear-gradient(180deg, #4E342E 0%, #3E2723 100%)',
-            color: '#fff',
-            border: transactionType === 'RF' ? '2px solid #D4A373' : '1px solid #2A1715',
-            boxShadow: transactionType === 'RF'
-              ? '0 4px 0 #1f100e, 0 6px 12px rgba(42,23,21,0.30), 0 0 0 1px #D4A373'
-              : '0 4px 0 #1f100e, 0 6px 12px rgba(42,23,21,0.30)',
-          }}>
-          RF
-        </button>
-
-        {/* Row 2 — 4 5 6 SL */}
-        {['4', '5', '6'].map((d) => (
-          <button key={d} onClick={() => numpadDisabled ? showToast('Select a product first.') : pushDigit(d)} className={NUM_KEY}
-            style={{ height: 62, fontSize: 26, fontWeight: 700, color: '#2B1D1A' }}>
-            {d}
-          </button>
-        ))}
-        <button
-          onClick={() => handleTransactionType('SL')}
-          className="flex items-center justify-center select-none cursor-pointer rounded-xl active:translate-y-[4px] transition-all duration-75"
-          style={{
-            height: 62, fontSize: 13, fontWeight: 800, letterSpacing: '0.08em',
-            background: transactionType === 'SL' ? '#6d4c41' : '#5D4037',
-            color: '#fff',
-            border: transactionType === 'SL' ? '2px solid #D4A373' : '1px solid #4a3329',
-            boxShadow: transactionType === 'SL'
-              ? '0 4px 0 #3E2723, 0 6px 12px rgba(62,39,35,0.28), 0 0 0 1px #D4A373'
-              : '0 4px 0 #3E2723, 0 6px 12px rgba(62,39,35,0.28)',
-          }}>
-          SL
-        </button>
-
-        {/* Row 3 — 1 2 3 ENT (spans 2 rows) */}
-        {['1', '2', '3'].map((d) => (
           <button key={d} onClick={() => numpadDisabled ? showToast('Select a product first.') : pushDigit(d)} className={NUM_KEY}
             style={{ height: 62, fontSize: 26, fontWeight: 700, color: '#2B1D1A' }}>
             {d}
@@ -958,7 +926,39 @@ export default function TerminalPage() {
           ENT
         </button>
 
-        {/* Row 4 — ⌫ 0 CLR */}
+        {/* Row 2 — 4 5 6 */}
+        {['4', '5', '6'].map((d) => (
+          <button key={d} onClick={() => numpadDisabled ? showToast('Select a product first.') : pushDigit(d)} className={NUM_KEY}
+            style={{ height: 62, fontSize: 26, fontWeight: 700, color: '#2B1D1A' }}>
+            {d}
+          </button>
+        ))}
+
+        {/* Row 3 — 1 2 3 | RF */}
+        {['1', '2', '3'].map((d) => (
+          <button key={d} onClick={() => numpadDisabled ? showToast('Select a product first.') : pushDigit(d)} className={NUM_KEY}
+            style={{ height: 62, fontSize: 26, fontWeight: 700, color: '#2B1D1A' }}>
+            {d}
+          </button>
+        ))}
+        <button
+          onClick={() => handleTransactionType('RF')}
+          className="flex items-center justify-center select-none cursor-pointer rounded-xl active:translate-y-[4px] transition-all duration-75"
+          style={{
+            height: 62, fontSize: 13, fontWeight: 800, letterSpacing: '0.08em',
+            background: transactionType === 'RF'
+              ? 'linear-gradient(180deg, #5a3a33 0%, #4a2820 100%)'
+              : 'linear-gradient(180deg, #4E342E 0%, #3E2723 100%)',
+            color: '#fff',
+            border: transactionType === 'RF' ? '2px solid #D4A373' : '1px solid #2A1715',
+            boxShadow: transactionType === 'RF'
+              ? '0 4px 0 #1f100e, 0 6px 12px rgba(42,23,21,0.30), 0 0 0 1px #D4A373'
+              : '0 4px 0 #1f100e, 0 6px 12px rgba(42,23,21,0.30)',
+          }}>
+          RF
+        </button>
+
+        {/* Row 4 — ⌫ 0 CLR | SL */}
         <button onClick={() => numpadDisabled ? showToast('Select a product first.') : handleBackspace()}
           className="flex items-center justify-center select-none cursor-pointer rounded-xl active:translate-y-[4px] transition-all duration-75"
           style={{ height: 62, background: '#F5F0EC', color: '#3E2723', border: '1px solid #DDD2CC', boxShadow: '0 4px 0 #c4b8b2, 0 6px 12px rgba(0,0,0,0.06)' }}>
@@ -972,6 +972,20 @@ export default function TerminalPage() {
           className="flex items-center justify-center select-none cursor-pointer rounded-xl active:translate-y-[4px] transition-all duration-75"
           style={{ height: 62, fontSize: 13, fontWeight: 800, letterSpacing: '0.1em', background: '#B71C1C', color: '#fff', border: '1px solid #991717', boxShadow: '0 4px 0 #7a1111, 0 6px 12px rgba(183,28,28,0.22)' }}>
           CLR
+        </button>
+        <button
+          onClick={() => handleTransactionType('SL')}
+          className="flex items-center justify-center select-none cursor-pointer rounded-xl active:translate-y-[4px] transition-all duration-75"
+          style={{
+            height: 62, fontSize: 13, fontWeight: 800, letterSpacing: '0.08em',
+            background: transactionType === 'SL' ? '#6d4c41' : '#5D4037',
+            color: '#fff',
+            border: transactionType === 'SL' ? '2px solid #D4A373' : '1px solid #4a3329',
+            boxShadow: transactionType === 'SL'
+              ? '0 4px 0 #3E2723, 0 6px 12px rgba(62,39,35,0.28), 0 0 0 1px #D4A373'
+              : '0 4px 0 #3E2723, 0 6px 12px rgba(62,39,35,0.28)',
+          }}>
+          SL
         </button>
       </div>
 

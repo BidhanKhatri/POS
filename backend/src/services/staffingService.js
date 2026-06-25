@@ -142,6 +142,30 @@ export async function fetchSchedules({ employeeId, startDate, endDate } = {}) {
 }
 
 /**
+ * Fetch schedules for a single employee across a date range.
+ * Accepts either staffingBetitEmployeeId (EMS ObjectId) or email as fallback.
+ * Used by the employee-facing "my schedule" endpoint.
+ */
+export async function fetchMySchedule({ staffingBetitEmployeeId, email, startDate, endDate }) {
+  const identifier = staffingBetitEmployeeId || email;
+  if (!identifier) return [];
+
+  const cacheKey = `myschedule:${identifier}:${startDate ?? ''}:${endDate ?? ''}`;
+  const cached = cacheGet(cacheKey);
+  if (cached) return cached;
+
+  const params = {};
+  if (staffingBetitEmployeeId) params.employeeId = staffingBetitEmployeeId;
+  else params.email = email;
+  if (startDate) params.startDate = startDate;
+  if (endDate)   params.endDate   = endDate;
+
+  const data = await emsRequest('/integrations/schedules', params);
+  cacheSet(cacheKey, data);
+  return data;
+}
+
+/**
  * Fetch all EMS groups with their member lists.
  * Cached for 5 minutes — groups change infrequently.
  */

@@ -344,8 +344,8 @@ export default function ManagerTransactionPage() {
           ))}
         </div>
 
-        {/* Loading skeletons */}
-        {loading && Array.from({ length: 7 }).map((_, i) => (
+        {/* Skeleton: only on initial empty load — not on refetch */}
+        {loading && rows.length === 0 && Array.from({ length: 7 }).map((_, i) => (
           <div key={i} style={{ display: 'grid', gridTemplateColumns: COLS, borderBottom: `1px solid ${C.border}`, background: i % 2 ? '#FDFCFB' : C.surface }}>
             {[110,120,150,30,50,60,70,70,70].map((w, j) => (
               <div key={j} style={{ padding: 14 }}>
@@ -375,92 +375,96 @@ export default function ManagerTransactionPage() {
           </div>
         )}
 
-        {/* Data rows */}
-        {!loading && !error && rows.map((tx, i) => {
-          const net       = (tx.grandTotal || 0) - (tx.refundedAmount || 0);
-          const emp       = tx.employee || tx.employeeId;
-          const mth       = tx.primaryPayment?.method || '';
-          const isVoided  = tx.paymentStatus === 'VOIDED';
-          const isHov     = hovered === tx._id;
-          const dt        = new Date(tx.createdAt);
+        {/* Data rows + pagination — stays mounted; dims during refetch instead of swapping to skeleton */}
+        {!error && rows.length > 0 && (
+          <div style={{ opacity: loading ? 0.45 : 1, transition: 'opacity 0.2s', pointerEvents: loading ? 'none' : 'auto' }}>
+            {rows.map((tx, i) => {
+              const net       = (tx.grandTotal || 0) - (tx.refundedAmount || 0);
+              const emp       = tx.employee || tx.employeeId;
+              const mth       = tx.primaryPayment?.method || '';
+              const isVoided  = tx.paymentStatus === 'VOIDED';
+              const isHov     = hovered === tx._id;
+              const dt        = new Date(tx.createdAt);
 
-          return (
-            <div key={tx._id}
-              onClick={() => navigate(`/manager/transactions/${tx._id}`)}
-              onMouseEnter={() => setHovered(tx._id)}
-              onMouseLeave={() => setHovered(null)}
-              style={{ display: 'grid', gridTemplateColumns: COLS, borderBottom: `1px solid ${C.border}`, background: isHov ? C.tableHover : i % 2 ? '#FDFCFB' : C.surface, cursor: 'pointer', borderLeft: `2px solid ${isHov ? C.primary : 'transparent'}`, opacity: isVoided ? 0.65 : 1 }}>
+              return (
+                <div key={tx._id}
+                  onClick={() => navigate(`/manager/transactions/${tx._id}`)}
+                  onMouseEnter={() => setHovered(tx._id)}
+                  onMouseLeave={() => setHovered(null)}
+                  style={{ display: 'grid', gridTemplateColumns: COLS, borderBottom: `1px solid ${C.border}`, background: isHov ? C.tableHover : i % 2 ? '#FDFCFB' : C.surface, cursor: 'pointer', borderLeft: `2px solid ${isHov ? C.primary : 'transparent'}`, opacity: isVoided ? 0.65 : 1 }}>
 
-              <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: C.primary, fontFamily: 'monospace' }}>{tx.invoiceNo}</span>
-                {isHov && <OpenInNewOutlinedIcon sx={{ fontSize: 11, color: C.textDim }} />}
-              </div>
+                  <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: C.primary, fontFamily: 'monospace' }}>{tx.invoiceNo}</span>
+                    {isHov && <OpenInNewOutlinedIcon sx={{ fontSize: 11, color: C.textDim }} />}
+                  </div>
 
-              <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: C.textPri }}>{dt.toLocaleDateString([], { month: 'short', day: 'numeric', year: '2-digit' })}</span>
-                <span style={{ fontSize: 10, color: C.textDim, marginTop: 1 }}>{dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-              </div>
+                  <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: C.textPri }}>{dt.toLocaleDateString([], { month: 'short', day: 'numeric', year: '2-digit' })}</span>
+                    <span style={{ fontSize: 10, color: C.textDim, marginTop: 1 }}>{dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  </div>
 
-              <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
-                <PersonOutlineOutlinedIcon sx={{ fontSize: 13, color: C.textDim, flexShrink: 0 }} />
-                <div style={{ minWidth: 0 }}>
-                  <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: C.textPri, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{emp?.name || '—'}</p>
-                  {emp?.employeeCode && <p style={{ margin: 0, fontSize: 10, color: C.textDim, fontFamily: 'monospace' }}>#{emp.employeeCode}</p>}
+                  <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+                    <PersonOutlineOutlinedIcon sx={{ fontSize: 13, color: C.textDim, flexShrink: 0 }} />
+                    <div style={{ minWidth: 0 }}>
+                      <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: C.textPri, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{emp?.name || '—'}</p>
+                      {emp?.employeeCode && <p style={{ margin: 0, fontSize: 10, color: C.textDim, fontFamily: 'monospace' }}>#{emp.employeeCode}</p>}
+                    </div>
+                  </div>
+
+                  <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: C.textSec }}>{tx.items?.length ?? 0}</span>
+                  </div>
+
+                  <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center' }}>
+                    {mth ? <span style={{ fontSize: 11, fontWeight: 600, color: C.textSec, padding: '2px 8px', borderRadius: 5, background: C.elevated }}>{mth}</span> : <span style={{ color: C.textDim, fontSize: 12 }}>—</span>}
+                  </div>
+
+                  <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center' }}>
+                    <Badge status={tx.paymentStatus} />
+                  </div>
+
+                  <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: C.textPri, fontVariantNumeric: 'tabular-nums' }}>{fmt$(tx.grandTotal)}</span>
+                  </div>
+
+                  <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: tx.refundedAmount > 0 ? C.error : C.textDim, fontVariantNumeric: 'tabular-nums' }}>
+                      {tx.refundedAmount > 0 ? fmt$(tx.refundedAmount) : '—'}
+                    </span>
+                  </div>
+
+                  <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: isVoided ? C.textDim : C.success, fontVariantNumeric: 'tabular-nums' }}>
+                      {isVoided ? '—' : fmt$(net)}
+                    </span>
+                  </div>
                 </div>
-              </div>
+              );
+            })}
 
-              <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: C.textSec }}>{tx.items?.length ?? 0}</span>
+            {/* Pagination footer */}
+            {rows.length > 0 && (
+              <div style={{ padding: '8px 16px 16px', borderTop: `1px solid ${C.border}`, background: C.tableHdr }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '10px 0 4px', flexWrap: 'wrap' }}>
+                  <button onClick={() => goPage(page - 1)} disabled={page === 1}
+                    style={{ width: 34, height: 34, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${C.border}`, background: C.surface, cursor: page === 1 ? 'default' : 'pointer', opacity: page === 1 ? 0.35 : 1 }}>
+                    <ChevronLeftIcon sx={{ fontSize: 18, color: C.textSec }} />
+                  </button>
+                  {pageList(page, pages).map((p, i) =>
+                    p === '…'
+                      ? <span key={`e${i}`} style={{ width: 34, textAlign: 'center', fontSize: 13, color: C.textDim }}>…</span>
+                      : <button key={p} onClick={() => goPage(p)} style={{ width: 34, height: 34, borderRadius: 8, border: `1px solid ${p === page ? C.primary : C.border}`, background: p === page ? C.primary : C.surface, color: p === page ? '#fff' : C.textSec, fontSize: 12, fontWeight: p === page ? 800 : 600, cursor: p === page ? 'default' : 'pointer', fontFamily: FONT }}>{p}</button>
+                  )}
+                  <button onClick={() => goPage(page + 1)} disabled={page === pages}
+                    style={{ width: 34, height: 34, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${C.border}`, background: C.surface, cursor: page === pages ? 'default' : 'pointer', opacity: page === pages ? 0.35 : 1 }}>
+                    <ChevronRightIcon sx={{ fontSize: 18, color: C.textSec }} />
+                  </button>
+                </div>
+                <p style={{ margin: '2px 0 0', textAlign: 'center', fontSize: 11, color: C.textDim }}>
+                  Page {page} of {pages} · {total.toLocaleString()} transaction{total !== 1 ? 's' : ''}
+                </p>
               </div>
-
-              <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center' }}>
-                {mth ? <span style={{ fontSize: 11, fontWeight: 600, color: C.textSec, padding: '2px 8px', borderRadius: 5, background: C.elevated }}>{mth}</span> : <span style={{ color: C.textDim, fontSize: 12 }}>—</span>}
-              </div>
-
-              <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center' }}>
-                <Badge status={tx.paymentStatus} />
-              </div>
-
-              <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: C.textPri, fontVariantNumeric: 'tabular-nums' }}>{fmt$(tx.grandTotal)}</span>
-              </div>
-
-              <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: tx.refundedAmount > 0 ? C.error : C.textDim, fontVariantNumeric: 'tabular-nums' }}>
-                  {tx.refundedAmount > 0 ? fmt$(tx.refundedAmount) : '—'}
-                </span>
-              </div>
-
-              <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: isVoided ? C.textDim : C.success, fontVariantNumeric: 'tabular-nums' }}>
-                  {isVoided ? '—' : fmt$(net)}
-                </span>
-              </div>
-            </div>
-          );
-        })}
-
-        {/* Pagination footer */}
-        {!loading && !error && rows.length > 0 && (
-          <div style={{ padding: '8px 16px 16px', borderTop: `1px solid ${C.border}`, background: C.tableHdr }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '10px 0 4px', flexWrap: 'wrap' }}>
-              <button onClick={() => goPage(page - 1)} disabled={page === 1}
-                style={{ width: 34, height: 34, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${C.border}`, background: C.surface, cursor: page === 1 ? 'default' : 'pointer', opacity: page === 1 ? 0.35 : 1 }}>
-                <ChevronLeftIcon sx={{ fontSize: 18, color: C.textSec }} />
-              </button>
-              {pageList(page, pages).map((p, i) =>
-                p === '…'
-                  ? <span key={`e${i}`} style={{ width: 34, textAlign: 'center', fontSize: 13, color: C.textDim }}>…</span>
-                  : <button key={p} onClick={() => goPage(p)} style={{ width: 34, height: 34, borderRadius: 8, border: `1px solid ${p === page ? C.primary : C.border}`, background: p === page ? C.primary : C.surface, color: p === page ? '#fff' : C.textSec, fontSize: 12, fontWeight: p === page ? 800 : 600, cursor: p === page ? 'default' : 'pointer', fontFamily: FONT }}>{p}</button>
-              )}
-              <button onClick={() => goPage(page + 1)} disabled={page === pages}
-                style={{ width: 34, height: 34, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${C.border}`, background: C.surface, cursor: page === pages ? 'default' : 'pointer', opacity: page === pages ? 0.35 : 1 }}>
-                <ChevronRightIcon sx={{ fontSize: 18, color: C.textSec }} />
-              </button>
-            </div>
-            <p style={{ margin: '2px 0 0', textAlign: 'center', fontSize: 11, color: C.textDim }}>
-              Page {page} of {pages} · {total.toLocaleString()} transaction{total !== 1 ? 's' : ''}
-            </p>
+            )}
           </div>
         )}
       </div>

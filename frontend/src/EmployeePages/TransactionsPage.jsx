@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import SearchOutlinedIcon from '@mui/icons-material/SearchOutlined';
 import CloseOutlinedIcon from '@mui/icons-material/CloseOutlined';
@@ -277,57 +277,45 @@ export default function TransactionsPage() {
   const [error, setError]   = useState('');
 
   const debounceRef = useRef(null);
-  const searchRef   = useRef(search);
-  searchRef.current = search;
 
-  const fetchTransactions = useCallback(async (pageNum = 1) => {
+  const fetchTransactions = async (pageNum = 1) => {
     setLoading(true);
     setError('');
-
     const { startDate, endDate } = toDateRange(dateFilter);
     const params = new URLSearchParams({
-      page: pageNum,
-      limit: 20,
-      ...(searchRef.current.trim() && { search: searchRef.current.trim() }),
-      ...(method && { method }),
-      ...(status && { status }),
-      ...(startDate && { startDate }),
-      ...(endDate && { endDate }),
+      page: pageNum, limit: 20,
+      ...(search.trim() && { search: search.trim() }),
+      ...(method     && { method }),
+      ...(status     && { status }),
+      ...(startDate  && { startDate }),
+      ...(endDate    && { endDate }),
     });
-
     try {
       const res = await fetch(`${API}/api/sales?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error('Failed to load transactions');
       const data = await res.json();
-
+      // batch all state in one commit — setLoading here, not in finally
       setTransactions(data.transactions);
       setTotal(data.total);
       setPage(data.page);
       setPages(data.pages);
+      setLoading(false);
     } catch (e) {
       setError(e.message || 'Failed to load transactions');
-    } finally {
       setLoading(false);
     }
-  }, [token, dateFilter, method, status]);
+  };
 
-  // Reset to page 1 when filters change
+  // Single effect — search gets 380ms debounce, filter changes are immediate
   useEffect(() => {
-    setPage(1);
-    fetchTransactions(1);
-  }, [dateFilter, method, status]);
-
-  // Debounce search
-  useEffect(() => {
+    const delay = search.trim() ? 380 : 0;
     clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      setPage(1);
-      fetchTransactions(1);
-    }, 380);
+    debounceRef.current = setTimeout(() => fetchTransactions(1), delay);
     return () => clearTimeout(debounceRef.current);
-  }, [search]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateFilter, method, status, search, token]);
 
   const goToPage = (p) => {
     if (p < 1 || p > pages || p === page) return;
@@ -423,8 +411,8 @@ export default function TransactionsPage() {
       {/* ── Content ── */}
       <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
 
-        {/* Loading skeleton */}
-        {loading && Array.from({ length: 6 }).map((_, i) => (
+        {/* Skeleton: only on initial empty load — not on refetch */}
+        {loading && transactions.length === 0 && Array.from({ length: 6 }).map((_, i) => (
           <div key={i} style={{
             height: 82, borderRadius: 12, background: `linear-gradient(90deg, #EFE7E2 25%, #F5F0EC 50%, #EFE7E2 75%)`,
             backgroundSize: '200% 100%',
@@ -472,18 +460,20 @@ export default function TransactionsPage() {
           </div>
         )}
 
-        {/* Transaction list */}
-        {!loading && transactions.map((tx) => (
-          <TxCard key={tx._id} tx={tx} onClick={() => goToDetail(tx)} />
-        ))}
-
-        {/* Pagination */}
-        {!loading && pages > 1 && (
-          <div style={{ marginTop: 4 }}>
-            <Pagination page={page} pages={pages} onGoTo={goToPage} />
-            <p style={{ margin: '6px 0 0', textAlign: 'center', fontSize: 11, color: C.textDim, fontFamily: FONT }}>
-              Page {page} of {pages} · {total} transaction{total !== 1 ? 's' : ''}
-            </p>
+        {/* Transaction list — stays mounted; dims during refetch instead of swapping to skeleton */}
+        {transactions.length > 0 && (
+          <div style={{ opacity: loading ? 0.45 : 1, transition: 'opacity 0.2s', pointerEvents: loading ? 'none' : 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {transactions.map((tx) => (
+              <TxCard key={tx._id} tx={tx} onClick={() => goToDetail(tx)} />
+            ))}
+            {pages > 1 && (
+              <div style={{ marginTop: 4 }}>
+                <Pagination page={page} pages={pages} onGoTo={goToPage} />
+                <p style={{ margin: '6px 0 0', textAlign: 'center', fontSize: 11, color: C.textDim, fontFamily: FONT }}>
+                  Page {page} of {pages} · {total} transaction{total !== 1 ? 's' : ''}
+                </p>
+              </div>
+            )}
           </div>
         )}
       </div>
