@@ -20,6 +20,7 @@ import {
   getSummary, getTrend, getPayments,
   getProducts, getCashiers, getRefunds,
 } from '../services/reportService.js';
+import { getPosGroupsSummary } from '../services/posGroupReportService.js';
 import { buildReportHtml } from '../services/reportEmailService.js';
 import { sendReportEmail  } from '../services/emailService.js';
 
@@ -59,14 +60,16 @@ async function main() {
   const cs = compareStart.toISOString();
   const ce = compareEnd.toISOString();
 
-  const [summary, trend, payments, products, cashiers, refunds] = await Promise.all([
+  const [summary, trend, payments, products, cashiers, refunds, groupsData] = await Promise.all([
     getSummary({ start: s, end: e, compareStart: cs, compareEnd: ce }),
     getTrend({ start: s, end: e, groupBy: 'hour' }),
     getPayments({ start: s, end: e }),
     getProducts({ start: s, end: e, limit: 10, sortBy: 'revenue' }),
     getCashiers({ start: s, end: e }),
     getRefunds({ start: s, end: e }),
+    getPosGroupsSummary({ start: s, end: e }).catch(() => ({ groups: [] })),
   ]);
+  const groups = groupsData?.groups ?? [];
 
   console.log('[TEST] Aggregation complete:');
   console.log(`       Gross Revenue: $${summary.current?.grossRevenue ?? 0}`);
@@ -77,7 +80,7 @@ async function main() {
   console.log(`       Products     : ${products.length}`);
   console.log(`       Cashiers     : ${cashiers.length}`);
 
-  const html    = buildReportHtml({ type: 'DAILY', label: `${label} (TEST — Today)`, start, end, summary, payments, products, cashiers, refunds, trend });
+  const html    = buildReportHtml({ type: 'DAILY', label: `${label} (TEST — Today)`, start, end, summary, payments, products, cashiers, refunds, trend, groups });
   const subject = `[TEST] Daily Sales Report — ${label} (Today)`;
 
   console.log(`\n[TEST] Sending to ${TEST_RECIPIENT}…`);

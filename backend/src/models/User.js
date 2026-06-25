@@ -82,6 +82,11 @@ const userSchema = new mongoose.Schema(
             index: true,
             sparse: true,
         },
+        address: {
+            type: String,
+            default: '',
+            trim: true,
+        },
     },
     {
         timestamps: true,

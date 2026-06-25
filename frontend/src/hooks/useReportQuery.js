@@ -195,6 +195,19 @@ export function useReportGroups({ start, end }, options = {}) {
   });
 }
 
+export function useReportPosGroups({ start, end }, options = {}) {
+  const token = useAuthStore(s => s.token);
+  const live  = isLivePeriod(end);
+  return useQuery({
+    queryKey:       ['report', 'pos-groups', start, end],
+    queryFn:        () => reportFetch(`pos-groups${qs({ start, end })}`, token),
+    enabled:        !!token && !!start && !!end,
+    staleTime:      0,
+    refetchInterval: live ? 60 * 1000 : false,
+    ...options,
+  });
+}
+
 export function useReportAnomalies({ start, end }, options = {}) {
   const token = useAuthStore(s => s.token);
   return useQuery({

@@ -20,6 +20,7 @@ import KeyboardArrowUpIcon           from '@mui/icons-material/KeyboardArrowUp';
 import PersonOutlinedIcon            from '@mui/icons-material/PersonOutlined';
 import EmojiEventsOutlinedIcon       from '@mui/icons-material/EmojiEventsOutlined';
 import LinkOffOutlinedIcon           from '@mui/icons-material/LinkOffOutlined';
+import InfoOutlinedIcon              from '@mui/icons-material/InfoOutlined';
 import ErrorOutlineOutlinedIcon      from '@mui/icons-material/ErrorOutlineOutlined';
 import FilterListOutlinedIcon        from '@mui/icons-material/FilterListOutlined';
 import OpenInNewOutlinedIcon         from '@mui/icons-material/OpenInNewOutlined';
@@ -228,10 +229,13 @@ function MemberRow({ member, rank, onDrill }) {
 
 function GroupCard({ group, color, isSelected, onSelect, token, qp, syncEnabled, onDrillMember }) {
   const [expanded, setExpanded] = useState(false);
+  const detailUrl = syncEnabled
+    ? `/api/reports/group-ems/${group.groupId}${qs(qp)}`
+    : `/api/groups/${group.groupId}/report${qs(qp)}`;
   const { data: detailData, isLoading: detailLoading } = useQuery({
-    queryKey: ['grp-detail', group.groupId, qp.start, qp.end],
-    queryFn:  () => apiFetch(`/api/reports/group-ems/${group.groupId}${qs(qp)}`, token),
-    enabled:  expanded && !!token && syncEnabled,
+    queryKey: ['grp-detail', group.groupId, qp.start, qp.end, syncEnabled],
+    queryFn:  () => apiFetch(detailUrl, token),
+    enabled:  expanded && !!token,
     staleTime: 0,
   });
   const s = group.stats;
@@ -413,7 +417,25 @@ function StatRow({ label, value, sub, color }) {
 
 // ─── Export helpers ───────────────────────────────────────────────────────────
 
-function triggerCSV(token, start, end) {
+function triggerCSV(token, start, end, syncEnabled, posGroups) {
+  if (!syncEnabled) {
+    // Build CSV from in-memory POS group data
+    const rows = [
+      ['Group','Members','Revenue','Transactions','Avg Ticket','Rev/Hour','Refund %','Attendance %','Hours Worked'],
+      ...(posGroups ?? []).map(g => {
+        const s = g.stats;
+        return [g.groupName, s.memberCount, s.revenue, s.txnCount, s.avgTicket, s.revenuePerHour, s.refundRate, s.attendanceRate, s.hoursWorked];
+      }),
+    ];
+    const csv = rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g,'""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `pos_group_report_${new Date(start).toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    return;
+  }
   const url = `${API}/api/reports/group-ems/export${qs({ start: start.toISOString(), end: end.toISOString() })}`;
   fetch(url, { headers: { Authorization: `Bearer ${token}` } })
     .then(r => r.blob())
@@ -731,37 +753,75 @@ export default function ManagerGroupReportPage() {
   });
   const syncEnabled = syncData?.syncStaffingBetit ?? false;
 
-  // ── Summary (all groups)
-  const { data: summary, isLoading: summaryLoading } = useQuery({
+  const trendGroupBy = preset === 'today' ? 'hour' : preset === 'year' || preset === 'overall' ? 'month' : 'day';
+
+  // ── EMS queries (sync ON) ─────────────────────────────────────────────────────
+  const { data: emsSummary, isLoading: emsSummaryLoading } = useQuery({
     queryKey: ['grp-summary', range.start, range.end],
     queryFn:  () => apiFetch(`/api/reports/group-ems${qs(qp)}`, token),
     enabled:  !!token && syncEnabled,
     staleTime: 0,
   });
-
-  // ── Leaderboard
-  const { data: leaderboard, isLoading: lbLoading } = useQuery({
+  const { data: emsLeaderboard, isLoading: emsLbLoading } = useQuery({
     queryKey: ['grp-lb', range.start, range.end, rankBy],
     queryFn:  () => apiFetch(`/api/reports/group-ems/leaderboard${qs({ ...qp, rankBy })}`, token),
     enabled:  !!token && syncEnabled,
     staleTime: 0,
   });
-
-  const trendGroupBy = preset === 'today' ? 'hour' : preset === 'year' || preset === 'overall' ? 'month' : 'day';
-
-  // ── Detail screen queries (fired only when a group is drilled into)
-  const { data: detailGroupData, isLoading: detailGroupLoading } = useQuery({
+  const { data: emsDetailData, isLoading: emsDetailLoading } = useQuery({
     queryKey: ['grp-detail-screen', detailGroupId, range.start, range.end],
     queryFn:  () => apiFetch(`/api/reports/group-ems/${detailGroupId}${qs(qp)}`, token),
     enabled:  !!token && syncEnabled && !!detailGroupId,
     staleTime: 0,
   });
-  const { data: detailTrendData, isLoading: detailTrendLoading } = useQuery({
+  const { data: emsTrendData, isLoading: emsTrendLoading } = useQuery({
     queryKey: ['grp-trend-screen', detailGroupId, range.start, range.end, trendGroupBy],
     queryFn:  () => apiFetch(`/api/reports/group-ems/${detailGroupId}/trend${qs({ ...qp, groupBy: trendGroupBy })}`, token),
     enabled:  !!token && syncEnabled && !!detailGroupId,
     staleTime: 0,
   });
+
+  // ── POS-native queries (sync OFF) ─────────────────────────────────────────────
+  const { data: posSummary, isLoading: posSummaryLoading } = useQuery({
+    queryKey: ['pos-grp-summary', range.start, range.end],
+    queryFn:  () => apiFetch(`/api/groups/report${qs(qp)}`, token),
+    enabled:  !!token && !syncLoading && !syncEnabled,
+    staleTime: 0,
+  });
+  const { data: posDetailData, isLoading: posDetailLoading } = useQuery({
+    queryKey: ['pos-grp-detail', detailGroupId, range.start, range.end],
+    queryFn:  () => apiFetch(`/api/groups/${detailGroupId}/report${qs(qp)}`, token),
+    enabled:  !!token && !syncEnabled && !!detailGroupId,
+    staleTime: 0,
+  });
+  const { data: posTrendRaw, isLoading: posTrendLoading } = useQuery({
+    queryKey: ['pos-grp-trend', detailGroupId, range.start, range.end, trendGroupBy],
+    queryFn:  () => apiFetch(`/api/groups/${detailGroupId}/trend${qs({ ...qp, groupBy: trendGroupBy })}`, token),
+    enabled:  !!token && !syncEnabled && !!detailGroupId,
+    staleTime: 0,
+  });
+
+  // ── Unified aliases ───────────────────────────────────────────────────────────
+  const summary       = syncEnabled ? emsSummary   : posSummary;
+  const summaryLoading = syncEnabled ? emsSummaryLoading : posSummaryLoading;
+  const detailGroupData = syncEnabled ? emsDetailData : posDetailData;
+  const detailGroupLoading = syncEnabled ? emsDetailLoading : posDetailLoading;
+  const detailTrendData = syncEnabled
+    ? emsTrendData
+    : (posTrendRaw?.trend ?? null);
+  const detailTrendLoading = syncEnabled ? emsTrendLoading : posTrendLoading;
+
+  // Leaderboard: EMS has a dedicated endpoint; POS derives it from summary
+  const leaderboard = syncEnabled
+    ? emsLeaderboard
+    : (posSummary?.groups
+        ? [...posSummary.groups].sort((a, b) => {
+            if (rankBy === 'txnCount')       return b.stats.txnCount - a.stats.txnCount;
+            if (rankBy === 'revenuePerHour') return b.stats.revenuePerHour - a.stats.revenuePerHour;
+            return b.stats.revenue - a.stats.revenue;
+          })
+        : null);
+  const lbLoading = syncEnabled ? emsLbLoading : posSummaryLoading;
 
   // ── Sync mutation
   const syncMutation = useMutation({
@@ -777,7 +837,7 @@ export default function ManagerGroupReportPage() {
   const handleExport = useCallback(async type => {
     setExporting(type);
     try {
-      if (type==='csv') triggerCSV(token, new Date(range.start), new Date(range.end));
+      if (type==='csv') triggerCSV(token, new Date(range.start), new Date(range.end), syncEnabled, posSummary?.groups);
       else if (type==='pdf' && summary) buildPDF(summary, dateLabel);
     } finally { setExporting(null); setConfirmExport(null); }
   }, [token, range, summary, dateLabel]);
@@ -825,25 +885,32 @@ export default function ManagerGroupReportPage() {
           </div>
           <div>
             <h1 style={{ margin:0,fontSize:20,fontWeight:800,color:C.textPri,letterSpacing:'-0.3px' }}>Group Reports</h1>
-            <p style={{ margin:'2px 0 0',fontSize:12,color:C.textDim }}>EMS group analytics · POS data · {dateLabel}</p>
+            <p style={{ margin:'2px 0 0',fontSize:12,color:C.textDim }}>{syncEnabled ? 'EMS group analytics' : 'POS group analytics'} · {dateLabel}</p>
           </div>
         </div>
-        {syncEnabled && (
-          <div style={{ display:'flex',gap:8,flexWrap:'wrap' }}>
+        <div style={{ display:'flex',gap:8,flexWrap:'wrap' }}>
+          {syncEnabled && (
             <button onClick={() => syncMutation.mutate()} disabled={syncMutation.isPending}
               style={{ height:34,padding:'0 14px',display:'flex',alignItems:'center',gap:6,borderRadius:8,border:`1px solid ${C.border}`,background:C.surface,cursor:syncMutation.isPending?'wait':'pointer',fontFamily:FONT }}>
               <SyncOutlinedIcon sx={{ fontSize:15,color:C.textSec,animation:syncMutation.isPending?'spin 1s linear infinite':'none' }}/>
               <span style={{ fontSize:12,fontWeight:600,color:C.textSec }}>Sync Groups</span>
             </button>
-            {[{key:'csv',icon:TableChartOutlinedIcon,label:'Export CSV'},{key:'pdf',icon:PictureAsPdfOutlinedIcon,label:'Export PDF'}].map(({key,icon:Icon,label})=>(
-              <button key={key} onClick={()=>setConfirmExport(key)} disabled={!!exporting}
-                style={{ height:34,padding:'0 14px',display:'flex',alignItems:'center',gap:6,borderRadius:8,border:`1px solid ${C.border}`,background:C.surface,cursor:exporting?'wait':'pointer',fontFamily:FONT }}>
-                <Icon sx={{ fontSize:15,color:C.textSec }}/>
-                <span style={{ fontSize:12,fontWeight:600,color:C.textSec }}>{label}</span>
-              </button>
-            ))}
-          </div>
-        )}
+          )}
+          {!syncEnabled && (
+            <button onClick={() => queryClient.invalidateQueries({ queryKey: ['pos-grp-summary'] })} disabled={posSummaryLoading}
+              style={{ height:34,padding:'0 14px',display:'flex',alignItems:'center',gap:6,borderRadius:8,border:`1px solid ${C.border}`,background:C.surface,cursor:posSummaryLoading?'wait':'pointer',fontFamily:FONT }}>
+              <SyncOutlinedIcon sx={{ fontSize:15,color:C.textSec,animation:posSummaryLoading?'spin 1s linear infinite':'none' }}/>
+              <span style={{ fontSize:12,fontWeight:600,color:C.textSec }}>Refresh</span>
+            </button>
+          )}
+          {[{key:'csv',icon:TableChartOutlinedIcon,label:'Export CSV'},{key:'pdf',icon:PictureAsPdfOutlinedIcon,label:'Export PDF'}].map(({key,icon:Icon,label})=>(
+            <button key={key} onClick={()=>setConfirmExport(key)} disabled={!!exporting || summaryLoading}
+              style={{ height:34,padding:'0 14px',display:'flex',alignItems:'center',gap:6,borderRadius:8,border:`1px solid ${C.border}`,background:C.surface,cursor:(exporting||summaryLoading)?'wait':'pointer',fontFamily:FONT }}>
+              <Icon sx={{ fontSize:15,color:C.textSec }}/>
+              <span style={{ fontSize:12,fontWeight:600,color:C.textSec }}>{label}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* ── Sync feedback ── */}
@@ -859,24 +926,15 @@ export default function ManagerGroupReportPage() {
         </div>
       )}
 
-      {/* ── Sync disabled ── */}
+      {/* ── POS-mode info banner (sync OFF) ── */}
       {!syncLoading && !syncEnabled && (
-        <div style={{ display:'flex',flexDirection:'column',alignItems:'center',padding:'80px 24px',textAlign:'center' }}>
-          <div style={{ width:64,height:64,borderRadius:18,background:C.elevated,display:'flex',alignItems:'center',justifyContent:'center',marginBottom:20 }}>
-            <LinkOffOutlinedIcon sx={{ fontSize:30,color:C.textDim }}/>
-          </div>
-          <p style={{ margin:'0 0 6px',fontSize:16,fontWeight:800,color:C.textPri }}>Staffing Betit not connected</p>
-          <p style={{ margin:'0 0 24px',fontSize:13,color:C.textSec,maxWidth:360,lineHeight:1.6 }}>
-            Enable the Staffing Betit integration in Settings to access group-based analytics powered by EMS group membership.
-          </p>
-          <button onClick={()=>navigate('/manager/settings')}
-            style={{ height:36,padding:'0 20px',background:C.primary,border:'none',borderRadius:8,fontSize:13,fontWeight:700,color:'#fff',cursor:'pointer',fontFamily:FONT }}>
-            Go to Settings
-          </button>
+        <div style={{ display:'flex',alignItems:'center',gap:10,padding:'10px 16px',borderRadius:10,background:`${C.warning}18`,border:`1px solid ${C.warning}44`,marginBottom:20 }}>
+          <InfoOutlinedIcon sx={{ fontSize:18,color:C.warning,flexShrink:0 }}/>
+          <span style={{ fontSize:12,fontWeight:600,color:C.warning }}>Staffing Betit sync is off — showing analytics from POS groups</span>
         </div>
       )}
 
-      {(syncLoading || syncEnabled) && (
+      {!syncLoading && (
         <>
           {/* ── Date filter ── */}
           <div style={{ display:'flex',gap:6,marginBottom:24,flexWrap:'wrap',alignItems:'center' }}>
@@ -953,11 +1011,22 @@ export default function ManagerGroupReportPage() {
             <div style={{ textAlign:'center',padding:'48px 24px',color:C.textDim }}>
               <GroupsOutlinedIcon sx={{ fontSize:48,color:C.border }}/>
               <p style={{ margin:'12px 0 4px',fontSize:14,fontWeight:700,color:C.textSec }}>No groups found</p>
-              <p style={{ margin:'0 0 16px',fontSize:13 }}>Click "Sync Groups" to pull group data from the staffing portal.</p>
-              <button onClick={()=>syncMutation.mutate()} disabled={syncMutation.isPending}
-                style={{ height:36,padding:'0 18px',background:C.primary,border:'none',borderRadius:8,fontSize:13,fontWeight:700,color:'#fff',cursor:'pointer',fontFamily:FONT }}>
-                Sync Now
-              </button>
+              {syncEnabled
+                ? <p style={{ margin:'0 0 16px',fontSize:13 }}>Click "Sync Groups" to pull group data from the staffing portal.</p>
+                : <p style={{ margin:'0 0 16px',fontSize:13 }}>Create groups in the Groups page to see analytics here.</p>
+              }
+              {syncEnabled && (
+                <button onClick={()=>syncMutation.mutate()} disabled={syncMutation.isPending}
+                  style={{ height:36,padding:'0 18px',background:C.primary,border:'none',borderRadius:8,fontSize:13,fontWeight:700,color:'#fff',cursor:'pointer',fontFamily:FONT }}>
+                  Sync Now
+                </button>
+              )}
+              {!syncEnabled && (
+                <button onClick={()=>navigate('/manager/groups')}
+                  style={{ height:36,padding:'0 18px',background:C.primary,border:'none',borderRadius:8,fontSize:13,fontWeight:700,color:'#fff',cursor:'pointer',fontFamily:FONT }}>
+                  Go to Groups
+                </button>
+              )}
             </div>
           )}
 

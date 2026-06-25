@@ -18,6 +18,11 @@ import AddOutlinedIcon               from '@mui/icons-material/AddOutlined';
 import RefreshOutlinedIcon           from '@mui/icons-material/RefreshOutlined';
 import FingerprintOutlinedIcon       from '@mui/icons-material/FingerprintOutlined';
 import Inventory2OutlinedIcon        from '@mui/icons-material/Inventory2Outlined';
+import ManageAccountsOutlinedIcon    from '@mui/icons-material/ManageAccountsOutlined';
+import LocationOnOutlinedIcon        from '@mui/icons-material/LocationOnOutlined';
+import MarkEmailReadOutlinedIcon     from '@mui/icons-material/MarkEmailReadOutlined';
+import toast, { Toaster }           from 'react-hot-toast';
+import { useQueryClient } from '@tanstack/react-query';
 import useAuthStore from '../store/useAuthStore';
 import BiometricSetup from '../components/BiometricSetup/BiometricSetup';
 
@@ -35,8 +40,9 @@ const TABS = [
   { key: 'biometric', label: 'Biometric',           icon: FingerprintOutlinedIcon },
   { key: 'email',     label: 'Email Config',        icon: EmailOutlinedIcon },
   { key: 'managers',  label: 'Manager Management',  icon: AdminPanelSettingsOutlinedIcon },
-  { key: 'sync',      label: 'Sync Data',           icon: SyncOutlinedIcon },
   { key: 'inventory', label: 'Inventory',           icon: Inventory2OutlinedIcon },
+  { key: 'profile',   label: 'Profile',             icon: ManageAccountsOutlinedIcon },
+  { key: 'sync',      label: 'Sync Data',           icon: SyncOutlinedIcon },
 ];
 
 /* ── Reusable toggle switch ── */
@@ -154,6 +160,7 @@ function EmailField({ label, name, value, onChange, placeholder, type = 'text', 
 ══════════════════════════════════ */
 function SyncDataTab({ token }) {
   const authHeaders = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+  const qc = useQueryClient();
 
   const [syncEnabled, setSyncEnabled]   = useState(false);
   const [syncLoading, setSyncLoading]   = useState(true);
@@ -182,6 +189,7 @@ function SyncDataTab({ token }) {
       setSyncEnabled(data.syncStaffingBetit);
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
+      qc.invalidateQueries({ queryKey: ['settings-sync'] });
     } catch {
     } finally {
       setSyncToggling(false);
@@ -1229,6 +1237,871 @@ function InventoryTab({ token }) {
 }
 
 /* ══════════════════════════════════
+   Change PIN Modal (Profile tab)
+══════════════════════════════════ */
+function ChangePinModal({ open, onClose, onSuccess, token }) {
+  const authHeaders = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+  const isMobile = useMediaQuery('(max-width:480px)');
+
+  // step 0 = current PIN, 1 = new PIN, 2 = confirm new PIN
+  const [step, setStep]           = useState(0);
+  const [pins, setPins]           = useState(['', '', '']);
+  const [error, setError]         = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [shake, setShake]         = useState(false);
+
+  useEffect(() => {
+    if (open) { setStep(0); setPins(['', '', '']); setError(''); setSubmitting(false); }
+  }, [open]);
+
+  const curVal = pins[step] ?? '';
+
+  const push = (d) => {
+    if (submitting) return;
+    setPins(prev => {
+      const next = [...prev];
+      if (next[step].length < 4) next[step] = next[step] + d;
+      return next;
+    });
+  };
+  const del   = () => { if (submitting) return; setPins(prev => { const n = [...prev]; n[step] = n[step].slice(0, -1); return n; }); };
+  const clear = () => { if (submitting) return; setPins(prev => { const n = [...prev]; n[step] = ''; return n; }); };
+
+  // Auto-advance on 4th digit
+  useEffect(() => {
+    if (curVal.length !== 4) return;
+    const t = setTimeout(async () => {
+      if (step < 2) {
+        setStep(s => s + 1);
+        setError('');
+      } else {
+        await doSubmit();
+      }
+    }, 140);
+    return () => clearTimeout(t);
+  }, [curVal, step]);
+
+  async function doSubmit() {
+    const [cur, nw, cfm] = pins;
+    if (nw !== cfm) {
+      setError("PINs don't match. Try again.");
+      trigShake();
+      setStep(1);
+      setPins(prev => [prev[0], '', '']);
+      return;
+    }
+    setSubmitting(true); setError('');
+    try {
+      const res = await fetch(`${API}/api/profile/pin`, {
+        method: 'PATCH', headers: authHeaders,
+        body: JSON.stringify({ currentPin: cur, newPin: nw }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed.');
+      onSuccess();
+      onClose();
+    } catch (err) {
+      setError(err.message);
+      trigShake();
+      const resetToStep0 = err.message.toLowerCase().includes('current');
+      setStep(resetToStep0 ? 0 : 1);
+      setPins(resetToStep0 ? ['', '', ''] : prev => [prev[0], '', '']);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function trigShake() { setShake(true); setTimeout(() => setShake(false), 450); }
+
+  const handleClose = () => { if (!submitting) onClose(); };
+
+  const ROWS = [['1','2','3'],['4','5','6'],['7','8','9']];
+  const sz = isMobile ? 64 : 68;
+
+  const keyBtn = (label, onClick, variant = 'digit') => {
+    const isDigit  = variant === 'digit';
+    const isAction = variant === 'action';
+    return (
+      <button
+        key={String(label)}
+        onClick={onClick}
+        disabled={submitting}
+        className="active:translate-y-[3px]"
+        style={{
+          width: sz, height: sz, borderRadius: 14,
+          border: `1px solid ${isDigit ? C.border : 'transparent'}`,
+          background: isDigit ? C.surface : isAction ? C.bg : 'transparent',
+          fontSize: isDigit ? (isMobile ? 19 : 21) : 12,
+          fontWeight: isDigit ? 700 : 600,
+          color: isDigit ? C.textPri : C.textSec,
+          cursor: submitting ? 'not-allowed' : 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: isDigit ? `0 3px 0 ${C.border}` : 'none',
+          transition: 'box-shadow 0.1s, transform 0.1s',
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
+          flexShrink: 0, opacity: submitting ? 0.5 : 1,
+        }}
+      >
+        {label}
+      </button>
+    );
+  };
+
+  const stepLabels = ['Enter your current PIN', 'Enter your new PIN', 'Confirm your new PIN'];
+  const stepSubs   = ['Verify your identity', 'Choose a 4-digit PIN', 'Re-enter to confirm'];
+
+  return (
+    <Dialog
+      open={open}
+      onClose={handleClose}
+      PaperProps={{
+        style: {
+          borderRadius: 20, width: isMobile ? '96vw' : 680, maxWidth: 680, margin: 'auto',
+          boxShadow: '0 24px 80px rgba(42,23,21,0.22), 0 8px 24px rgba(42,23,21,0.12)',
+          overflow: 'hidden', fontFamily: "'Plus Jakarta Sans', sans-serif",
+        },
+      }}
+      slotProps={{ backdrop: { style: { backdropFilter: 'blur(3px)', background: 'rgba(42,23,21,0.35)' } } }}
+    >
+      {/* Dark header */}
+      <div style={{
+        background: `linear-gradient(135deg, ${C.primary} 0%, #5D4037 100%)`,
+        padding: '16px 20px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: 10,
+            background: 'rgba(212,163,115,0.18)',
+            border: '1px solid rgba(212,163,115,0.30)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          }}>
+            <KeyOutlinedIcon sx={{ fontSize: 18, color: C.accent }} />
+          </div>
+          <div>
+            <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: '#fff', lineHeight: 1.2 }}>Change PIN</p>
+            <p style={{ margin: '2px 0 0', fontSize: 10, fontWeight: 600, color: 'rgba(255,255,255,0.55)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+              Step {step + 1} of 3 &nbsp;·&nbsp; {stepSubs[step]}
+            </p>
+          </div>
+        </div>
+        <button onClick={handleClose} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex', opacity: 0.6 }}>
+          <CloseOutlinedIcon sx={{ fontSize: 18, color: '#fff' }} />
+        </button>
+      </div>
+
+      {/* Two-column body */}
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
+
+        {/* LEFT: step indicator + PIN dots + error + action buttons */}
+        <div style={{
+          flex: 1, padding: isMobile ? '18px 18px 0' : '22px 24px 24px',
+          display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 16,
+          borderRight: isMobile ? 'none' : `1px solid ${C.border}`,
+          borderBottom: isMobile ? `1px solid ${C.border}` : 'none',
+        }}>
+
+          {/* Step progress */}
+          <div>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+              {[0, 1, 2].map(i => (
+                <div key={i} style={{
+                  flex: 1, height: 4, borderRadius: 2,
+                  background: i < step ? C.success : i === step ? C.primary : C.border,
+                  transition: 'background 0.2s',
+                }} />
+              ))}
+            </div>
+            <p style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 800, color: C.textPri }}>{stepLabels[step]}</p>
+            <p style={{ margin: 0, fontSize: 11, color: C.textDim }}>
+              {step === 0 && 'Your current PIN is required for security.'}
+              {step === 1 && 'Choose a new 4-digit PIN you\'ll remember.'}
+              {step === 2 && 'Type your new PIN again to confirm.'}
+            </p>
+          </div>
+
+          {/* PIN dots indicator */}
+          <div>
+            <p style={{ margin: '0 0 10px', fontSize: 9, fontWeight: 700, color: C.textDim, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+              Enter 4-digit PIN
+            </p>
+            <div className={shake ? 'pin-shake' : ''} style={{
+              display: 'flex', gap: 12, padding: '14px 18px', borderRadius: 12,
+              background: C.bg,
+              border: `1.5px solid ${error ? C.error : curVal.length === 4 ? C.primary : C.border}`,
+              transition: 'border-color 0.15s',
+            }}>
+              {[0, 1, 2, 3].map(i => (
+                <div key={i} style={{
+                  flex: 1, height: 14, borderRadius: 4,
+                  background: i < curVal.length ? C.primary : C.border,
+                  transition: 'background 0.12s',
+                }} />
+              ))}
+            </div>
+            {error && <p style={{ margin: '6px 0 0', fontSize: 11, fontWeight: 700, color: C.error }}>{error}</p>}
+          </div>
+
+          {/* Actions */}
+          <div style={{ display: 'flex', gap: 8, paddingBottom: isMobile ? 18 : 0 }}>
+            <button
+              onClick={handleClose}
+              disabled={submitting}
+              style={{
+                flex: 1, height: 44, borderRadius: 10,
+                border: `1px solid ${C.border}`, background: C.surface,
+                fontSize: 13, fontWeight: 600, color: C.textSec,
+                cursor: submitting ? 'not-allowed' : 'pointer',
+                fontFamily: "'Plus Jakarta Sans', sans-serif",
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => {
+                if (curVal.length < 4) { trigShake(); return; }
+                if (step < 2) { setStep(s => s + 1); setError(''); }
+                else doSubmit();
+              }}
+              disabled={submitting || curVal.length < 4}
+              style={{
+                flex: 2, height: 44, borderRadius: 10,
+                border: curVal.length === 4 ? `2px solid ${C.accent}` : `1px solid ${C.border}`,
+                background: curVal.length === 4 ? C.primary : C.elevated,
+                fontSize: 13, fontWeight: 700,
+                color: curVal.length === 4 ? '#fff' : C.textDim,
+                cursor: submitting || curVal.length < 4 ? 'not-allowed' : 'pointer',
+                opacity: submitting ? 0.65 : 1,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                fontFamily: "'Plus Jakarta Sans', sans-serif",
+                boxShadow: curVal.length === 4 ? `0 3px 0 #2A1715` : 'none',
+                transition: 'all 0.15s',
+              }}
+            >
+              <KeyOutlinedIcon sx={{ fontSize: 15 }} />
+              {submitting ? 'Verifying…' : step < 2 ? 'Next' : 'Change PIN'}
+            </button>
+          </div>
+        </div>
+
+        {/* RIGHT: numpad */}
+        <div style={{
+          padding: isMobile ? '18px' : '20px 24px',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8,
+          background: C.bg,
+        }}>
+          {ROWS.map(row => (
+            <div key={row[0]} style={{ display: 'flex', gap: 8 }}>
+              {row.map(d => keyBtn(d, () => push(d), 'digit'))}
+            </div>
+          ))}
+          <div style={{ display: 'flex', gap: 8 }}>
+            {keyBtn('CLR', clear, 'action')}
+            {keyBtn('0', () => push('0'), 'digit')}
+            {keyBtn(<BackspaceOutlinedIcon sx={{ fontSize: 18 }} />, del, 'action')}
+          </div>
+        </div>
+
+      </div>
+    </Dialog>
+  );
+}
+
+/* ══════════════════════════════════
+   Delete Account PIN Modal
+══════════════════════════════════ */
+function DeleteAccountModal({ open, onClose, onConfirm, submitting, error }) {
+  const isMobile = useMediaQuery('(max-width:480px)');
+  const [pin, setPin]     = useState('');
+  const [shake, setShake] = useState(false);
+
+  useEffect(() => { if (open) { setPin(''); } }, [open]);
+  useEffect(() => {
+    if (error) { setShake(true); setTimeout(() => setShake(false), 450); setPin(''); }
+  }, [error]);
+  useEffect(() => {
+    if (pin.length === 4) {
+      const t = setTimeout(() => onConfirm(pin), 140);
+      return () => clearTimeout(t);
+    }
+  }, [pin]);
+
+  const push  = (d) => { if (!submitting) setPin(p => p.length < 4 ? p + d : p); };
+  const del   = () => { if (!submitting) setPin(p => p.slice(0, -1)); };
+  const clear = () => { if (!submitting) setPin(''); };
+  const ROWS  = [['1','2','3'],['4','5','6'],['7','8','9']];
+  const sz    = isMobile ? 64 : 68;
+
+  const keyBtn = (label, onClick, variant = 'digit') => {
+    const isDigit = variant === 'digit';
+    return (
+      <button
+        key={String(label)}
+        onClick={onClick}
+        disabled={submitting}
+        className="active:translate-y-[3px]"
+        style={{
+          width: sz, height: sz, borderRadius: 14,
+          border: `1px solid ${isDigit ? C.border : 'transparent'}`,
+          background: isDigit ? C.surface : C.bg,
+          fontSize: isDigit ? (isMobile ? 19 : 21) : 12,
+          fontWeight: isDigit ? 700 : 600,
+          color: isDigit ? C.textPri : C.textSec,
+          cursor: submitting ? 'not-allowed' : 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: isDigit ? `0 3px 0 ${C.border}` : 'none',
+          transition: 'box-shadow 0.1s, transform 0.1s',
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
+          flexShrink: 0, opacity: submitting ? 0.5 : 1,
+        }}
+      >
+        {label}
+      </button>
+    );
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onClose={() => { if (!submitting) onClose(); }}
+      PaperProps={{
+        style: {
+          borderRadius: 20, width: isMobile ? '96vw' : 680, maxWidth: 680, margin: 'auto',
+          boxShadow: '0 24px 80px rgba(42,23,21,0.22)',
+          overflow: 'hidden', fontFamily: "'Plus Jakarta Sans', sans-serif",
+        },
+      }}
+      slotProps={{ backdrop: { style: { backdropFilter: 'blur(3px)', background: 'rgba(42,23,21,0.45)' } } }}
+    >
+      {/* Red header */}
+      <div style={{
+        background: `linear-gradient(135deg, ${C.error} 0%, #7B1010 100%)`,
+        padding: '16px 20px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: 10,
+            background: 'rgba(255,255,255,0.15)',
+            border: '1px solid rgba(255,255,255,0.25)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          }}>
+            <DeleteOutlineOutlinedIcon sx={{ fontSize: 18, color: '#fff' }} />
+          </div>
+          <div>
+            <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: '#fff', lineHeight: 1.2 }}>Delete Account</p>
+            <p style={{ margin: '2px 0 0', fontSize: 10, fontWeight: 600, color: 'rgba(255,255,255,0.55)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+              Permanent — cannot be undone
+            </p>
+          </div>
+        </div>
+        <button onClick={() => { if (!submitting) onClose(); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex', opacity: 0.6 }}>
+          <CloseOutlinedIcon sx={{ fontSize: 18, color: '#fff' }} />
+        </button>
+      </div>
+
+      {/* Two-column body */}
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
+        <div style={{
+          flex: 1, padding: isMobile ? '18px 18px 0' : '22px 24px 24px',
+          display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 16,
+          borderRight: isMobile ? 'none' : `1px solid ${C.border}`,
+          borderBottom: isMobile ? `1px solid ${C.border}` : 'none',
+        }}>
+          <div style={{ background: 'rgba(183,28,28,0.06)', border: '1px solid rgba(183,28,28,0.18)', borderRadius: 10, padding: '12px 14px' }}>
+            <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: C.error, lineHeight: '18px' }}>
+              ⚠ This will permanently delete your account. You will be logged out immediately.
+            </p>
+          </div>
+          <div>
+            <p style={{ margin: '0 0 10px', fontSize: 9, fontWeight: 700, color: C.textDim, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+              Enter your PIN to confirm
+            </p>
+            <div className={shake ? 'pin-shake' : ''} style={{
+              display: 'flex', gap: 12, padding: '14px 18px', borderRadius: 12,
+              background: C.bg, border: `1.5px solid ${error ? C.error : pin.length === 4 ? C.error : C.border}`,
+              transition: 'border-color 0.15s',
+            }}>
+              {[0,1,2,3].map(i => (
+                <div key={i} style={{
+                  flex: 1, height: 14, borderRadius: 4,
+                  background: i < pin.length ? C.error : C.border,
+                  transition: 'background 0.12s',
+                }} />
+              ))}
+            </div>
+            {error && <p style={{ margin: '6px 0 0', fontSize: 11, fontWeight: 700, color: C.error }}>{error}</p>}
+          </div>
+          <div style={{ display: 'flex', gap: 8, paddingBottom: isMobile ? 18 : 0 }}>
+            <button
+              onClick={() => { if (!submitting) onClose(); }}
+              disabled={submitting}
+              style={{
+                flex: 1, height: 44, borderRadius: 10,
+                border: `1px solid ${C.border}`, background: C.surface,
+                fontSize: 13, fontWeight: 600, color: C.textSec,
+                cursor: submitting ? 'not-allowed' : 'pointer',
+                fontFamily: "'Plus Jakarta Sans', sans-serif",
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => { if (pin.length < 4) { setShake(true); setTimeout(() => setShake(false), 450); return; } onConfirm(pin); }}
+              disabled={submitting || pin.length < 4}
+              style={{
+                flex: 2, height: 44, borderRadius: 10,
+                border: pin.length === 4 ? `2px solid ${C.error}` : `1px solid ${C.border}`,
+                background: pin.length === 4 ? C.error : C.elevated,
+                fontSize: 13, fontWeight: 700,
+                color: pin.length === 4 ? '#fff' : C.textDim,
+                cursor: submitting || pin.length < 4 ? 'not-allowed' : 'pointer',
+                opacity: submitting ? 0.65 : 1,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                fontFamily: "'Plus Jakarta Sans', sans-serif",
+                boxShadow: pin.length === 4 ? `0 3px 0 #7B0000` : 'none',
+                transition: 'all 0.15s',
+              }}
+            >
+              <DeleteOutlineOutlinedIcon sx={{ fontSize: 15 }} />
+              {submitting ? 'Deleting…' : 'Confirm Delete'}
+            </button>
+          </div>
+        </div>
+        <div style={{
+          padding: isMobile ? '18px' : '20px 24px',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8,
+          background: C.bg,
+        }}>
+          {ROWS.map(row => (
+            <div key={row[0]} style={{ display: 'flex', gap: 8 }}>
+              {row.map(d => keyBtn(d, () => push(d), 'digit'))}
+            </div>
+          ))}
+          <div style={{ display: 'flex', gap: 8 }}>
+            {keyBtn('CLR', clear, 'action')}
+            {keyBtn('0', () => push('0'), 'digit')}
+            {keyBtn(<BackspaceOutlinedIcon sx={{ fontSize: 18 }} />, del, 'action')}
+          </div>
+        </div>
+      </div>
+    </Dialog>
+  );
+}
+
+/* ══════════════════════════════════
+   TAB: Profile Management
+══════════════════════════════════ */
+function ProfileManagementTab({ token }) {
+  const { logout } = useAuthStore();
+  const authHeaders = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+
+  const [profile, setProfile]   = useState(null);
+  const [profLoad, setProfLoad] = useState(true);
+
+  const [address, setAddress]       = useState('');
+  const [addrSaving, setAddrSaving] = useState(false);
+  const [addrMsg, setAddrMsg]       = useState(null);
+
+  const [pinModalOpen, setPinModalOpen] = useState(false);
+  const [pinSuccessMsg, setPinSuccessMsg] = useState('');
+
+  // Forgot PIN — stages: idle | resetting | done
+  const [fpStage, setFpStage]   = useState('idle');
+  const [fpOtp, setFpOtp]       = useState('');
+  const [fpPin, setFpPin]       = useState('');
+  const [fpBusy, setFpBusy]     = useState(false);
+  const [fpMsg, setFpMsg]       = useState(null);
+
+  // Delete account
+  const [delModalOpen, setDelModalOpen] = useState(false);
+  const [delBusy, setDelBusy]           = useState(false);
+  const [delError, setDelError]         = useState('');
+
+  useEffect(() => {
+    setProfLoad(true);
+    fetch(`${API}/api/profile`, { headers: authHeaders })
+      .then(r => r.json())
+      .then(d => { setProfile(d.data); setAddress(d.data?.address ?? ''); })
+      .catch(() => {})
+      .finally(() => setProfLoad(false));
+  }, [token]);
+
+  async function handleSendOtp() {
+    setFpBusy(true);
+    try {
+      const res = await fetch(`${API}/api/profile/forgot-pin`, { method: 'POST', headers: authHeaders });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed.');
+      toast.success(data.message, { duration: 5000 });
+      setFpStage('resetting');
+      setFpMsg(null);
+    } catch (err) {
+      toast.error(err.message, { duration: 5000 });
+    } finally {
+      setFpBusy(false);
+    }
+  }
+
+  async function handleResetPin() {
+    if (fpOtp.length !== 6) return setFpMsg({ type: 'error', text: 'Enter the full 6-digit OTP.' });
+    if (fpPin.length !== 4) return setFpMsg({ type: 'error', text: 'Enter a 4-digit PIN.' });
+    setFpBusy(true); setFpMsg(null);
+    try {
+      const res = await fetch(`${API}/api/profile/reset-pin`, {
+        method: 'POST', headers: authHeaders,
+        body: JSON.stringify({ otp: fpOtp, newPin: fpPin }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed.');
+      setFpStage('done');
+      setFpOtp(''); setFpPin('');
+    } catch (err) {
+      setFpMsg({ type: 'error', text: err.message });
+    } finally {
+      setFpBusy(false);
+    }
+  }
+
+  async function handleSaveAddress() {
+    setAddrSaving(true); setAddrMsg(null);
+    try {
+      const res = await fetch(`${API}/api/profile/address`, {
+        method: 'PATCH', headers: authHeaders,
+        body: JSON.stringify({ address }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed.');
+      setAddrMsg({ type: 'success', text: 'Address saved.' });
+    } catch (err) {
+      setAddrMsg({ type: 'error', text: err.message });
+    } finally {
+      setAddrSaving(false);
+      setTimeout(() => setAddrMsg(null), 3000);
+    }
+  }
+
+  async function handleDeleteAccount(pin) {
+    setDelBusy(true); setDelError('');
+    try {
+      const res = await fetch(`${API}/api/profile`, {
+        method: 'DELETE', headers: authHeaders,
+        body: JSON.stringify({ pin }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed.');
+      logout();
+      window.location.href = '/login';
+    } catch (err) {
+      setDelError(err.message);
+    } finally {
+      setDelBusy(false);
+    }
+  }
+
+  const initials = profile?.name
+    ? profile.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
+    : '?';
+
+  const roleBadgeColor = profile?.role === 'Admin'
+    ? { bg: 'rgba(2,119,189,0.1)', color: '#0277BD', border: 'rgba(2,119,189,0.25)' }
+    : { bg: 'rgba(46,125,79,0.1)', color: '#2E7D4F', border: 'rgba(46,125,79,0.25)' };
+
+  if (profLoad) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 0' }}>
+        <div style={{ width: 28, height: 28, borderRadius: '50%', border: `3px solid ${C.elevated}`, borderTop: `3px solid ${C.primary}`, animation: 'spin 0.8s linear infinite' }} />
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+      {/* Modals */}
+      <ChangePinModal
+        open={pinModalOpen}
+        onClose={() => setPinModalOpen(false)}
+        onSuccess={() => {
+          setPinSuccessMsg('PIN changed successfully.');
+          setTimeout(() => setPinSuccessMsg(''), 4000);
+        }}
+        token={token}
+      />
+      <DeleteAccountModal
+        open={delModalOpen}
+        onClose={() => { if (!delBusy) { setDelModalOpen(false); setDelError(''); } }}
+        onConfirm={handleDeleteAccount}
+        submitting={delBusy}
+        error={delError}
+      />
+
+      {/* ─ Profile card ─ */}
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '20px 20px', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+        <div style={{
+          width: 56, height: 56, borderRadius: '50%', flexShrink: 0,
+          background: C.primary, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 20, fontWeight: 800, color: '#fff', letterSpacing: '-0.5px',
+        }}>
+          {initials}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ margin: '0 0 2px', fontSize: 16, fontWeight: 800, color: C.textPri }}>{profile?.name ?? '—'}</p>
+          <p style={{ margin: 0, fontSize: 12, color: C.textSec }}>{profile?.email ?? '—'}</p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+            <span style={{
+              fontSize: 10, fontWeight: 700, padding: '2px 9px', borderRadius: 20,
+              background: roleBadgeColor.bg, color: roleBadgeColor.color,
+              border: `1px solid ${roleBadgeColor.border}`,
+            }}>{profile?.role?.toUpperCase()}</span>
+            <span style={{
+              fontSize: 10, fontWeight: 700, padding: '2px 9px', borderRadius: 20,
+              background: C.elevated, color: C.textSec,
+            }}>#{profile?.employeeCode}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ─ Address ─ */}
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <LocationOnOutlinedIcon sx={{ fontSize: 16, color: C.textDim }} />
+          <p style={{ margin: 0, fontSize: 12, fontWeight: 800, color: C.textPri }}>Address</p>
+        </div>
+        <textarea
+          value={address}
+          onChange={e => setAddress(e.target.value)}
+          placeholder="Your address (optional)"
+          rows={2}
+          style={{
+            width: '100%', boxSizing: 'border-box', resize: 'vertical',
+            border: `1px solid ${C.border}`, borderRadius: 8,
+            padding: '10px 12px', fontSize: 13, color: C.textPri,
+            background: '#fff', outline: 'none', lineHeight: '20px',
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
+          }}
+        />
+        {addrMsg && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 7,
+            background: addrMsg.type === 'success' ? 'rgba(46,125,79,0.08)' : 'rgba(183,28,28,0.07)',
+            border: `1px solid ${addrMsg.type === 'success' ? 'rgba(46,125,79,0.25)' : 'rgba(183,28,28,0.22)'}`,
+            borderRadius: 7, padding: '8px 12px',
+          }}>
+            {addrMsg.type === 'success'
+              ? <CheckCircleOutlineIcon sx={{ fontSize: 14, color: C.success }} />
+              : <WarningAmberOutlinedIcon sx={{ fontSize: 14, color: C.error }} />}
+            <span style={{ fontSize: 12, fontWeight: 600, color: addrMsg.type === 'success' ? C.success : C.error }}>{addrMsg.text}</span>
+          </div>
+        )}
+        <button
+          onClick={handleSaveAddress}
+          disabled={addrSaving}
+          style={{
+            alignSelf: 'flex-end', height: 38, padding: '0 20px', borderRadius: 8,
+            background: C.primary, color: '#fff', border: 'none',
+            fontSize: 12, fontWeight: 700, cursor: addrSaving ? 'wait' : 'pointer',
+            opacity: addrSaving ? 0.6 : 1,
+            display: 'flex', alignItems: 'center', gap: 6,
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
+          }}
+        >
+          <CheckCircleOutlineIcon sx={{ fontSize: 14 }} />
+          {addrSaving ? 'Saving…' : 'Save Address'}
+        </button>
+      </div>
+
+      {/* ─ Change PIN ─ */}
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <KeyOutlinedIcon sx={{ fontSize: 16, color: C.textDim }} />
+          <p style={{ margin: 0, fontSize: 12, fontWeight: 800, color: C.textPri }}>Security</p>
+        </div>
+
+        {pinSuccessMsg && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 7,
+            background: 'rgba(46,125,79,0.08)', border: '1px solid rgba(46,125,79,0.25)',
+            borderRadius: 7, padding: '8px 12px',
+          }}>
+            <CheckCircleOutlineIcon sx={{ fontSize: 14, color: C.success }} />
+            <span style={{ fontSize: 12, fontWeight: 600, color: C.success }}>{pinSuccessMsg}</span>
+          </div>
+        )}
+
+        <button
+          onClick={() => setPinModalOpen(true)}
+          style={{
+            height: 44, borderRadius: 9, border: `1.5px solid ${C.border}`,
+            background: C.surface, color: C.primary,
+            fontSize: 13, fontWeight: 700, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
+          }}
+        >
+          <KeyOutlinedIcon sx={{ fontSize: 16 }} /> Change My PIN
+        </button>
+
+        {/* Forgot PIN */}
+        {fpStage === 'idle' && (
+          <button
+            onClick={handleSendOtp}
+            disabled={fpBusy}
+            style={{
+              border: 'none', background: 'none', cursor: fpBusy ? 'wait' : 'pointer',
+              fontSize: 11, fontWeight: 600, color: C.info, textDecoration: 'underline',
+              textAlign: 'center', padding: 0, opacity: fpBusy ? 0.6 : 1,
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
+            }}
+          >
+            {fpBusy ? 'Sending OTP…' : 'Forgot PIN? Reset via email OTP'}
+          </button>
+        )}
+      </div>
+
+      {/* ─ Forgot PIN / OTP entry ─ */}
+      {fpStage !== 'idle' && (
+        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <MarkEmailReadOutlinedIcon sx={{ fontSize: 16, color: C.info }} />
+              <p style={{ margin: 0, fontSize: 12, fontWeight: 800, color: C.textPri }}>PIN Reset via Email OTP</p>
+            </div>
+            {fpStage !== 'done' && (
+              <button
+                onClick={() => { setFpStage('idle'); setFpOtp(''); setFpPin(''); setFpMsg(null); }}
+                style={{ display: 'flex', alignItems: 'center', gap: 4, border: 'none', background: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600, color: C.textDim }}
+              >
+                <CloseOutlinedIcon sx={{ fontSize: 13 }} /> Cancel
+              </button>
+            )}
+          </div>
+
+          {fpMsg && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 7,
+              background: fpMsg.type === 'success' ? 'rgba(46,125,79,0.08)' : 'rgba(183,28,28,0.07)',
+              border: `1px solid ${fpMsg.type === 'success' ? 'rgba(46,125,79,0.25)' : 'rgba(183,28,28,0.22)'}`,
+              borderRadius: 7, padding: '8px 12px',
+            }}>
+              {fpMsg.type === 'success'
+                ? <CheckCircleOutlineIcon sx={{ fontSize: 14, color: C.success }} />
+                : <WarningAmberOutlinedIcon sx={{ fontSize: 14, color: C.error }} />}
+              <span style={{ fontSize: 12, fontWeight: 600, color: fpMsg.type === 'success' ? C.success : C.error }}>{fpMsg.text}</span>
+            </div>
+          )}
+
+          {fpStage === 'done' ? (
+            <div style={{ textAlign: 'center', padding: '8px 0' }}>
+              <CheckCircleOutlineIcon sx={{ fontSize: 32, color: C.success }} />
+              <p style={{ margin: '8px 0 0', fontSize: 13, fontWeight: 700, color: C.success }}>PIN reset successfully.</p>
+              <button
+                onClick={() => { setFpStage('idle'); setFpMsg(null); }}
+                style={{ marginTop: 10, border: 'none', background: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: C.info, textDecoration: 'underline', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+              >
+                Dismiss
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: C.textSec, textTransform: 'uppercase', letterSpacing: '0.06em' }}>6-digit OTP from email</span>
+                <input
+                  value={fpOtp}
+                  onChange={e => setFpOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="000000"
+                  inputMode="numeric"
+                  maxLength={6}
+                  style={{
+                    height: 44, border: `1.5px solid ${fpOtp.length === 6 ? C.success : C.border}`,
+                    borderRadius: 8, padding: '0 14px', fontSize: 22, fontWeight: 700,
+                    letterSpacing: 10, color: C.textPri, outline: 'none', background: '#fff',
+                    textAlign: 'center', fontFamily: 'monospace',
+                    transition: 'border-color 0.15s',
+                  }}
+                />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: C.textSec, textTransform: 'uppercase', letterSpacing: '0.06em' }}>New 4-digit PIN</span>
+                <input
+                  value={fpPin}
+                  onChange={e => setFpPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  placeholder="••••"
+                  inputMode="numeric"
+                  maxLength={4}
+                  type="password"
+                  style={{
+                    height: 44, border: `1.5px solid ${fpPin.length === 4 ? C.success : C.border}`,
+                    borderRadius: 8, padding: '0 14px', fontSize: 18, fontWeight: 700,
+                    color: C.textPri, outline: 'none', background: '#fff',
+                    textAlign: 'center', fontFamily: 'monospace',
+                    transition: 'border-color 0.15s',
+                  }}
+                />
+              </div>
+              <button
+                onClick={handleResetPin}
+                disabled={fpBusy || fpOtp.length !== 6 || fpPin.length !== 4}
+                style={{
+                  height: 44, borderRadius: 9, border: 'none',
+                  background: (fpBusy || fpOtp.length !== 6 || fpPin.length !== 4) ? C.elevated : C.primary,
+                  color: (fpBusy || fpOtp.length !== 6 || fpPin.length !== 4) ? C.textDim : '#fff',
+                  fontSize: 13, fontWeight: 700,
+                  cursor: (fpBusy || fpOtp.length !== 6 || fpPin.length !== 4) ? 'not-allowed' : 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  transition: 'background 0.2s, color 0.2s',
+                }}
+              >
+                <LockOutlinedIcon sx={{ fontSize: 15 }} />
+                {fpBusy ? 'Resetting…' : 'Reset PIN'}
+              </button>
+              <button
+                onClick={handleSendOtp}
+                disabled={fpBusy}
+                style={{
+                  border: 'none', background: 'none', cursor: fpBusy ? 'wait' : 'pointer',
+                  fontSize: 11, fontWeight: 600, color: C.textDim, textDecoration: 'underline',
+                  textAlign: 'center', padding: 0, opacity: fpBusy ? 0.6 : 1,
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                }}
+              >
+                Resend OTP
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ─ Danger Zone ─ */}
+      <div style={{ background: C.surface, border: `1px solid rgba(183,28,28,0.25)`, borderRadius: 12, padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <DeleteOutlineOutlinedIcon sx={{ fontSize: 16, color: C.error }} />
+          <p style={{ margin: 0, fontSize: 12, fontWeight: 800, color: C.error }}>Danger Zone</p>
+        </div>
+        <p style={{ margin: 0, fontSize: 12, color: C.textSec, lineHeight: '18px' }}>
+          Permanently delete your manager account. This action cannot be undone.
+          All your data will remain in the system for audit purposes, but you will lose access immediately.
+        </p>
+        <button
+          onClick={() => { setDelModalOpen(true); setDelError(''); }}
+          style={{
+            height: 40, borderRadius: 8, border: `1.5px solid rgba(183,28,28,0.35)`,
+            background: 'rgba(183,28,28,0.06)', color: C.error,
+            fontSize: 12, fontWeight: 700, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
+          }}
+        >
+          <DeleteOutlineOutlinedIcon sx={{ fontSize: 15 }} /> Delete My Account
+        </button>
+      </div>
+
+    </div>
+  );
+}
+
+/* ══════════════════════════════════
    Main Settings Page
 ══════════════════════════════════ */
 export default function ManagerSettingsPage() {
@@ -1241,6 +2114,7 @@ export default function ManagerSettingsPage() {
       background: C.bg, padding: '20px 20px 32px', gap: 16,
       fontFamily: "'Plus Jakarta Sans', sans-serif", boxSizing: 'border-box',
     }}>
+      <Toaster position="top-center" toastOptions={{ duration: 5000, style: { fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 13, fontWeight: 600 } }} />
       {/* Header */}
       <div>
         <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: C.textDim, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
@@ -1288,6 +2162,7 @@ export default function ManagerSettingsPage() {
       {activeTab === 'managers'  && <ManagerManagementTab  token={token} currentUserId={user?._id} />}
       {activeTab === 'sync'      && <SyncDataTab           token={token} />}
       {activeTab === 'inventory' && <InventoryTab          token={token} />}
+      {activeTab === 'profile'   && <ProfileManagementTab  token={token} />}
       {activeTab === 'biometric' && (
         <div style={{
           background: C.surface, border: `1px solid ${C.border}`,

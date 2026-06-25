@@ -274,6 +274,71 @@ function trendSummaryBlock(trend, groupBy) {
   </td></tr>`;
 }
 
+function groupSalesTable(groups, limit = 8) {
+  if (!groups?.length) return '';
+  const sorted = [...groups].sort((a, b) => b.stats.revenue - a.stats.revenue).slice(0, limit);
+  const topGroup = sorted[0];
+
+  // Top group highlight callout
+  const topCallout = topGroup ? `
+  <tr><td style="padding:0 32px 10px">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:rgba(46,125,79,0.06);border:1.5px solid rgba(46,125,79,0.25);border-radius:10px;padding:14px 18px">
+      <tr>
+        <td style="vertical-align:middle">
+          <span style="font-size:10px;font-weight:700;color:${T.success};letter-spacing:0.1em;text-transform:uppercase">Top Performing Group</span>
+          <p style="margin:3px 0 0;font-size:17px;font-weight:800;color:${T.textPri}">${topGroup.groupName}</p>
+          <p style="margin:2px 0 0;font-size:12px;color:${T.textSec}">${topGroup.stats.memberCount} members &middot; ${topGroup.stats.txnCount} transactions &middot; ${fmt.pct(topGroup.stats.attendanceRate)} attendance</p>
+        </td>
+        <td align="right" style="vertical-align:middle;white-space:nowrap">
+          <p style="margin:0;font-size:22px;font-weight:800;color:${T.success}">${fmt.currency(topGroup.stats.revenue)}</p>
+          <p style="margin:2px 0 0;font-size:11px;color:${T.textSec};text-align:right">${fmt.currency(topGroup.stats.avgTicket)} avg ticket</p>
+        </td>
+      </tr>
+    </table>
+  </td></tr>` : '';
+
+  const dataRows = sorted.map((g, i) => {
+    const s = g.stats;
+    const isTop = i === 0;
+    return `
+    <tr style="background:${i % 2 === 0 ? T.surface : '#FDFBFA'}">
+      <td style="padding:9px 16px;border-bottom:1px solid #F0E8E3;vertical-align:middle">
+        <span style="display:inline-block;width:20px;height:20px;border-radius:5px;background:${isTop ? T.primary : T.bg};color:${isTop ? T.accent : T.textDim};font-size:11px;font-weight:800;text-align:center;line-height:20px;margin-right:8px;vertical-align:middle">${i + 1}</span>
+        <span style="font-size:13px;font-weight:${isTop ? '700' : '600'};color:${T.textPri};vertical-align:middle">${g.groupName}</span>
+      </td>
+      <td style="padding:9px 16px;font-size:12px;color:${T.textSec};text-align:right;border-bottom:1px solid #F0E8E3">${fmt.number(s.memberCount)}</td>
+      <td style="padding:9px 16px;font-size:13px;font-weight:700;color:${T.success};text-align:right;border-bottom:1px solid #F0E8E3;white-space:nowrap">${fmt.currency(s.revenue)}</td>
+      <td style="padding:9px 16px;font-size:12px;color:${T.textSec};text-align:right;border-bottom:1px solid #F0E8E3">${fmt.number(s.txnCount)}</td>
+      <td style="padding:9px 16px;font-size:12px;color:${T.textSec};text-align:right;border-bottom:1px solid #F0E8E3;white-space:nowrap">${fmt.currency(s.avgTicket)}</td>
+      <td style="padding:9px 16px;font-size:12px;text-align:right;border-bottom:1px solid #F0E8E3;white-space:nowrap">
+        ${s.refundRate > 0 ? `<span style="color:${s.refundRate > 5 ? T.error : T.warning};font-size:11px;font-weight:700">${fmt.pct(s.refundRate)}</span>` : '<span style="color:#C4BAB7;font-size:11px">—</span>'}
+      </td>
+      <td style="padding:9px 16px;font-size:12px;text-align:right;border-bottom:1px solid #F0E8E3;white-space:nowrap">
+        <span style="color:${s.attendanceRate >= 80 ? T.success : s.attendanceRate >= 50 ? T.warning : T.error};font-size:11px;font-weight:700">${fmt.pct(s.attendanceRate)}</span>
+      </td>
+    </tr>`;
+  }).join('');
+
+  const th = `padding:9px 14px;font-size:10px;font-weight:600;color:${T.textDim};white-space:nowrap`;
+  const tableHtml = `
+  <tr><td style="padding:0 32px 12px">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:${T.surface};border:1px solid ${T.border};border-radius:10px;overflow:hidden">
+      <tr style="background:${T.bg}">
+        <td style="${th}">group</td>
+        <td style="${th};text-align:right">members</td>
+        <td style="${th};text-align:right">net revenue</td>
+        <td style="${th};text-align:right">trans</td>
+        <td style="${th};text-align:right">avg ticket</td>
+        <td style="${th};text-align:right">refund %</td>
+        <td style="${th};text-align:right">attendance</td>
+      </tr>
+      ${dataRows}
+    </table>
+  </td></tr>`;
+
+  return topCallout + tableHtml;
+}
+
 function viewFullReportButton() {
   const url = (process.env.APP_URL || 'http://localhost:5173') + '/manager/reports/overall';
   return `
@@ -308,7 +373,7 @@ function emailFooter(type, generatedAt) {
 
 // ─── Main export ──────────────────────────────────────────────────────────────
 
-export function buildReportHtml({ type, label, start, end, summary, payments, products, cashiers, refunds, trend }) {
+export function buildReportHtml({ type, label, start, end, summary, payments, products, cashiers, refunds, trend, groups }) {
   const cur = summary?.current || {};
   const deltas = summary?.deltas || {};
   const dateRange = `${new Date(start).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })} – ${new Date(end).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}`;
@@ -391,6 +456,12 @@ export function buildReportHtml({ type, label, start, end, summary, payments, pr
       ${type !== 'DAILY' ? cashierTable(cashiers, cashierLimit) : ''}
 
       ${type !== 'DAILY' ? divider() : ''}
+
+      <!-- Group Sales Report -->
+      ${groups?.length ? sectionTitle('Group Sales Report') : ''}
+      ${groups?.length ? groupSalesTable(groups) : ''}
+
+      ${groups?.length ? divider() : ''}
 
       <!-- Refund Analysis (monthly+ only) -->
       ${['MONTHLY', 'YEARLY'].includes(type) ? sectionTitle('Refund Analysis') : ''}

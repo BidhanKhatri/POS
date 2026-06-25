@@ -22,8 +22,9 @@ import EmojiEventsOutlinedIcon  from '@mui/icons-material/EmojiEventsOutlined';
 import {
   useReportSummary, useReportTrend, useReportPayments,
   useReportProducts, useReportAnomalies, useReportInsights,
-  useReportCashiers, buildDateRange, useExportCSV,
+  useReportCashiers, useReportPosGroups, buildDateRange, useExportCSV,
 } from '../hooks/useReportQuery';
+import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined';
 
 const C = {
   primary: '#3E2723', accent: '#D4A373',
@@ -476,6 +477,7 @@ export default function ManagerOverallReportPage() {
   const payments = useReportPayments({ start, end });
   const products = useReportProducts({ start, end, limit: 10, sortBy: 'revenue' });
   const cashiers = useReportCashiers({ start, end });
+  const posGroups = useReportPosGroups({ start, end });
   const anomalies = useReportAnomalies({ start, end });
   const insights  = useReportInsights({ start, end });
   const exportCSV = useExportCSV();
@@ -762,6 +764,106 @@ export default function ManagerOverallReportPage() {
           <p style={{ textAlign: 'center', padding: '32px 0', fontSize: 12, color: C.textDim }}>No employee sales data for this period</p>
         )}
       </div>
+
+      {/* Group Sales Report */}
+      {(() => {
+        const grps = posGroups.data?.groups ?? [];
+        const totals = posGroups.data?.totals;
+        const topGroup = grps.length > 0 && grps.some(g => g.stats.txnCount > 0)
+          ? grps.reduce((a, b) => b.stats.revenue > a.stats.revenue ? b : a)
+          : null;
+
+        return (
+          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden', marginTop: 16 }}>
+            {/* Section header */}
+            <div style={{ padding: '14px 20px 10px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <GroupsOutlinedIcon sx={{ fontSize: 18, color: C.accent }} />
+                <div>
+                  <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: C.textPri }}>Group Sales Report</p>
+                  <p style={{ margin: '2px 0 0', fontSize: 11, color: C.textDim }}>POS group performance · ranked by net revenue</p>
+                </div>
+              </div>
+              {topGroup && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 14px', borderRadius: 8, background: `${C.success}12`, border: `1px solid ${C.success}30` }}>
+                  <EmojiEventsOutlinedIcon sx={{ fontSize: 14, color: C.success }} />
+                  <span style={{ fontSize: 11, fontWeight: 700, color: C.success }}>Top: {topGroup.groupName}</span>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: C.success }}>{fmt$(topGroup.stats.revenue)}</span>
+                </div>
+              )}
+            </div>
+
+            {posGroups.isLoading ? (
+              <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {[1, 2, 3].map(i => <SkeletonBlock key={i} h={16} />)}
+              </div>
+            ) : (!grps.length || grps.every(g => g.stats.txnCount === 0)) ? (
+              <p style={{ textAlign: 'center', padding: '32px 0', fontSize: 12, color: C.textDim }}>No group sales data for this period</p>
+            ) : (
+              <>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 800 }}>
+                    <thead>
+                      <tr style={{ background: C.tableHdr }}>
+                        {['#', 'Group', 'Members', 'Net Revenue', 'Transactions', 'Avg Ticket', 'Rev / Hr', 'Refund %', 'Attendance', 'Hours'].map(h => (
+                          <th key={h} style={{ padding: '8px 14px', fontSize: 10, fontWeight: 700, color: C.primary, textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap', textAlign: h === '#' ? 'center' : 'left', borderBottom: `1px solid ${C.border}` }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[...grps]
+                        .sort((a, b) => b.stats.revenue - a.stats.revenue)
+                        .map((g, i) => (
+                          <tr key={g.groupId} style={{ background: i % 2 ? '#FDFCFB' : C.surface }}>
+                            <td style={{ padding: '12px 14px', textAlign: 'center' }}>
+                              <span style={{ width: 22, height: 22, borderRadius: 6, background: i === 0 ? C.primary : C.elevated, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, color: i === 0 ? C.accent : C.textDim }}>{i + 1}</span>
+                            </td>
+                            <td style={{ padding: '12px 14px' }}>
+                              <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri }}>{g.groupName}</p>
+                            </td>
+                            <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 600, color: C.textSec }}>{g.stats.memberCount}</td>
+                            <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 800, color: C.success }}>{fmt$(g.stats.revenue)}</td>
+                            <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 600, color: C.textSec }}>{g.stats.txnCount}</td>
+                            <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 600, color: C.textSec }}>{fmt$(g.stats.avgTicket)}</td>
+                            <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 600, color: g.stats.revenuePerHour > 0 ? C.info : C.textDim }}>{g.stats.revenuePerHour > 0 ? fmt$(g.stats.revenuePerHour) : '—'}</td>
+                            <td style={{ padding: '12px 14px', fontSize: 12, fontWeight: 700, color: g.stats.refundRate > 5 ? C.error : g.stats.refundRate > 2 ? C.warning : C.success }}>{g.stats.refundRate.toFixed(1)}%</td>
+                            <td style={{ padding: '12px 14px', fontSize: 12, fontWeight: 600, color: g.stats.attendanceRate >= 80 ? C.success : g.stats.attendanceRate >= 50 ? C.warning : C.error }}>{g.stats.attendanceRate.toFixed(0)}%</td>
+                            <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 600, color: C.textSec }}>{g.stats.hoursWorked > 0 ? `${g.stats.hoursWorked}h` : '—'}</td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+                {/* Summary footer */}
+                {totals && (
+                  <div style={{ display: 'flex', gap: 24, padding: '12px 20px', borderTop: `1px solid ${C.border}`, background: C.tableHdr, flexWrap: 'wrap' }}>
+                    <div>
+                      <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Total Groups</p>
+                      <p style={{ margin: '2px 0 0', fontSize: 15, fontWeight: 800, color: C.textPri }}>{totals.totalGroups}</p>
+                    </div>
+                    <div>
+                      <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Combined Revenue</p>
+                      <p style={{ margin: '2px 0 0', fontSize: 15, fontWeight: 800, color: C.success }}>{fmt$(totals.revenue)}</p>
+                    </div>
+                    <div>
+                      <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Total Transactions</p>
+                      <p style={{ margin: '2px 0 0', fontSize: 15, fontWeight: 800, color: C.textPri }}>{totals.txnCount}</p>
+                    </div>
+                    <div>
+                      <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Avg Ticket</p>
+                      <p style={{ margin: '2px 0 0', fontSize: 15, fontWeight: 800, color: C.textPri }}>{fmt$(totals.avgTicket)}</p>
+                    </div>
+                    <div>
+                      <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Rev / Hour</p>
+                      <p style={{ margin: '2px 0 0', fontSize: 15, fontWeight: 800, color: C.info }}>{totals.revenuePerHour > 0 ? fmt$(totals.revenuePerHour) : '—'}</p>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Insights */}
       {insights.data && <InsightsPanel insights={insights.data} />}

@@ -9,6 +9,7 @@ import {
   getRefunds,
   getHeatmap,
   getShiftGroups,
+  getPosGroups,
   getAnomalies,
   getInsights,
   exportReport,
@@ -28,6 +29,7 @@ router.get('/cashiers',  getCashiers);
 router.get('/refunds',   getRefunds);
 router.get('/heatmap',   getHeatmap);
 router.get('/groups',    getShiftGroups);
+router.get('/pos-groups', getPosGroups);
 router.get('/anomalies', getAnomalies);
 router.get('/insights',  getInsights);
 router.get('/export',        exportReport);

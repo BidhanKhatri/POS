@@ -278,6 +278,87 @@ export async function sendReportEmail({ to, subject, html }) {
   });
 }
 
+function buildOtpHtml(name, otp) {
+  const firstName = name.split(' ')[0];
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PIN Reset OTP</title>
+</head>
+<body style="margin:0;padding:0;background:#F5F3F1;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F5F3F1;padding:40px 16px;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;">
+          <tr>
+            <td style="background:linear-gradient(135deg,#3E2723 0%,#5D4037 100%);border-radius:14px 14px 0 0;padding:26px 32px;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td><span style="font-size:20px;font-weight:800;color:#ffffff;letter-spacing:-0.3px;">POS System</span></td>
+                  <td align="right"><span style="font-size:10px;font-weight:800;color:#D4A373;letter-spacing:0.12em;text-transform:uppercase;border:1px solid rgba(212,163,115,0.45);padding:4px 10px;border-radius:20px;">PIN Reset</span></td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="background:#ffffff;padding:32px 32px 28px;">
+              <p style="margin:0 0 6px;font-size:15px;font-weight:700;color:#2B1D1A;">Hello, ${firstName},</p>
+              <p style="margin:0 0 24px;font-size:13px;color:#6B5B57;line-height:21px;">
+                You requested a PIN reset for your POS Manager account. Use the code below — it expires in <strong>2 minutes</strong> and can only be used once.
+              </p>
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+                <tr>
+                  <td align="center">
+                    <div style="display:inline-block;background:#F5F3F1;border:2px dashed #D4A373;border-radius:12px;padding:20px 40px;">
+                      <p style="margin:0 0 4px;font-size:11px;font-weight:700;color:#A09490;text-transform:uppercase;letter-spacing:0.1em;">Your OTP</p>
+                      <p style="margin:0;font-size:38px;font-weight:800;color:#3E2723;letter-spacing:10px;">${otp}</p>
+                    </div>
+                  </td>
+                </tr>
+              </table>
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:16px;">
+                <tr>
+                  <td style="background:#FFF8F0;border:1px solid rgba(212,163,115,0.35);border-radius:8px;padding:12px 14px;">
+                    <p style="margin:0;font-size:12px;color:#8D6E3A;line-height:18px;">
+                      <strong>&#9203; Expires in 2 minutes.</strong>
+                      If you did not request this, your account is safe — someone may have clicked "Forgot PIN" by mistake.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:0;font-size:11px;color:#A09490;line-height:17px;">Do not share this code with anyone. POS staff will never ask for your OTP.</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="background:#F0EAE5;border-radius:0 0 14px 14px;border-top:1px solid #DDD2CC;padding:16px 32px;text-align:center;">
+              <p style="margin:0;font-size:11px;color:#A09490;">&copy; ${new Date().getFullYear()} POS System &nbsp;&middot;&nbsp; This is an automated security message.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+export async function sendOtpEmail({ to, name, otp }) {
+  const transporter = getTransporter();
+  if (!transporter) {
+    const err = new Error('Email service is not configured (SMTP_HOST missing).');
+    err.statusCode = 503;
+    throw err;
+  }
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM || 'POS System <noreply@pos.local>',
+    to,
+    subject: 'Your PIN Reset OTP — POS System',
+    html: buildOtpHtml(name, otp),
+  });
+}
+
 export async function sendReceiptEmail({ to, sale }) {
   const transporter = getTransporter();
   if (!transporter) {

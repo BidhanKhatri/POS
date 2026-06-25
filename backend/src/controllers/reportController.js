@@ -1,4 +1,5 @@
 import * as reportService from '../services/reportService.js';
+import { getPosGroupsSummary } from '../services/posGroupReportService.js';
 
 // Helper: parse and validate date range from query
 function parseDateRange(query) {
@@ -136,6 +137,15 @@ const getEmployeeDetail = async (req, res, next) => {
   }
 };
 
+// GET /api/reports/pos-groups
+const getPosGroups = async (req, res, next) => {
+  try {
+    const { start, end } = parseDateRange(req.query);
+    const data = await getPosGroupsSummary({ start: start.toISOString(), end: end.toISOString() });
+    res.json(data);
+  } catch (err) { next(err); }
+};
+
 export {
   getSummary,
   getTrend,
@@ -145,6 +155,7 @@ export {
   getRefunds,
   getHeatmap,
   getShiftGroups,
+  getPosGroups,
   getAnomalies,
   getInsights,
   exportReport,

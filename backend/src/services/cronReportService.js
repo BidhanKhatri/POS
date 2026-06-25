@@ -18,6 +18,7 @@ import {
   getCashiers,
   getRefunds,
 } from './reportService.js';
+import { getPosGroupsSummary } from './posGroupReportService.js';
 import { buildReportHtml } from './reportEmailService.js';
 import { sendReportEmail } from './emailService.js';
 import User from '../models/User.js';
@@ -105,14 +106,16 @@ export async function generateAndSendReport({
       await log.save();
 
       // ── 1. Aggregate all report data in parallel ──
-      const [summary, trend, payments, products, cashiers, refunds] = await Promise.all([
+      const [summary, trend, payments, products, cashiers, refunds, groupsData] = await Promise.all([
         getSummary({ start: s, end: e, compareStart: cs, compareEnd: ce }),
         getTrend({ start: s, end: e, groupBy }),
         getPayments({ start: s, end: e }),
         getProducts({ start: s, end: e, limit: productLimit }),
         getCashiers({ start: s, end: e }),
         getRefunds({ start: s, end: e }),
+        getPosGroupsSummary({ start: s, end: e }).catch(() => ({ groups: [] })),
       ]);
+      const groups = groupsData?.groups ?? [];
 
       // ── 2. Get admin recipients ──
       const recipients = await getAdminRecipients();
@@ -126,7 +129,7 @@ export async function generateAndSendReport({
       }
 
       // ── 3. Build HTML ──
-      const html    = buildReportHtml({ type, label, start, end, summary, payments, products, cashiers, refunds, trend });
+      const html    = buildReportHtml({ type, label, start, end, summary, payments, products, cashiers, refunds, trend, groups });
       const subject = reportSubject(type, label);
 
       // ── 4. Send to every admin ──
