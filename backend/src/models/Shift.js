@@ -43,13 +43,23 @@ const shiftSchema = new mongoose.Schema({
   shiftDate: {
     type: Date,
     required: true,
-    // Store just the date portion
     set: function(date) {
       const d = new Date(date);
-      d.setHours(0,0,0,0);
+      d.setHours(0, 0, 0, 0);
       return d;
-    }
+    },
   },
+
+  // ── Schedule linkage (set at clock-in time) ───────────────────────────────
+  scheduleId:     { type: String, default: null },  // EMS _id or PosSchedule _id
+  scheduleSource: { type: String, enum: ['EMS', 'POS', 'MANUAL'], default: 'MANUAL' },
+  scheduledStart: { type: String, default: null },  // HH:mm — copied from schedule
+  scheduledEnd:   { type: String, default: null },  // HH:mm
+  scheduledDate:  { type: String, default: null },  // YYYY-MM-DD
+
+  // ── Clock-out metadata ────────────────────────────────────────────────────
+  clockOutReason: { type: String, default: null },
+  earlyClockOut:  { type: Boolean, default: false },
 }, {
   timestamps: true,
 });

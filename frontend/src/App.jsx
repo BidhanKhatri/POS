@@ -113,14 +113,27 @@ function GuestRoutes() {
 }
 
 function AuthGate() {
-  const localUser = useAuthStore((s) => s.user);
-  const { stopLoading } = useLoading();
+  const localUser        = useAuthStore((s) => s.user);
+  const isSessionExpired = useAuthStore((s) => s.isSessionExpired);
+  const logout           = useAuthStore((s) => s.logout);
+  const { stopLoading }  = useLoading();
+
+  // On every mount, enforce 24-hour session ceiling before rendering anything.
+  // SessionMonitor handles the ongoing hourly check once logged in.
+  const sessionExpired = localUser && isSessionExpired();
+
+  useEffect(() => {
+    if (sessionExpired) {
+      logout();
+    }
+  }, [sessionExpired, logout]);
 
   // Guest users land on the login page which has no async data — dismiss immediately
   useEffect(() => {
-    if (!localUser) stopLoading();
-  }, [localUser, stopLoading]);
+    if (!localUser || sessionExpired) stopLoading();
+  }, [localUser, stopLoading, sessionExpired]);
 
+  if (sessionExpired) return <GuestRoutes />;
   return localUser ? <LocalAuthRoutes role={localUser.role} /> : <GuestRoutes />;
 }
 

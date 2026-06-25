@@ -22,6 +22,7 @@ import CloseIcon                         from '@mui/icons-material/Close';
 import ChevronLeftIcon                   from '@mui/icons-material/ChevronLeft';
 import useAuthStore from '../store/useAuthStore';
 import { useLoading } from '../context/LoadingContext';
+import SessionMonitor from '../components/SessionLock/SessionMonitor';
 
 // ─── Navigation structure ─────────────────────────────────────────────────────
 const NAV_GROUPS = [
@@ -167,6 +168,7 @@ export default function ManagerLayout() {
   if (isDesktop) {
     return (
       <>
+      <SessionMonitor />
       <style>{`
         .mgr-nav-btn:hover:not(.mgr-nav-btn--active) { background: #F7F2EE !important; }
         .mgr-nav-btn:hover:not(.mgr-nav-btn--active) span { color: #3E2723 !important; }
@@ -390,6 +392,8 @@ export default function ManagerLayout() {
 
   // ── Mobile layout ──────────────────────────────────────────────────────────
   return (
+    <>
+    <SessionMonitor />
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh', background: '#F5F3F1', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
 
       {/* Top header */}
@@ -563,5 +567,6 @@ export default function ManagerLayout() {
         </div>
       </aside>
     </div>
+    </>
   );
 }

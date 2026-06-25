@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useMediaQuery } from '@mui/material';
 import PointOfSaleIcon               from '@mui/icons-material/PointOfSale';
@@ -16,12 +16,13 @@ import MenuIcon                      from '@mui/icons-material/Menu';
 import CloseIcon                     from '@mui/icons-material/Close';
 import useAuthStore from '../store/useAuthStore';
 import { useLoading } from '../context/LoadingContext';
+import SessionMonitor from '../components/SessionLock/SessionMonitor';
 
 // ── Mobile bottom nav (primary 3 tabs) ────────────────────────────────────────
 const NAV_ITEMS = [
-  { label: 'Terminal',     path: '/employee/terminal',     icon: PointOfSaleIcon          },
-  { label: 'Transactions', path: '/employee/transactions', icon: ReceiptLongOutlinedIcon  },
-  { label: 'Dashboard',    path: '/employee/dashboard',    icon: GridViewOutlinedIcon     },
+  { label: 'Terminal',  path: '/employee/terminal',  icon: PointOfSaleIcon         },
+  { label: 'Schedule',  path: '/employee/shift',     icon: AccessTimeOutlinedIcon  },
+  { label: 'Dashboard', path: '/employee/dashboard', icon: GridViewOutlinedIcon    },
 ];
 
 // ── Mobile right-side drawer — grouped to match desktop sidebar ────────────────
@@ -29,11 +30,11 @@ const MENU_SECTIONS = [
   {
     label: 'Operations',
     items: [
-      { label: 'Shift',             path: '/employee/shift',     icon: AccessTimeOutlinedIcon          },
-      { label: 'Inventory',         path: '/employee/inventory', icon: Inventory2OutlinedIcon          },
-      { label: 'Customers',         path: '/employee/customers', icon: PeopleOutlinedIcon              },
-      { label: 'Barcode',           path: '/employee/barcode',   icon: QrCodeScannerOutlinedIcon       },
-      { label: 'Overrides Request', path: '/employee/overrides', icon: AdminPanelSettingsOutlinedIcon  },
+      { label: 'Transactions',      path: '/employee/transactions', icon: ReceiptLongOutlinedIcon         },
+      { label: 'Inventory',         path: '/employee/inventory',    icon: Inventory2OutlinedIcon          },
+      { label: 'Customers',         path: '/employee/customers',    icon: PeopleOutlinedIcon              },
+      { label: 'Barcode',           path: '/employee/barcode',      icon: QrCodeScannerOutlinedIcon       },
+      { label: 'Overrides Request', path: '/employee/overrides',    icon: AdminPanelSettingsOutlinedIcon  },
     ],
   },
   {
@@ -84,6 +85,9 @@ export default function EmployeeLayout() {
   const { pathname } = useLocation();
   const { user, logout } = useAuthStore();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [logoutModalOpen, setLogoutModalOpen] = useState(false);
+  const [headerHeight, setHeaderHeight] = useState(57);
+  const headerRef = useRef(null);
   const isDesktop = useMediaQuery('(min-width:1024px)');
   const { stopLoading } = useLoading();
 
@@ -93,7 +97,21 @@ export default function EmployeeLayout() {
     return () => clearTimeout(t);
   }, [pathname, stopLoading]);
 
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => setHeaderHeight(entry.contentRect.height));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  useEffect(() => {
+    document.body.style.overflow = menuOpen ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [menuOpen]);
+
   const handleLogout = () => {
+    setLogoutModalOpen(false);
     logout();
     navigate('/login', { replace: true });
   };
@@ -114,6 +132,8 @@ export default function EmployeeLayout() {
   // ── Desktop: sidebar layout ──────────────────────────────────────────────────
   if (isDesktop) {
     return (
+      <>
+      <SessionMonitor />
       <div style={{
         display: 'flex',
         minHeight: '100dvh',
@@ -248,7 +268,7 @@ export default function EmployeeLayout() {
             </div>
 
             <button
-              onClick={handleLogout}
+              onClick={() => setLogoutModalOpen(true)}
               style={{
                 width: '100%',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
@@ -261,7 +281,7 @@ export default function EmployeeLayout() {
               }}
             >
               <LogoutOutlinedIcon sx={{ fontSize: 14, color: '#A09490' }} />
-              Clock Out
+              Log Out
             </button>
           </div>
         </aside>
@@ -276,11 +296,81 @@ export default function EmployeeLayout() {
           <Outlet />
         </main>
       </div>
+      </>
     );
   }
 
   // ── Mobile layout ────────────────────────────────────────────────────────────
+  const FONT = "'Plus Jakarta Sans', sans-serif";
+
+  const renderLogoutModal = () => {
+    if (!logoutModalOpen) return null;
+    return (
+      <div
+        onClick={() => setLogoutModalOpen(false)}
+        style={{
+          position: 'fixed', inset: 0, zIndex: 1200,
+          background: 'rgba(30,18,14,0.45)',
+          backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: '24px 20px', fontFamily: FONT,
+        }}>
+        <div onClick={(e) => e.stopPropagation()} style={{
+          background: '#fff', borderRadius: 18, padding: '28px 24px 24px',
+          maxWidth: 320, width: '100%', textAlign: 'center',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+        }}>
+          <div style={{
+            width: 52, height: 52, borderRadius: 14,
+            background: 'rgba(178,0,0,0.08)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            margin: '0 auto 16px',
+          }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+              <path d="M16 17l5-5-5-5M21 12H9" stroke="#C0392B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" stroke="#C0392B" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
+          </div>
+          <h3 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 800, color: '#2B1D1A', letterSpacing: '-0.2px' }}>
+            Log Out?
+          </h3>
+          <p style={{ margin: '0 0 24px', fontSize: 13, color: '#6B5B57', lineHeight: 1.55 }}>
+            Are you sure you want to log out of your session?
+          </p>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button
+              onClick={() => setLogoutModalOpen(false)}
+              style={{
+                flex: 1, minHeight: 44, borderRadius: 10,
+                border: '1.5px solid #DDD2CC', background: '#F5F3F1',
+                color: '#6B5B57', fontSize: 14, fontWeight: 600,
+                cursor: 'pointer', fontFamily: FONT,
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleLogout}
+              style={{
+                flex: 1, minHeight: 44, borderRadius: 10,
+                border: 'none', background: '#C0392B',
+                color: '#fff', fontSize: 14, fontWeight: 700,
+                cursor: 'pointer', fontFamily: FONT,
+                boxShadow: '0 3px 0 #7b1f14',
+              }}
+            >
+              Log Out
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
+    <>
+    <SessionMonitor />
+    {renderLogoutModal()}
     <div
       style={{
         display: 'flex',
@@ -292,7 +382,10 @@ export default function EmployeeLayout() {
     >
       {/* ── Top header ── */}
       <header
+        ref={headerRef}
         style={{
+          position: 'relative',
+          zIndex: 600,
           background: '#3E2723',
           borderBottom: '1px solid #2A1715',
           padding: '10px 16px',
@@ -335,7 +428,7 @@ export default function EmployeeLayout() {
         </div>
 
         <button
-          onClick={handleLogout}
+          onClick={() => setLogoutModalOpen(true)}
           style={{
             display: 'flex', alignItems: 'center', gap: 5,
             padding: '5px 11px', borderRadius: 7,
@@ -346,12 +439,12 @@ export default function EmployeeLayout() {
           }}
         >
           <LogoutOutlinedIcon sx={{ fontSize: 14 }} />
-          CLOCK OUT
+          LOG OUT
         </button>
       </header>
 
       {/* ── Page content ── */}
-      <main style={{ flex: 1, overflowY: 'auto', paddingBottom: 78 }}>
+      <main style={{ flex: 1, overflowY: menuOpen ? 'hidden' : 'auto', paddingBottom: 78 }}>
         <Outlet />
       </main>
 
@@ -365,7 +458,7 @@ export default function EmployeeLayout() {
           borderTop: '1px solid #DDD2CC',
           display: 'flex',
           alignItems: 'stretch',
-          zIndex: 100,
+          zIndex: 600,
         }}
       >
         {/* Sliding active indicator */}
@@ -420,7 +513,7 @@ export default function EmployeeLayout() {
 
         {/* Hamburger */}
         <button
-          onClick={() => setMenuOpen(true)}
+          onClick={() => setMenuOpen(prev => !prev)}
           style={{
             flex: 1,
             display: 'flex', flexDirection: 'column',
@@ -446,7 +539,7 @@ export default function EmployeeLayout() {
       <div
         onClick={() => setMenuOpen(false)}
         style={{
-          position: 'fixed', inset: 0, zIndex: 200,
+          position: 'fixed', inset: 0, zIndex: 550,
           background: 'rgba(43,29,26,0.32)',
           backdropFilter: 'blur(3px)',
           WebkitBackdropFilter: 'blur(3px)',
@@ -460,10 +553,10 @@ export default function EmployeeLayout() {
       <aside
         style={{
           position: 'fixed',
-          top: 0, right: 0, bottom: 0,
+          top: headerHeight, right: 0, bottom: 0,
           width: 'min(70vw, 300px)',
           background: '#ffffff',
-          zIndex: 201,
+          zIndex: 551,
           boxShadow: '-8px 0 28px rgba(42,23,21,0.18)',
           transform: menuOpen ? 'translateX(0)' : 'translateX(100%)',
           transition: 'transform 0.32s cubic-bezier(0.32, 0.72, 0, 1)',
@@ -474,7 +567,7 @@ export default function EmployeeLayout() {
         {/* Drawer header */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '18px 16px', borderBottom: '1px solid #DDD2CC',
+          padding: '36px 16px 18px', borderBottom: '1px solid #DDD2CC',
         }}>
           <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: '#2B1D1A' }}>Menu</p>
           <button
@@ -533,5 +626,6 @@ export default function EmployeeLayout() {
         </div>
       </aside>
     </div>
+    </>
   );
 }

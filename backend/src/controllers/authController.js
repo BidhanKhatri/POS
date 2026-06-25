@@ -1,4 +1,26 @@
 import * as authService from '../services/authService.js';
+import User from '../models/User.js';
+
+/**
+ * POST /api/auth/verify-pin
+ * Access: any authenticated user
+ * Verifies the user's PIN without issuing a new token.
+ * Used by the idle lock-screen to re-authenticate in place.
+ */
+export const verifyPin = async (req, res, next) => {
+  try {
+    const { pin } = req.body;
+    if (!pin) return res.status(400).json({ success: false, message: 'PIN required.' });
+
+    const user = await User.findById(req.user._id).select('+pinHash');
+    if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
+
+    const valid = await user.matchPin(String(pin));
+    if (!valid) return res.status(401).json({ success: false, message: 'Incorrect PIN.' });
+
+    res.json({ success: true, message: 'PIN verified.' });
+  } catch (err) { next(err); }
+};
 
 const login = async (req, res, next) => {
   try {

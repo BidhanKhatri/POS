@@ -71,7 +71,7 @@ export default function InventoryPage() {
   const okCount    = products.filter(p => p.stockQty > LOW).length;
 
   const STATS = [
-    { label: 'Total Products', value: totalCount,                           color: C.primary,                            iconBg: 'rgba(62,39,35,0.09)',                        Icon: Inventory2OutlinedIcon   },
+    { label: 'Total Items', value: totalCount,                           color: C.primary,                            iconBg: 'rgba(62,39,35,0.09)',                        Icon: Inventory2OutlinedIcon   },
     { label: 'In Stock',       value: stockTracking ? okCount  : '—',       color: stockTracking ? C.success : C.textDim, iconBg: stockTracking ? 'rgba(46,125,79,0.10)' : C.elevated, Icon: Inventory2OutlinedIcon   },
     { label: 'Low Stock',      value: stockTracking ? lowCount : '—',       color: stockTracking ? C.warning : C.textDim, iconBg: stockTracking ? 'rgba(178,106,0,0.10)' : C.elevated, Icon: WarningAmberOutlinedIcon },
     { label: 'Out of Stock',   value: stockTracking ? outCount : '—',       color: stockTracking ? C.error   : C.textDim, iconBg: stockTracking ? 'rgba(183,28,28,0.09)' : C.elevated, Icon: ErrorOutlineOutlinedIcon },
