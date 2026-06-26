@@ -625,13 +625,16 @@ export default function TerminalPage() {
 
     return (
       <div style={{
-        position: 'fixed', inset: 0, zIndex: 500,
+        position: 'fixed',
+        top: 0, bottom: 0, right: 0,
+        left: isDesktop ? 232 : 0,
+        zIndex: 500,
         backdropFilter: 'blur(10px)',
         WebkitBackdropFilter: 'blur(10px)',
         background: 'rgba(245, 243, 241, 0.72)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        paddingTop: 57,   /* header height */
-        paddingBottom: 70, /* bottom nav height */
+        paddingTop: isDesktop ? 0 : 57,
+        paddingBottom: isDesktop ? 0 : 70,
         paddingLeft: 20, paddingRight: 20,
         fontFamily: FONT,
       }}>

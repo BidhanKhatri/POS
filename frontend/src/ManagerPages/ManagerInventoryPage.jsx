@@ -15,6 +15,8 @@ import TuneOutlinedIcon from '@mui/icons-material/TuneOutlined';
 import BlockOutlinedIcon from '@mui/icons-material/BlockOutlined';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import useAuthStore from '../store/useAuthStore';
+import { useSocketEvent } from '../context/SocketContext';
+import { EVENTS } from '../socket/events';
 
 const API = import.meta.env.VITE_API_BASE_URL ?? '';
 const LOW = 5;
@@ -626,6 +628,13 @@ export default function ManagerInventoryPage() {
   }, [token]);
 
   useEffect(() => { fetchProducts(); }, [fetchProducts]);
+
+  useSocketEvent(EVENTS.BARCODE_STOCK_SYNC, ({ productId, stockQty }) => {
+    setProducts((prev) =>
+      prev.map((p) => p._id === productId ? { ...p, stockQty } : p)
+    );
+  });
+  useSocketEvent(EVENTS.INVENTORY_LOWSTOCK, () => fetchProducts());
 
   const handleAddProduct = async (payload) => {
     const res = await fetch(`${API}/api/products`, { method: 'POST', headers, body: JSON.stringify(payload) });

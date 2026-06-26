@@ -2,6 +2,8 @@ import * as saleService from '../services/saleService.js';
 import * as shiftService from '../services/shiftService.js';
 import { sendReceiptEmail } from '../services/emailService.js';
 import Sale from '../models/Sale.js';
+import { emit } from '../socket/emitter.js';
+import { EVENTS, ROOMS } from '../socket/events.js';
 
 const processSale = async (req, res, next) => {
   try {
@@ -20,6 +22,13 @@ const processSale = async (req, res, next) => {
     );
 
     res.status(201).json(sale);
+    emit(ROOMS.MANAGERS, EVENTS.TRANSACTION_NEW, {
+      saleId:    sale._id,
+      invoiceNo: sale.invoiceNo,
+      grandTotal: sale.grandTotal,
+      employee:  { id: req.user._id, name: req.user.name },
+      createdAt: sale.createdAt,
+    });
   } catch (error) {
     res.status(400);
     next(error);

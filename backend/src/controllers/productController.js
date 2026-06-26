@@ -1,4 +1,8 @@
 import * as productService from '../services/productService.js';
+import { emit } from '../socket/emitter.js';
+import { EVENTS, ROOMS } from '../socket/events.js';
+
+const LOW_STOCK_THRESHOLD = 10;
 
 const getProducts = async (req, res, next) => {
   try {
@@ -52,6 +56,25 @@ const addStockMovement = async (req, res, next) => {
       createdBy: req.user._id,
     });
     res.status(200).json(product);
+
+    // Broadcast low-stock alert after a SALE/ADJUSTMENT reduces stock
+    if (product.trackStock && product.stockQty <= LOW_STOCK_THRESHOLD) {
+      emit(ROOMS.MANAGERS, EVENTS.INVENTORY_LOWSTOCK, {
+        productId: product._id,
+        name:      product.name,
+        sku:       product.sku,
+        stockQty:  product.stockQty,
+        threshold: LOW_STOCK_THRESHOLD,
+      });
+    }
+
+    // Barcode stock sync — always broadcast so scanner UIs stay current
+    emit(ROOMS.STORE, EVENTS.BARCODE_STOCK_SYNC, {
+      productId: product._id,
+      sku:       product.sku,
+      barcode:   product.barcode,
+      stockQty:  product.stockQty,
+    });
   } catch (error) {
     res.status(400);
     next(error);

@@ -1,4 +1,6 @@
 import * as shiftService from '../services/shiftService.js';
+import { emit } from '../socket/emitter.js';
+import { EVENTS, ROOMS } from '../socket/events.js';
 
 const clockIn = async (req, res, next) => {
   try {
@@ -18,6 +20,12 @@ const clockIn = async (req, res, next) => {
     });
 
     res.status(201).json({ success: true, data: shift });
+    emit(ROOMS.MANAGERS, EVENTS.SHIFT_UPDATE, {
+      action: 'CLOCK_IN',
+      employee: { id: req.user._id, name: req.user.name },
+      shiftId: shift._id,
+      clockIn: shift.clockIn,
+    });
   } catch (error) {
     res.status(400);
     next(error);
@@ -34,6 +42,12 @@ const clockOut = async (req, res, next) => {
     });
 
     res.status(200).json({ success: true, data: shift });
+    emit(ROOMS.MANAGERS, EVENTS.SHIFT_UPDATE, {
+      action: 'CLOCK_OUT',
+      employee: { id: req.user._id, name: req.user.name },
+      shiftId: shift._id,
+      clockOut: shift.clockOut,
+    });
   } catch (error) {
     if (error.code === 'EARLY_CLOCKOUT_REASON_REQUIRED') {
       return res.status(422).json({

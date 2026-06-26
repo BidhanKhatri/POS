@@ -16,6 +16,11 @@ export default defineConfig(({ mode }) => {
       allowedHosts: true,
       proxy: {
         '/api': 'http://127.0.0.1:5001',
+        '/socket.io': {
+          target: 'http://127.0.0.1:5001',
+          ws: true,
+          changeOrigin: true,
+        },
       },
     },
   };

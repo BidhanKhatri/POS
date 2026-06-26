@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate }                      from 'react-router-dom';
 import SearchOutlinedIcon                   from '@mui/icons-material/SearchOutlined';
 import CloseOutlinedIcon                    from '@mui/icons-material/CloseOutlined';
@@ -16,6 +16,8 @@ import KeyboardArrowDownIcon                from '@mui/icons-material/KeyboardAr
 import OpenInNewOutlinedIcon                from '@mui/icons-material/OpenInNewOutlined';
 import PersonOutlineOutlinedIcon            from '@mui/icons-material/PersonOutlineOutlined';
 import useAuthStore                         from '../store/useAuthStore';
+import { useSocketEvent }                   from '../context/SocketContext';
+import { EVENTS }                           from '../socket/events';
 
 const API  = import.meta.env.VITE_API_BASE_URL ?? '';
 const FONT = "'Plus Jakarta Sans', sans-serif";
@@ -161,18 +163,18 @@ export default function ManagerTransactionPage() {
   const debounce = useRef(null);
 
   // ── Build query string ────────────────────────────────────────────────────
-  const buildQS = (extra = {}) => {
+  const buildQS = useCallback((extra = {}) => {
     const [startDate, endDate] = dateRange(preset, cStart, cEnd);
     const p = {};
-    if (search.trim()) p.search   = search.trim();
-    if (method)        p.method   = method;
-    if (status)        p.status   = status;
-    if (empId)         p.employeeId = empId;
-    if (startDate)     p.startDate  = startDate;
-    if (endDate)       p.endDate    = endDate;
+    if (search.trim()) p.search      = search.trim();
+    if (method)        p.method      = method;
+    if (status)        p.status      = status;
+    if (empId)         p.employeeId  = empId;
+    if (startDate)     p.startDate   = startDate;
+    if (endDate)       p.endDate     = endDate;
     Object.assign(p, extra);
     return new URLSearchParams(p).toString();
-  };
+  }, [preset, cStart, cEnd, search, method, status, empId]);
 
   // ── Fetch employees once ──────────────────────────────────────────────────
   useEffect(() => {
@@ -184,7 +186,7 @@ export default function ManagerTransactionPage() {
   }, [token]);
 
   // ── Fetch KPIs ────────────────────────────────────────────────────────────
-  const loadKpis = async () => {
+  const loadKpis = useCallback(async () => {
     if (!token) return;
     setKpiLoad(true);
     try {
@@ -192,10 +194,10 @@ export default function ManagerTransactionPage() {
       if (r.ok) setKpis(await r.json());
     } catch { /* non-critical */ }
     finally { setKpiLoad(false); }
-  };
+  }, [token, buildQS]);
 
   // ── Fetch rows ────────────────────────────────────────────────────────────
-  const loadRows = async (pg = 1) => {
+  const loadRows = useCallback(async (pg = 1) => {
     if (!token) return;
     setLoading(true);
     setError('');
@@ -212,7 +214,10 @@ export default function ManagerTransactionPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [token, buildQS]);
+
+  // Real-time: refresh list and KPIs the moment a new transaction is completed
+  useSocketEvent(EVENTS.TRANSACTION_NEW, () => { loadRows(1); loadKpis(); });
 
   // ── Single effect for all filter + search changes ─────────────────────────
   // Search gets a 350ms debounce; all other filter changes fetch immediately.

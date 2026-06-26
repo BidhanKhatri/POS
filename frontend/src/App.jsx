@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import SplashScreen from './components/SplashScreen';
+import { SocketProvider } from './context/SocketContext';
 import { useLoading } from './context/LoadingContext';
 import LoginScreen from './AuthPages/LoginScreen';
 import SignupPage from './AuthPages/SignupPage';
@@ -139,12 +140,12 @@ function AuthGate() {
 
 function App() {
   return (
-    <>
+    <SocketProvider>
       <SplashScreen />
       <BrowserRouter>
         <AuthGate />
       </BrowserRouter>
-    </>
+    </SocketProvider>
   );
 }
 

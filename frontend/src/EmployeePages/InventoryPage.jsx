@@ -10,6 +10,8 @@ import QrCodeOutlinedIcon from '@mui/icons-material/QrCodeOutlined';
 import BlockOutlinedIcon from '@mui/icons-material/BlockOutlined';
 import useAuthStore from '../store/useAuthStore';
 import CornerCard from '../components/CornerCard/CornerCard';
+import { useSocketEvent } from '../context/SocketContext';
+import { EVENTS } from '../socket/events';
 
 const API = import.meta.env.VITE_API_BASE_URL ?? '';
 const LOW = 5;
@@ -58,6 +60,15 @@ export default function InventoryPage() {
   }, [token]);
 
   useEffect(() => { fetchProducts(); }, [fetchProducts]);
+
+  // Real-time: update stock qty in-place when a barcode sync comes in,
+  // and refresh the full list on a low-stock alert
+  useSocketEvent(EVENTS.BARCODE_STOCK_SYNC, ({ productId, stockQty }) => {
+    setProducts((prev) =>
+      prev.map((p) => p._id === productId ? { ...p, stockQty } : p)
+    );
+  });
+  useSocketEvent(EVENTS.INVENTORY_LOWSTOCK, () => fetchProducts());
 
   const filtered = products.filter(p =>
     p.name.toLowerCase().includes(search.toLowerCase()) ||

@@ -11,6 +11,8 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import PlayArrowOutlinedIcon from '@mui/icons-material/PlayArrowOutlined';
 import useAuthStore from '../store/useAuthStore';
 import CornerCard from '../components/CornerCard/CornerCard';
+import { useSocketEvent } from '../context/SocketContext';
+import { EVENTS } from '../socket/events';
 
 const API = import.meta.env.VITE_API_BASE_URL ?? '';
 const PAGE_SIZE = 5;
@@ -74,6 +76,9 @@ export default function OverridesPage() {
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Real-time: refresh when own override gets resolved
+  useSocketEvent(EVENTS.OVERRIDE_RESOLVED, () => load());
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();

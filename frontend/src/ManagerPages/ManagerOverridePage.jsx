@@ -17,6 +17,8 @@ import ChevronLeftOutlinedIcon       from '@mui/icons-material/ChevronLeftOutlin
 import ChevronRightOutlinedIcon      from '@mui/icons-material/ChevronRightOutlined';
 import useAuthStore from '../store/useAuthStore';
 import CornerPanel from '../components/CornerPanel/CornerPanel';
+import { useSocketEvent } from '../context/SocketContext';
+import { EVENTS } from '../socket/events';
 
 const API = import.meta.env.VITE_API_BASE_URL ?? '';
 
@@ -823,6 +825,10 @@ export default function ManagerOverridePage() {
   }, [token]);
 
   useEffect(() => { loadOverrides(); }, [loadOverrides]);
+
+  // Real-time: refresh list when a new override arrives or one is resolved
+  useSocketEvent(EVENTS.OVERRIDE_NEW,      () => loadOverrides());
+  useSocketEvent(EVENTS.OVERRIDE_RESOLVED, () => loadOverrides());
 
   const pending  = overrides.filter((o) => o.status === 'PENDING');
   const resolved = overrides.filter((o) => o.status !== 'PENDING');
