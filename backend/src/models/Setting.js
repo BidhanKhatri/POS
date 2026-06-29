@@ -8,6 +8,11 @@ const settingSchema = new mongoose.Schema({
   maxPriceVariancePercent: { type: Number, default: 10, min: 0, max: 100 },
   syncStaffingBetit:       { type: Boolean, default: false },
   stockTrackingEnabled:    { type: Boolean, default: true  },
+  storeLogo: {
+    url:      { type: String, default: null },
+    fileId:   { type: String, default: null },
+    fileName: { type: String, default: null },
+  },
 }, { timestamps: true });
 
 export default mongoose.model('Setting', settingSchema);

@@ -18,6 +18,7 @@ import accountRoutes from './accountRoutes.js';
 import scheduleRoutes from './scheduleRoutes.js';
 import groupRoutes    from './groupRoutes.js';
 import profileRoutes  from './profileRoutes.js';
+import uploadRoutes   from './uploadRoutes.js';
 
 router.use('/auth', authRoutes);
 router.use('/auth/webauthn', webauthnRoutes);
@@ -36,5 +37,6 @@ router.use('/accounts', accountRoutes);
 router.use('/schedules', scheduleRoutes);
 router.use('/groups',    groupRoutes);
 router.use('/profile',   profileRoutes);
+router.use('/upload',    uploadRoutes);
 
 export default router;

@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useMediaQuery } from '@mui/material';
+import ImageUploader from '../components/ImageUploader/ImageUploader';
 import AccountCircleOutlinedIcon from '@mui/icons-material/AccountCircleOutlined';
 import BadgeOutlinedIcon         from '@mui/icons-material/BadgeOutlined';
 import EmailOutlinedIcon         from '@mui/icons-material/EmailOutlined';
@@ -303,26 +304,55 @@ function ResetPinPanel({ token, onSwitchToChange }) {
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function ProfilePage() {
   const user      = useAuthStore((s) => s.user);
-  const { token } = useAuthStore();
+  const { token, setUser } = useAuthStore();
   const isDesktop = useMediaQuery('(min-width:1024px)');
 
-  const [pinMode, setPinMode] = useState('change'); // 'change' | 'reset'
+  const [pinMode,   setPinMode]   = useState('change'); // 'change' | 'reset'
+  const [avatarUrl, setAvatarUrl] = useState(user?.imageUrl ?? null);
 
-  const initials = (user?.name || 'E').split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2);
+  useEffect(() => { setAvatarUrl(user?.imageUrl ?? null); }, [user?.imageUrl]);
+
+  const handleAvatarUpload = async (file) => {
+    const fd = new FormData();
+    fd.append('image', file);
+    const res = await fetch(`${API}/api/profile/avatar`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}` },
+      body: fd,
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Upload failed.');
+    const url = data.data?.imageUrl ?? null;
+    setAvatarUrl(url);
+    setUser({ ...user, imageUrl: url });
+  };
+
+  const handleAvatarDelete = async () => {
+    const res = await fetch(`${API}/api/profile/avatar`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Remove failed.');
+    setAvatarUrl(null);
+    setUser({ ...user, imageUrl: null });
+  };
 
   // ── Profile info block ───────────────────────────────────────────────────
   const profileCard = (
     <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden' }}>
       {/* Avatar hero */}
-      <div style={{ padding: '28px 24px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, borderBottom: `1px solid ${C.border}`, background: '#FAF7F5' }}>
-        <div style={{
-          width: 64, height: 64, borderRadius: 18, background: C.elevated,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 22, fontWeight: 900, color: C.primary, letterSpacing: '-0.5px',
-          border: `2px solid ${C.border}`,
-        }}>
-          {initials}
-        </div>
+      <div style={{ padding: '24px 24px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, borderBottom: `1px solid ${C.border}`, background: '#FAF7F5' }}>
+        <ImageUploader
+          currentUrl={avatarUrl}
+          onUpload={handleAvatarUpload}
+          onDelete={handleAvatarDelete}
+          label=""
+          shape="circle"
+          size={72}
+          hint={null}
+        />
+
         <div style={{ textAlign: 'center' }}>
           <p style={{ margin: 0, fontSize: 17, fontWeight: 800, color: C.textPri }}>{user?.name || 'Employee'}</p>
           {user?.employeeCode && (

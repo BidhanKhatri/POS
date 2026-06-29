@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Dialog from '@mui/material/Dialog';
+import Snackbar from '@mui/material/Snackbar';
+import Alert from '@mui/material/Alert';
 import { useMediaQuery } from '@mui/material';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import AddOutlinedIcon from '@mui/icons-material/AddOutlined';
@@ -17,6 +19,9 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import useAuthStore from '../store/useAuthStore';
 import { useSocketEvent } from '../context/SocketContext';
 import { EVENTS } from '../socket/events';
+import ImageUploader from '../components/ImageUploader/ImageUploader';
+import ProductImageUpload from '../components/ProductImageUpload/ProductImageUpload';
+import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined';
 
 const API = import.meta.env.VITE_API_BASE_URL ?? '';
 const LOW = 5;
@@ -72,6 +77,7 @@ function ProductActionsDialog({ open, product, token, onClose, onRefresh, stockT
   const [editForm, setEditForm] = useState({});
   const [editSaving, setEditSaving] = useState(false);
   const [editErr, setEditErr] = useState('');
+  const [productImageUrl, setProductImageUrl] = useState(null);
 
   const [deleting, setDeleting] = useState(false);
 
@@ -90,6 +96,7 @@ function ProductActionsDialog({ open, product, token, onClose, onRefresh, stockT
       costPrice: product.costPrice ?? '',
       quickSlot: product.quickSlot || '',
     });
+    setProductImageUrl(product.image?.url ?? null);
     setEditErr('');
   }, [open, product?._id]);
 
@@ -163,6 +170,31 @@ function ProductActionsDialog({ open, product, token, onClose, onRefresh, stockT
     : null;
 
   const ef = (k) => (e) => setEditForm(f => ({ ...f, [k]: e.target.value }));
+
+  const handleProductImageUpload = async (file) => {
+    const fd = new FormData();
+    fd.append('image', file);
+    const res = await fetch(`${API}/api/products/${product._id}/image`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}` },
+      body: fd,
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Upload failed.');
+    setProductImageUrl(data.data?.image?.url ?? null);
+    onRefresh();
+  };
+
+  const handleProductImageDelete = async () => {
+    const res = await fetch(`${API}/api/products/${product._id}/image`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Remove failed.');
+    setProductImageUrl(null);
+    onRefresh();
+  };
 
   return (
     <Dialog
@@ -393,6 +425,16 @@ function ProductActionsDialog({ open, product, token, onClose, onRefresh, stockT
               <input style={inputStyle} type="number" min="1" max="9" value={editForm.quickSlot || ''} onChange={ef('quickSlot')} placeholder="Optional POS quick button" />
             </div>
 
+            <ImageUploader
+              currentUrl={productImageUrl}
+              onUpload={handleProductImageUpload}
+              onDelete={handleProductImageDelete}
+              label="Product Image"
+              shape="square"
+              size={72}
+              hint="JPEG, PNG, WebP or GIF · max 5 MB"
+            />
+
             <p style={{ margin: 0, fontSize: 11, color: C.textDim, lineHeight: '16px' }}>
               To adjust stock levels, use the Stk Move tab.
             </p>
@@ -464,32 +506,72 @@ function ProductActionsDialog({ open, product, token, onClose, onRefresh, stockT
 }
 
 /* ── Add Product Dialog ──────────────────────────────────────────── */
-function AddProductDialog({ open, onClose, onSave, stockTracking = true }) {
+function AddProductDialog({ open, onClose, onSave, stockTracking = true, token, products = [] }) {
   const blank = { name: '', sku: '', barcode: '', price: '', costPrice: '', stockQty: '0', quickSlot: '' };
-  const [form, setForm] = useState(blank);
+  const [form, setForm]     = useState(blank);
   const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState('');
+  const [err, setErr]       = useState('');
+  const [slotSnack, setSlotSnack] = useState(''); // slot conflict message
 
-  useEffect(() => { setForm(blank); setErr(''); }, [open]);
+  // Image upload state
+  const [hasFiles,         setHasFiles]         = useState(false);
+  const [createdProductId, setCreatedProductId] = useState(null);
+  const [phase,            setPhase]            = useState('form'); // 'form' | 'uploading'
+  const [allUploaded,      setAllUploaded]      = useState(false);
+
+  useEffect(() => {
+    if (!open) {
+      setForm(blank); setErr(''); setSlotSnack('');
+      setHasFiles(false); setCreatedProductId(null);
+      setPhase('form'); setAllUploaded(false);
+    }
+  }, [open]);
+
+  // Derive which product currently owns the typed slot (for inline hint)
+  const slotConflict = form.quickSlot
+    ? products.find(p => p.quickSlot === parseInt(form.quickSlot, 10) && p.isActive !== false) ?? null
+    : null;
 
   const f = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }));
+
+  const handleAllComplete = useCallback(() => setAllUploaded(true), []);
+
+  // Auto-close once all uploads are settled
+  useEffect(() => {
+    if (allUploaded) {
+      const t = setTimeout(onClose, 600);
+      return () => clearTimeout(t);
+    }
+  }, [allUploaded, onClose]);
 
   const save = async () => {
     if (!form.name.trim() || !form.sku.trim() || form.price === '' || form.costPrice === '') {
       setErr('Name, SKU, Sell Price and Cost Price are required.'); return;
     }
+    // Quick-slot uniqueness check — block before any network call
+    if (slotConflict) {
+      setSlotSnack(`Slot P${form.quickSlot} is already taken by "${slotConflict.name}". Pick a different slot.`);
+      return;
+    }
+
     setSaving(true); setErr('');
     try {
       const payload = {
-        name: form.name.trim(),
-        sku: form.sku.trim().toUpperCase(),
-        price: parseFloat(form.price),
+        name:      form.name.trim(),
+        sku:       form.sku.trim().toUpperCase(),
+        price:     parseFloat(form.price),
         costPrice: parseFloat(form.costPrice),
-        stockQty: parseInt(form.stockQty, 10) || 0,
+        stockQty:  parseInt(form.stockQty, 10) || 0,
         quickSlot: form.quickSlot ? parseInt(form.quickSlot, 10) : undefined,
       };
       if (form.barcode.trim()) payload.barcode = form.barcode.trim();
-      await onSave(payload);
+      const created = await onSave(payload);
+      if (hasFiles && created?._id) {
+        setCreatedProductId(created._id);
+        setPhase('uploading');
+      } else {
+        onClose();
+      }
     } catch (e) {
       setErr(e.message || 'Save failed');
     } finally {
@@ -497,78 +579,183 @@ function AddProductDialog({ open, onClose, onSave, stockTracking = true }) {
     }
   };
 
-  return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs"
-      PaperProps={{ style: { borderRadius: 16, fontFamily: "'Plus Jakarta Sans', sans-serif" } }}>
+  const isUploading = phase === 'uploading' && !allUploaded;
 
-      <div style={{ padding: '18px 16px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${C.border}` }}>
+  return (
+    <Dialog
+      open={open}
+      onClose={isUploading ? undefined : onClose}
+      fullWidth
+      maxWidth="sm"
+      PaperProps={{ style: { borderRadius: 16, fontFamily: "'Plus Jakarta Sans', sans-serif", maxHeight: '92vh' } }}
+    >
+      {/* Header */}
+      <div style={{ padding: '16px 18px 13px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
         <span style={{ fontSize: 16, fontWeight: 800, color: C.textPri }}>Add Product</span>
-        <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
+        <button
+          onClick={isUploading ? undefined : onClose}
+          disabled={isUploading}
+          style={{ background: 'none', border: 'none', cursor: isUploading ? 'not-allowed' : 'pointer', padding: 4, opacity: isUploading ? 0.35 : 1 }}
+        >
           <CloseOutlinedIcon sx={{ fontSize: 20, color: C.textDim }} />
         </button>
       </div>
 
-      <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 14, overflowY: 'auto' }}>
-        {err && (
-          <div style={{ background: 'rgba(183,28,28,0.08)', border: '1px solid rgba(183,28,28,0.22)', borderRadius: 8, padding: '8px 12px', fontSize: 13, color: C.error }}>
-            {err}
+      <div style={{ overflowY: 'auto', flex: 1 }}>
+
+        {/* ── Product created banner (uploading phase) ── */}
+        {phase === 'uploading' && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 9,
+            margin: '14px 16px 0',
+            padding: '10px 14px', borderRadius: 9,
+            background: 'rgba(46,125,79,0.07)', border: '1px solid rgba(46,125,79,0.22)',
+          }}>
+            <CheckCircleOutlinedIcon sx={{ fontSize: 16, color: C.success }} />
+            <div>
+              <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.success }}>Product created successfully</p>
+              <p style={{ margin: '1px 0 0', fontSize: 11, color: '#2E7D4F' }}>
+                {allUploaded ? 'All images uploaded — closing…' : 'Uploading images, please wait…'}
+              </p>
+            </div>
           </div>
         )}
 
-        <div>
-          <label style={labelStyle}>Product Name *</label>
-          <input style={inputStyle} value={form.name} onChange={f('name')} placeholder="e.g. Coca Cola 500ml" />
-        </div>
+        {/* ── Form fields (hidden in upload phase) ── */}
+        {phase === 'form' && (
+          <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 13 }}>
+            {err && (
+              <div style={{ background: 'rgba(183,28,28,0.08)', border: '1px solid rgba(183,28,28,0.22)', borderRadius: 8, padding: '8px 12px', fontSize: 13, color: C.error }}>
+                {err}
+              </div>
+            )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <div>
-            <label style={labelStyle}>SKU *</label>
-            <input style={inputStyle} value={form.sku} onChange={f('sku')} placeholder="COLA001" />
-          </div>
-          <div>
-            <label style={labelStyle}>Barcode</label>
-            <input style={inputStyle} value={form.barcode} onChange={f('barcode')} placeholder="Optional" />
-          </div>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <div>
-            <label style={labelStyle}>Sell Price *</label>
-            <input style={inputStyle} type="number" min="0" step="0.01" value={form.price} onChange={f('price')} placeholder="0.00" />
-          </div>
-          <div>
-            <label style={labelStyle}>Cost Price *</label>
-            <input style={inputStyle} type="number" min="0" step="0.01" value={form.costPrice} onChange={f('costPrice')} placeholder="0.00" />
-          </div>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          {stockTracking ? (
             <div>
-              <label style={labelStyle}>Opening Stock</label>
-              <input style={inputStyle} type="number" min="0" value={form.stockQty} onChange={f('stockQty')} placeholder="0" />
+              <label style={labelStyle}>Product Name *</label>
+              <input style={inputStyle} value={form.name} onChange={f('name')} placeholder="e.g. Coca Cola 500ml" />
             </div>
-          ) : (
-            <div>
-              <label style={{ ...labelStyle, color: C.textDim }}>Opening Stock</label>
-              <input style={{ ...inputStyle, color: C.textDim, background: C.elevated, cursor: 'not-allowed' }} value="—" readOnly />
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div>
+                <label style={labelStyle}>SKU *</label>
+                <input style={inputStyle} value={form.sku} onChange={f('sku')} placeholder="COLA001" />
+              </div>
+              <div>
+                <label style={labelStyle}>Barcode</label>
+                <input style={inputStyle} value={form.barcode} onChange={f('barcode')} placeholder="Optional" />
+              </div>
             </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div>
+                <label style={labelStyle}>Sell Price *</label>
+                <input style={inputStyle} type="number" min="0" step="0.01" value={form.price} onChange={f('price')} placeholder="0.00" />
+              </div>
+              <div>
+                <label style={labelStyle}>Cost Price *</label>
+                <input style={inputStyle} type="number" min="0" step="0.01" value={form.costPrice} onChange={f('costPrice')} placeholder="0.00" />
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              {stockTracking ? (
+                <div>
+                  <label style={labelStyle}>Opening Stock</label>
+                  <input style={inputStyle} type="number" min="0" value={form.stockQty} onChange={f('stockQty')} placeholder="0" />
+                </div>
+              ) : (
+                <div>
+                  <label style={{ ...labelStyle, color: C.textDim }}>Opening Stock</label>
+                  <input style={{ ...inputStyle, color: C.textDim, background: C.elevated, cursor: 'not-allowed' }} value="—" readOnly />
+                </div>
+              )}
+              <div>
+                <label style={labelStyle}>Quick Slot (1–9)</label>
+                <input
+                  style={{
+                    ...inputStyle,
+                    borderColor: slotConflict ? C.error : undefined,
+                    boxShadow: slotConflict ? `0 0 0 2px rgba(183,28,28,0.15)` : undefined,
+                  }}
+                  type="number" min="1" max="9"
+                  value={form.quickSlot}
+                  onChange={f('quickSlot')}
+                  placeholder="Optional"
+                />
+                {slotConflict && (
+                  <p style={{ margin: '4px 0 0', fontSize: 11, fontWeight: 600, color: C.error, lineHeight: '15px' }}>
+                    Already used by "{slotConflict.name}"
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Image upload section (always visible) ── */}
+        <div style={{ padding: phase === 'form' ? '0 16px 16px' : '14px 16px 16px' }}>
+          {phase === 'form' && (
+            <label style={{ ...labelStyle, marginBottom: 8, display: 'block' }}>Product Images</label>
           )}
-          <div>
-            <label style={labelStyle}>Quick Slot (1–9)</label>
-            <input style={inputStyle} type="number" min="1" max="9" value={form.quickSlot} onChange={f('quickSlot')} placeholder="Optional" />
-          </div>
+          <ProductImageUpload
+            token={token}
+            productId={createdProductId}
+            onQueueChange={setHasFiles}
+            onAllComplete={handleAllComplete}
+          />
         </div>
       </div>
 
-      <div style={{ padding: '12px 16px 18px', display: 'flex', gap: 8, borderTop: `1px solid ${C.border}` }}>
-        <button onClick={onClose} style={{ flex: 1, padding: '11px', borderRadius: 9, border: `1px solid ${C.border}`, background: '#fff', fontSize: 14, fontWeight: 600, color: C.textSec, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+      {/* Footer */}
+      <div style={{ padding: '12px 16px 16px', display: 'flex', gap: 8, borderTop: `1px solid ${C.border}`, flexShrink: 0 }}>
+        <button
+          onClick={isUploading ? undefined : onClose}
+          disabled={isUploading}
+          style={{ flex: 1, padding: '11px', borderRadius: 9, border: `1px solid ${C.border}`, background: '#fff', fontSize: 14, fontWeight: 600, color: isUploading ? C.textDim : C.textSec, cursor: isUploading ? 'not-allowed' : 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", opacity: isUploading ? 0.5 : 1 }}
+        >
           Cancel
         </button>
-        <button onClick={save} disabled={saving} style={{ flex: 1, padding: '11px', borderRadius: 9, border: 'none', background: C.primary, fontSize: 14, fontWeight: 700, color: '#fff', cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-          {saving ? 'Adding…' : 'Add Product'}
-        </button>
+        {phase === 'form' && (
+          <button
+            onClick={save}
+            disabled={saving}
+            style={{ flex: 2, padding: '11px', borderRadius: 9, border: 'none', background: C.primary, fontSize: 14, fontWeight: 700, color: '#fff', cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1, fontFamily: "'Plus Jakarta Sans', sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+          >
+            {saving ? 'Creating product…' : `Add Product${hasFiles ? ' & Upload Images' : ''}`}
+          </button>
+        )}
+        {phase === 'uploading' && (
+          <div style={{ flex: 2, padding: '11px', borderRadius: 9, background: C.elevated, fontSize: 13, fontWeight: 600, color: C.textSec, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+            {allUploaded
+              ? <><CheckCircleOutlinedIcon sx={{ fontSize: 16, color: C.success }} /> Done — closing…</>
+              : '⏳ Uploading images…'}
+          </div>
+        )}
       </div>
+
+      {/* Slot conflict snackbar — renders above the dialog via MUI portal z-index 1400 */}
+      <Snackbar
+        open={!!slotSnack}
+        autoHideDuration={4500}
+        onClose={() => setSlotSnack('')}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        sx={{ zIndex: 1500 }}
+      >
+        <Alert
+          severity="error"
+          variant="filled"
+          onClose={() => setSlotSnack('')}
+          sx={{
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
+            fontSize: 13,
+            fontWeight: 600,
+            borderRadius: 2,
+            boxShadow: '0 4px 20px rgba(0,0,0,0.25)',
+          }}
+        >
+          {slotSnack}
+        </Alert>
+      </Snackbar>
     </Dialog>
   );
 }
@@ -640,8 +827,8 @@ export default function ManagerInventoryPage() {
     const res = await fetch(`${API}/api/products`, { method: 'POST', headers, body: JSON.stringify(payload) });
     const data = await res.json();
     if (!res.ok) throw new Error(data.message || 'Save failed');
-    setAddDlg(false);
     fetchProducts();
+    return data; // return created product so dialog can trigger image uploads
   };
 
   const filtered = products.filter(p =>
@@ -658,9 +845,11 @@ export default function ManagerInventoryPage() {
     <>
       <AddProductDialog
         open={addDlg}
-        onClose={() => setAddDlg(false)}
+        onClose={() => { setAddDlg(false); fetchProducts(); }}
         onSave={handleAddProduct}
         stockTracking={stockTracking}
+        token={token}
+        products={products}
       />
       <ProductActionsDialog
         open={actionsDlg.open}
@@ -691,7 +880,7 @@ export default function ManagerInventoryPage() {
      DESKTOP
   ══════════════════════════════════════════ */
   if (isDesktop) {
-    const DESKTOP_COLS = '1fr 90px 120px 100px 100px 56px 90px 42px';
+    const DESKTOP_COLS = '44px 1fr 90px 120px 100px 100px 56px 90px 42px';
 
     return (
       <div style={{ height: '100dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden', fontFamily: "'Plus Jakarta Sans', sans-serif", background: C.bg }}>
@@ -769,7 +958,7 @@ export default function ManagerInventoryPage() {
                 display: 'grid', gridTemplateColumns: DESKTOP_COLS,
                 gap: 8, alignItems: 'center',
               }}>
-                {['Product', 'SKU', 'Barcode', 'Sell Price', 'Cost Price', 'Slot', 'Stock', 'Actions'].map(h => (
+                {['Img', 'Product', 'SKU', 'Barcode', 'Sell Price', 'Cost Price', 'Slot', 'Stock', 'Actions'].map(h => (
                   <span key={h} style={{ fontSize: 10, fontWeight: 700, color: C.primary, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</span>
                 ))}
               </div>
@@ -802,6 +991,15 @@ export default function ManagerInventoryPage() {
                   onMouseEnter={e => e.currentTarget.style.background = C.hover}
                   onMouseLeave={e => e.currentTarget.style.background = i % 2 ? '#FDFCFB' : C.surface}
                 >
+                  {/* Thumbnail */}
+                  {p.image?.url ? (
+                    <img src={p.image.url} alt={p.name} style={{ width: 36, height: 36, borderRadius: 6, objectFit: 'cover', border: `1px solid ${C.border}`, display: 'block' }} />
+                  ) : (
+                    <div style={{ width: 36, height: 36, borderRadius: 6, background: C.elevated, border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: C.textDim, fontWeight: 700 }}>
+                      —
+                    </div>
+                  )}
+
                   {/* Product name + sub-meta */}
                   <div style={{ minWidth: 0 }}>
                     <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>

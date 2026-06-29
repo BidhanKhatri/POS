@@ -23,6 +23,7 @@ const serializeUser = (user, includeToken = false) => {
     role: user.role,
     isActive: user.isActive,
     status: user.status ?? 'ACTIVE',
+    imageUrl: user.imageUrl ?? null,
   };
 
   if (includeToken) {

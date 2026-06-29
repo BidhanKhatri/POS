@@ -38,8 +38,10 @@ export default function TerminalPage() {
   const { stopLoading }   = useLoading();
 
   // ── Shift gate (employees only) ──
-  const [gateShift,   setGateShift]   = useState(null);
-  const [gateLoading, setGateLoading] = useState(true);
+  const [gateShift,    setGateShift]    = useState(null);
+  const [gateLoading,  setGateLoading]  = useState(true);
+  const [todayShifts,  setTodayShifts]  = useState(null); // null = loading, [] = no shifts
+  const [schedLoading, setSchedLoading] = useState(true);
 
   // ── Cart state ──
   const [cartItems, setCartItems]       = useState([]); // [{id, product, sellingPrice, qty}]
@@ -103,8 +105,42 @@ export default function TerminalPage() {
       .finally(() => setGateLoading(false));
   }, [token, user?.role]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  /* ── Today's schedule check — lock terminal if no shift scheduled ── */
+  useEffect(() => {
+    if (user?.role !== 'Employee') { setSchedLoading(false); return; }
+    const today = new Date().toISOString().slice(0, 10);
+    setSchedLoading(true);
+    fetch(`${API}/api/staffing/my-schedule?startDate=${today}&endDate=${today}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((d) => setTodayShifts(d.success ? (d.data ?? []) : []))
+      .catch(() => setTodayShifts([]))
+      .finally(() => setSchedLoading(false));
+  }, [token, user?.role]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ── Derive today's schedule state for gate ── */
+  const todayScheduleState = (() => {
+    if (!todayShifts || todayShifts.length === 0) return 'NO_SHIFT';
+    const s = todayShifts[0];
+    const now = new Date();
+    const nm  = now.getHours() * 60 + now.getMinutes();
+    const [sh, sm] = s.startTime.split(':').map(Number);
+    const [eh, em] = s.endTime.split(':').map(Number);
+    const start = sh * 60 + sm;
+    const end   = eh * 60 + em;
+    if (nm < start) return 'UPCOMING';
+    if (nm <= end)  return 'IN_WINDOW';
+    return 'PAST';
+  })();
+
+  const noScheduleToday = todayScheduleState === 'NO_SHIFT';
+  // Shift ended and not clocked in — terminal is also inaccessible
+  const shiftEnded = todayScheduleState === 'PAST' && !gateShift;
+
   /* ── Lock background scroll when gate overlay is active ── */
-  const gateActive = user?.role === 'Employee' && (gateLoading || !gateShift);
+  const gateActive = user?.role === 'Employee' &&
+    (gateLoading || schedLoading || noScheduleToday || shiftEnded || !gateShift);
   useEffect(() => {
     if (gateActive) {
       document.body.style.overflow = 'hidden';
@@ -639,15 +675,125 @@ export default function TerminalPage() {
         fontFamily: FONT,
       }}>
         <div style={{ maxWidth: 360, width: '100%', textAlign: 'center' }}>
-          {gateLoading ? (
+          {(gateLoading || schedLoading) ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
               <div style={{ width: 56, height: 56, borderRadius: 16, background: C.elevated, animation: 'gate-pulse 1.4s ease infinite' }} />
               <div style={{ height: 14, width: 180, borderRadius: 6, background: C.elevated, animation: 'gate-pulse 1.4s ease infinite' }} />
               <div style={{ height: 11, width: 120, borderRadius: 6, background: C.elevated, animation: 'gate-pulse 1.4s ease infinite' }} />
             </div>
+          ) : noScheduleToday ? (
+            <div>
+              {/* Calendar icon for no-schedule state */}
+              <div style={{
+                width: 60, height: 60, borderRadius: 16,
+                background: 'rgba(160,148,144,0.14)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                margin: '0 auto 18px',
+              }}>
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+                  <rect x="3" y="4" width="18" height="17" rx="2" stroke="#A09490" strokeWidth="2"/>
+                  <path d="M16 2v4M8 2v4M3 9h18" stroke="#A09490" strokeWidth="2" strokeLinecap="round"/>
+                  <path d="M8 13h.01M12 13h.01M16 13h.01M8 17h.01M12 17h.01M16 17h.01" stroke="#A09490" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+              </div>
+
+              <h2 style={{ margin: '0 0 8px', fontSize: 21, fontWeight: 800, color: C.textPri, letterSpacing: '-0.3px' }}>
+                No Shift Today
+              </h2>
+              <p style={{ margin: '0 0 28px', fontSize: 14, fontWeight: 500, color: C.textSec, lineHeight: 1.55 }}>
+                You are not scheduled to work today. The sales terminal is unavailable.
+              </p>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14, alignItems: 'center', width: '100%' }}>
+                <button
+                  onClick={() => navigate('/employee/shift')}
+                  style={{
+                    width: '100%', minHeight: 50,
+                    padding: '13px 24px', borderRadius: 12,
+                    border: 'none', background: C.primary,
+                    color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer',
+                    letterSpacing: '0.02em', fontFamily: FONT,
+                    boxShadow: '0 4px 0 #1f100e',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
+                    <rect x="3" y="4" width="18" height="17" rx="2" stroke="#fff" strokeWidth="2"/>
+                    <path d="M16 2v4M8 2v4M3 9h18" stroke="#fff" strokeWidth="2" strokeLinecap="round"/>
+                  </svg>
+                  View Schedule
+                </button>
+
+                <button
+                  onClick={() => {
+                    const today = new Date().toISOString().slice(0, 10);
+                    setSchedLoading(true);
+                    fetch(`${API}/api/staffing/my-schedule?startDate=${today}&endDate=${today}`, {
+                      headers: { Authorization: `Bearer ${token}` },
+                    })
+                      .then(r => r.json())
+                      .then(d => setTodayShifts(d.success ? (d.data ?? []) : []))
+                      .catch(() => setTodayShifts([]))
+                      .finally(() => setSchedLoading(false));
+                  }}
+                  style={{
+                    width: '100%', minHeight: 46,
+                    padding: '11px 24px', borderRadius: 12,
+                    border: `1.5px solid ${C.border}`, background: 'rgba(255,255,255,0.6)',
+                    color: C.textSec, fontSize: 14, fontWeight: 600,
+                    cursor: 'pointer', fontFamily: FONT,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                  }}
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
+                    <path d="M4 12a8 8 0 018-8 8 8 0 017.32 4.74" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                    <path d="M20 4v5h-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M20 12a8 8 0 01-8 8 8 8 0 01-7.32-4.74" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                  </svg>
+                  Check Again
+                </button>
+              </div>
+            </div>
+          ) : shiftEnded ? (
+            <div>
+              {/* Check icon for shift-ended state */}
+              <div style={{
+                width: 60, height: 60, borderRadius: 16,
+                background: 'rgba(160,148,144,0.14)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                margin: '0 auto 18px',
+              }}>
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="9" stroke="#A09490" strokeWidth="2"/>
+                  <path d="M8 12l3 3 5-5" stroke="#A09490" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </div>
+
+              <h2 style={{ margin: '0 0 8px', fontSize: 21, fontWeight: 800, color: C.textPri, letterSpacing: '-0.3px' }}>
+                Shift Ended
+              </h2>
+              <p style={{ margin: '0 0 28px', fontSize: 14, fontWeight: 500, color: C.textSec, lineHeight: 1.55 }}>
+                Your shift window has ended. The sales terminal is now closed.
+              </p>
+
+              <button
+                onClick={() => navigate('/employee/shift')}
+                style={{
+                  width: '100%', minHeight: 50,
+                  padding: '13px 24px', borderRadius: 12,
+                  border: 'none', background: C.primary,
+                  color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer',
+                  letterSpacing: '0.02em', fontFamily: FONT,
+                  boxShadow: '0 4px 0 #1f100e',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                }}
+              >
+                View Schedule
+              </button>
+            </div>
           ) : (
             <div>
-              {/* Lock icon */}
+              {/* Lock icon for not-clocked-in state */}
               <div style={{
                 width: 60, height: 60, borderRadius: 16,
                 background: 'rgba(178,106,0,0.12)',

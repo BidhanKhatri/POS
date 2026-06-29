@@ -1,4 +1,6 @@
 import * as svc from '../services/customerService.js';
+import Customer from '../models/Customer.js';
+import { uploadBuffer, deleteFile } from '../services/imagekitService.js';
 
 export const backfill = async (req, res) => {
   try {
@@ -49,3 +51,42 @@ export const remove = (req, res) =>
   svc.deleteCustomer(req.params.id)
     .then(() => res.json({ message: 'Customer deactivated' }))
     .catch(e => res.status(e.message === 'Customer not found' ? 404 : 500).json({ message: e.message }));
+
+// PATCH /api/customers/:id/image
+export const uploadCustomerImage = async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded.' });
+
+    const customer = await Customer.findById(req.params.id);
+    if (!customer) return res.status(404).json({ success: false, message: 'Customer not found.' });
+
+    if (customer.image?.fileId) await deleteFile(customer.image.fileId);
+
+    const imageData = await uploadBuffer({
+      buffer:   req.file.buffer,
+      fileName: `customer-${customer._id}`,
+      folder:   '/pos/customers',
+      tags:     ['customer'],
+    });
+
+    customer.image = imageData;
+    await customer.save();
+
+    res.json({ success: true, data: { image: customer.image } });
+  } catch (err) { next(err); }
+};
+
+// DELETE /api/customers/:id/image
+export const deleteCustomerImage = async (req, res, next) => {
+  try {
+    const customer = await Customer.findById(req.params.id);
+    if (!customer) return res.status(404).json({ success: false, message: 'Customer not found.' });
+
+    if (customer.image?.fileId) await deleteFile(customer.image.fileId);
+
+    customer.image = { url: null, fileId: null, fileName: null };
+    await customer.save();
+
+    res.json({ success: true, message: 'Customer image removed.' });
+  } catch (err) { next(err); }
+};

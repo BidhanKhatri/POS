@@ -2,12 +2,13 @@ import bcrypt from 'bcryptjs';
 import User from '../models/User.js';
 import PinResetOtp from '../models/PinResetOtp.js';
 import { sendOtpEmail } from '../services/emailService.js';
+import { uploadBuffer, deleteFile } from '../services/imagekitService.js';
 
 // GET /api/profile
 export const getProfile = async (req, res, next) => {
   try {
     const user = await User.findById(req.user._id)
-      .select('name email employeeCode role address createdAt');
+      .select('name email employeeCode role address imageUrl imageFileId createdAt');
     if (!user) return res.status(404).json({ message: 'User not found.' });
     res.json({ success: true, data: user });
   } catch (err) { next(err); }
@@ -128,6 +129,47 @@ export const resetPinWithOtp = async (req, res, next) => {
     await user.save();
 
     res.json({ success: true, message: 'PIN reset successfully.' });
+  } catch (err) { next(err); }
+};
+
+// PATCH /api/profile/avatar
+export const uploadAvatar = async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded.' });
+
+    const user = await User.findById(req.user._id).select('imageUrl imageFileId name');
+    if (!user) return res.status(404).json({ message: 'User not found.' });
+
+    if (user.imageFileId) await deleteFile(user.imageFileId);
+
+    const { url, fileId } = await uploadBuffer({
+      buffer:   req.file.buffer,
+      fileName: `avatar-${user._id}`,
+      folder:   '/pos/avatars',
+      tags:     ['avatar', String(user._id)],
+    });
+
+    user.imageUrl    = url;
+    user.imageFileId = fileId;
+    await user.save();
+
+    res.json({ success: true, data: { imageUrl: url } });
+  } catch (err) { next(err); }
+};
+
+// DELETE /api/profile/avatar
+export const deleteAvatar = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id).select('imageUrl imageFileId');
+    if (!user) return res.status(404).json({ message: 'User not found.' });
+
+    if (user.imageFileId) await deleteFile(user.imageFileId);
+
+    user.imageUrl    = null;
+    user.imageFileId = null;
+    await user.save();
+
+    res.json({ success: true, message: 'Avatar removed.' });
   } catch (err) { next(err); }
 };
 

@@ -40,6 +40,20 @@ const productSchema = new mongoose.Schema({
     type: Boolean,
     default: true,
   },
+  image: {
+    url:      { type: String, default: null },
+    fileId:   { type: String, default: null },
+    fileName: { type: String, default: null },
+  },
+  images: {
+    type: [{
+      url:      { type: String, default: null },
+      fileId:   { type: String, default: null },
+      fileName: { type: String, default: null },
+      _id: false,
+    }],
+    default: [],
+  },
 }, {
   timestamps: true,
 });

@@ -97,15 +97,37 @@ const EASE = 'cubic-bezier(0.4, 0, 0.2, 1)';
 export default function ManagerLayout() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  const { user, logout } = useAuthStore();
+  const { user, logout, setUser, token } = useAuthStore();
   const isDesktop = useMediaQuery('(min-width:1024px)');
   const { stopLoading } = useLoading();
+
+  // Hydrate imageUrl for already-logged-in sessions that predate the avatar feature
+  useEffect(() => {
+    if (!token || user?.imageUrl !== undefined) return;
+    fetch('/api/profile', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.data?.imageUrl !== undefined) {
+          setUser({ ...user, imageUrl: data.data.imageUrl ?? null });
+        }
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
 
   // Safety net: dismiss the splash at most 1.2s after any navigation
   useEffect(() => {
     const t = setTimeout(stopLoading, 1200);
     return () => clearTimeout(t);
   }, [pathname, stopLoading]);
+
+  const { data: logoData } = useQuery({
+    queryKey: ['settings-logo'],
+    queryFn: () => fetch('/api/settings/logo', { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` } }).then(r => r.ok ? r.json() : null),
+    staleTime: 5 * 60 * 1000,
+    enabled: !!token,
+  });
+  const storeLogo = logoData?.data?.url ?? null;
 
   const { data: syncData } = useQuery({
     queryKey: ['settings-sync'],
@@ -210,10 +232,14 @@ export default function ManagerLayout() {
 
           {/* Brand */}
           <div style={{ padding: '18px 14px 16px', display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid #F0EAE5' }}>
-            {/* M icon */}
-            <div style={{ width: 32, height: 32, borderRadius: 9, background: '#3E2723', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <span style={{ fontSize: 14, fontWeight: 800, color: '#D4A373', letterSpacing: '-0.5px' }}>M</span>
-            </div>
+            {/* Logo / M icon */}
+            {storeLogo ? (
+              <img src={storeLogo} alt="Store logo" style={{ width: 32, height: 32, borderRadius: 9, objectFit: 'cover', flexShrink: 0 }} />
+            ) : (
+              <div style={{ width: 32, height: 32, borderRadius: 9, background: '#3E2723', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <span style={{ fontSize: 14, fontWeight: 800, color: '#D4A373', letterSpacing: '-0.5px' }}>M</span>
+              </div>
+            )}
             {/* Manager Portal text — fades + shrinks when collapsed */}
             <div style={{ flex: 1, overflow: 'hidden', maxWidth: collapsed ? 0 : 200, opacity: collapsed ? 0 : 1, pointerEvents: collapsed ? 'none' : 'auto', whiteSpace: 'nowrap', transition: `max-width 0.3s ${EASE}, opacity 0.18s ${EASE}` }}>
               <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#2B1D1A', lineHeight: '17px' }}>Manager</p>
@@ -397,7 +423,7 @@ export default function ManagerLayout() {
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh', background: '#F5F3F1', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
 
       {/* Top header */}
-      <header style={{ background: 'linear-gradient(135deg, #2A1715 0%, #3E2723 100%)', borderBottom: '1px solid #1f100e', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+      <header style={{ background: 'linear-gradient(135deg, #2A1715 0%, #3E2723 100%)', borderBottom: '1px solid #1f100e', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, position: 'relative' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {user?.imageUrl ? (
             <img src={user.imageUrl} alt={user.name} style={{ width: 32, height: 32, borderRadius: 8, objectFit: 'cover', flexShrink: 0, border: '1.5px solid rgba(212,163,115,0.35)' }} />
@@ -411,6 +437,14 @@ export default function ManagerLayout() {
             <p style={{ fontSize: 11, fontWeight: 500, color: 'rgba(255,255,255,0.50)', margin: 0, letterSpacing: '0.04em' }}>{user?.employeeCode}</p>
           </div>
         </div>
+
+        {/* Store logo — centered absolutely so it doesn't shift the flex children */}
+        {storeLogo && (
+          <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', pointerEvents: 'none' }}>
+            <img src={storeLogo} alt="Store logo" style={{ height: 34, maxWidth: 120, objectFit: 'contain', borderRadius: 6, display: 'block' }} />
+          </div>
+        )}
+
         <button onClick={handleLogout} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 11px', borderRadius: 7, background: 'rgba(212,163,115,0.12)', border: '1px solid rgba(212,163,115,0.25)', color: 'rgba(255,255,255,0.80)', fontSize: 12, fontWeight: 600, cursor: 'pointer', letterSpacing: '0.04em' }}>
           <LogoutOutlinedIcon sx={{ fontSize: 14 }} />
           LOG OUT

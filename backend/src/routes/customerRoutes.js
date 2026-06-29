@@ -1,6 +1,7 @@
 import express from 'express';
 import { protect, managerOrAdmin } from '../middleware/authMiddleware.js';
-import { list, search, analytics, detail, purchases, refunds, update, remove, backfill } from '../controllers/customerController.js';
+import { list, search, analytics, detail, purchases, refunds, update, remove, backfill, uploadCustomerImage, deleteCustomerImage } from '../controllers/customerController.js';
+import { imageUpload } from '../middleware/uploadMiddleware.js';
 
 const router = express.Router();
 
@@ -19,5 +20,9 @@ router.get('/:id',           protect, detail);
 // Write operations — manager / admin only
 router.put('/:id',    protect, managerOrAdmin, update);
 router.delete('/:id', protect, managerOrAdmin, remove);
+
+// Image operations
+router.patch('/:id/image',  protect, managerOrAdmin, imageUpload('image'), uploadCustomerImage);
+router.delete('/:id/image', protect, managerOrAdmin, deleteCustomerImage);
 
 export default router;

@@ -7,7 +7,10 @@ import {
   forgotPin,
   resetPinWithOtp,
   deleteOwnAccount,
+  uploadAvatar,
+  deleteAvatar,
 } from '../controllers/profileController.js';
+import { imageUpload } from '../middleware/uploadMiddleware.js';
 
 const router = express.Router();
 
@@ -18,6 +21,8 @@ router.patch('/address', updateAddress);
 router.patch('/pin', changePin);
 router.post('/forgot-pin', forgotPin);
 router.post('/reset-pin', resetPinWithOtp);
+router.patch('/avatar', imageUpload('image'), uploadAvatar);
+router.delete('/avatar', deleteAvatar);
 router.delete('/', deleteOwnAccount);
 
 export default router;

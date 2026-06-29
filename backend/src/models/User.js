@@ -43,6 +43,11 @@ const userSchema = new mongoose.Schema(
             type: String,
             trim: true,
         },
+        // fileId of a self-uploaded ImageKit avatar (distinct from Clerk imageUrl)
+        imageFileId: {
+            type: String,
+            default: null,
+        },
         authProvider: {
             type: String,
             enum: ['local', 'clerk'],

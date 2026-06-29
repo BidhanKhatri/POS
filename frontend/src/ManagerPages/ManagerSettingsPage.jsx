@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Dialog, useMediaQuery } from '@mui/material';
 import SyncOutlinedIcon              from '@mui/icons-material/SyncOutlined';
 import EmailOutlinedIcon             from '@mui/icons-material/EmailOutlined';
@@ -21,10 +22,12 @@ import Inventory2OutlinedIcon        from '@mui/icons-material/Inventory2Outline
 import ManageAccountsOutlinedIcon    from '@mui/icons-material/ManageAccountsOutlined';
 import LocationOnOutlinedIcon        from '@mui/icons-material/LocationOnOutlined';
 import MarkEmailReadOutlinedIcon     from '@mui/icons-material/MarkEmailReadOutlined';
+import StorefrontOutlinedIcon        from '@mui/icons-material/StorefrontOutlined';
 import toast, { Toaster }           from 'react-hot-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import useAuthStore from '../store/useAuthStore';
 import BiometricSetup from '../components/BiometricSetup/BiometricSetup';
+import ImageUploader from '../components/ImageUploader/ImageUploader';
 
 const API = import.meta.env.VITE_API_BASE_URL ?? '';
 
@@ -1693,7 +1696,9 @@ function DeleteAccountModal({ open, onClose, onConfirm, submitting, error }) {
    TAB: Profile Management
 ══════════════════════════════════ */
 function ProfileManagementTab({ token }) {
-  const { logout } = useAuthStore();
+  const { logout, user, setUser } = useAuthStore();
+  const isMobile = useMediaQuery('(max-width:640px)');
+  const qc = useQueryClient();
   const authHeaders = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 
   const [profile, setProfile]   = useState(null);
@@ -1718,14 +1723,79 @@ function ProfileManagementTab({ token }) {
   const [delBusy, setDelBusy]           = useState(false);
   const [delError, setDelError]         = useState('');
 
+  const [avatarUrl, setAvatarUrl] = useState(null);
+  const [logoUrl,   setLogoUrl]   = useState(null);
+
   useEffect(() => {
     setProfLoad(true);
-    fetch(`${API}/api/profile`, { headers: authHeaders })
-      .then(r => r.json())
-      .then(d => { setProfile(d.data); setAddress(d.data?.address ?? ''); })
+    Promise.all([
+      fetch(`${API}/api/profile`, { headers: authHeaders }).then(r => r.json()),
+      fetch(`${API}/api/settings/logo`, { headers: authHeaders }).then(r => r.json()),
+    ])
+      .then(([profData, logoData]) => {
+        setProfile(profData.data);
+        setAddress(profData.data?.address ?? '');
+        setAvatarUrl(profData.data?.imageUrl ?? null);
+        setLogoUrl(logoData.data?.url ?? null);
+      })
       .catch(() => {})
       .finally(() => setProfLoad(false));
   }, [token]);
+
+  async function handleAvatarUpload(file) {
+    const fd = new FormData();
+    fd.append('image', file);
+    const res = await fetch(`${API}/api/profile/avatar`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}` },
+      body: fd,
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Upload failed.');
+    const url = data.data?.imageUrl ?? null;
+    setAvatarUrl(url);
+    setUser({ ...user, imageUrl: url });
+  }
+
+  async function handleAvatarDelete() {
+    const res = await fetch(`${API}/api/profile/avatar`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Remove failed.');
+    setAvatarUrl(null);
+    setUser({ ...user, imageUrl: null });
+  }
+
+  async function handleLogoUpload(file) {
+    const fd = new FormData();
+    fd.append('image', file);
+    const res = await fetch(`${API}/api/settings/logo`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}` },
+      body: fd,
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Upload failed.');
+    const url = data.data?.url ?? null;
+    setLogoUrl(url);
+    if (url) localStorage.setItem('pos-store-logo-url', url);
+    else localStorage.removeItem('pos-store-logo-url');
+    qc.invalidateQueries({ queryKey: ['settings-logo'] });
+  }
+
+  async function handleLogoDelete() {
+    const res = await fetch(`${API}/api/settings/logo`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Remove failed.');
+    setLogoUrl(null);
+    localStorage.removeItem('pos-store-logo-url');
+    qc.invalidateQueries({ queryKey: ['settings-logo'] });
+  }
 
   async function handleSendOtp() {
     setFpBusy(true);
@@ -1799,10 +1869,6 @@ function ProfileManagementTab({ token }) {
     }
   }
 
-  const initials = profile?.name
-    ? profile.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
-    : '?';
-
   const roleBadgeColor = profile?.role === 'Admin'
     ? { bg: 'rgba(2,119,189,0.1)', color: '#0277BD', border: 'rgba(2,119,189,0.25)' }
     : { bg: 'rgba(46,125,79,0.1)', color: '#2E7D4F', border: 'rgba(46,125,79,0.25)' };
@@ -1816,16 +1882,13 @@ function ProfileManagementTab({ token }) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
       {/* Modals */}
       <ChangePinModal
         open={pinModalOpen}
         onClose={() => setPinModalOpen(false)}
-        onSuccess={() => {
-          setPinSuccessMsg('PIN changed successfully.');
-          setTimeout(() => setPinSuccessMsg(''), 4000);
-        }}
+        onSuccess={() => { setPinSuccessMsg('PIN changed successfully.'); setTimeout(() => setPinSuccessMsg(''), 4000); }}
         token={token}
       />
       <DeleteAccountModal
@@ -1836,267 +1899,275 @@ function ProfileManagementTab({ token }) {
         error={delError}
       />
 
-      {/* ─ Profile card ─ */}
-      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '20px 20px', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-        <div style={{
-          width: 56, height: 56, borderRadius: '50%', flexShrink: 0,
-          background: C.primary, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 20, fontWeight: 800, color: '#fff', letterSpacing: '-0.5px',
-        }}>
-          {initials}
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ margin: '0 0 2px', fontSize: 16, fontWeight: 800, color: C.textPri }}>{profile?.name ?? '—'}</p>
-          <p style={{ margin: 0, fontSize: 12, color: C.textSec }}>{profile?.email ?? '—'}</p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
-            <span style={{
-              fontSize: 10, fontWeight: 700, padding: '2px 9px', borderRadius: 20,
-              background: roleBadgeColor.bg, color: roleBadgeColor.color,
-              border: `1px solid ${roleBadgeColor.border}`,
-            }}>{profile?.role?.toUpperCase()}</span>
-            <span style={{
-              fontSize: 10, fontWeight: 700, padding: '2px 9px', borderRadius: 20,
-              background: C.elevated, color: C.textSec,
-            }}>#{profile?.employeeCode}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* ─ Address ─ */}
-      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <LocationOnOutlinedIcon sx={{ fontSize: 16, color: C.textDim }} />
-          <p style={{ margin: 0, fontSize: 12, fontWeight: 800, color: C.textPri }}>Address</p>
-        </div>
-        <textarea
-          value={address}
-          onChange={e => setAddress(e.target.value)}
-          placeholder="Your address (optional)"
-          rows={2}
-          style={{
-            width: '100%', boxSizing: 'border-box', resize: 'vertical',
-            border: `1px solid ${C.border}`, borderRadius: 8,
-            padding: '10px 12px', fontSize: 13, color: C.textPri,
-            background: '#fff', outline: 'none', lineHeight: '20px',
-            fontFamily: "'Plus Jakarta Sans', sans-serif",
-          }}
-        />
-        {addrMsg && (
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 7,
-            background: addrMsg.type === 'success' ? 'rgba(46,125,79,0.08)' : 'rgba(183,28,28,0.07)',
-            border: `1px solid ${addrMsg.type === 'success' ? 'rgba(46,125,79,0.25)' : 'rgba(183,28,28,0.22)'}`,
-            borderRadius: 7, padding: '8px 12px',
-          }}>
-            {addrMsg.type === 'success'
-              ? <CheckCircleOutlineIcon sx={{ fontSize: 14, color: C.success }} />
-              : <WarningAmberOutlinedIcon sx={{ fontSize: 14, color: C.error }} />}
-            <span style={{ fontSize: 12, fontWeight: 600, color: addrMsg.type === 'success' ? C.success : C.error }}>{addrMsg.text}</span>
-          </div>
-        )}
-        <button
-          onClick={handleSaveAddress}
-          disabled={addrSaving}
-          style={{
-            alignSelf: 'flex-end', height: 38, padding: '0 20px', borderRadius: 8,
-            background: C.primary, color: '#fff', border: 'none',
-            fontSize: 12, fontWeight: 700, cursor: addrSaving ? 'wait' : 'pointer',
-            opacity: addrSaving ? 0.6 : 1,
-            display: 'flex', alignItems: 'center', gap: 6,
-            fontFamily: "'Plus Jakarta Sans', sans-serif",
-          }}
-        >
-          <CheckCircleOutlineIcon sx={{ fontSize: 14 }} />
-          {addrSaving ? 'Saving…' : 'Save Address'}
-        </button>
-      </div>
-
-      {/* ─ Change PIN ─ */}
-      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <KeyOutlinedIcon sx={{ fontSize: 16, color: C.textDim }} />
-          <p style={{ margin: 0, fontSize: 12, fontWeight: 800, color: C.textPri }}>Security</p>
-        </div>
-
-        {pinSuccessMsg && (
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 7,
-            background: 'rgba(46,125,79,0.08)', border: '1px solid rgba(46,125,79,0.25)',
-            borderRadius: 7, padding: '8px 12px',
-          }}>
-            <CheckCircleOutlineIcon sx={{ fontSize: 14, color: C.success }} />
-            <span style={{ fontSize: 12, fontWeight: 600, color: C.success }}>{pinSuccessMsg}</span>
-          </div>
-        )}
-
-        <button
-          onClick={() => setPinModalOpen(true)}
-          style={{
-            height: 44, borderRadius: 9, border: `1.5px solid ${C.border}`,
-            background: C.surface, color: C.primary,
-            fontSize: 13, fontWeight: 700, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-            fontFamily: "'Plus Jakarta Sans', sans-serif",
-          }}
-        >
-          <KeyOutlinedIcon sx={{ fontSize: 16 }} /> Change My PIN
-        </button>
-
-        {/* Forgot PIN */}
-        {fpStage === 'idle' && (
-          <button
-            onClick={handleSendOtp}
-            disabled={fpBusy}
-            style={{
-              border: 'none', background: 'none', cursor: fpBusy ? 'wait' : 'pointer',
-              fontSize: 11, fontWeight: 600, color: C.info, textDecoration: 'underline',
-              textAlign: 'center', padding: 0, opacity: fpBusy ? 0.6 : 1,
-              fontFamily: "'Plus Jakarta Sans', sans-serif",
-            }}
-          >
-            {fpBusy ? 'Sending OTP…' : 'Forgot PIN? Reset via email OTP'}
-          </button>
-        )}
-      </div>
-
-      {/* ─ Forgot PIN / OTP entry ─ */}
-      {fpStage !== 'idle' && (
-        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <MarkEmailReadOutlinedIcon sx={{ fontSize: 16, color: C.info }} />
-              <p style={{ margin: 0, fontSize: 12, fontWeight: 800, color: C.textPri }}>PIN Reset via Email OTP</p>
-            </div>
-            {fpStage !== 'done' && (
-              <button
-                onClick={() => { setFpStage('idle'); setFpOtp(''); setFpPin(''); setFpMsg(null); }}
-                style={{ display: 'flex', alignItems: 'center', gap: 4, border: 'none', background: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600, color: C.textDim }}
-              >
-                <CloseOutlinedIcon sx={{ fontSize: 13 }} /> Cancel
-              </button>
-            )}
-          </div>
-
-          {fpMsg && (
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 7,
-              background: fpMsg.type === 'success' ? 'rgba(46,125,79,0.08)' : 'rgba(183,28,28,0.07)',
-              border: `1px solid ${fpMsg.type === 'success' ? 'rgba(46,125,79,0.25)' : 'rgba(183,28,28,0.22)'}`,
-              borderRadius: 7, padding: '8px 12px',
-            }}>
-              {fpMsg.type === 'success'
-                ? <CheckCircleOutlineIcon sx={{ fontSize: 14, color: C.success }} />
-                : <WarningAmberOutlinedIcon sx={{ fontSize: 14, color: C.error }} />}
-              <span style={{ fontSize: 12, fontWeight: 600, color: fpMsg.type === 'success' ? C.success : C.error }}>{fpMsg.text}</span>
-            </div>
-          )}
-
-          {fpStage === 'done' ? (
-            <div style={{ textAlign: 'center', padding: '8px 0' }}>
-              <CheckCircleOutlineIcon sx={{ fontSize: 32, color: C.success }} />
-              <p style={{ margin: '8px 0 0', fontSize: 13, fontWeight: 700, color: C.success }}>PIN reset successfully.</p>
-              <button
-                onClick={() => { setFpStage('idle'); setFpMsg(null); }}
-                style={{ marginTop: 10, border: 'none', background: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: C.info, textDecoration: 'underline', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
-              >
-                Dismiss
-              </button>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: C.textSec, textTransform: 'uppercase', letterSpacing: '0.06em' }}>6-digit OTP from email</span>
-                <input
-                  value={fpOtp}
-                  onChange={e => setFpOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  placeholder="000000"
-                  inputMode="numeric"
-                  maxLength={6}
-                  style={{
-                    height: 44, border: `1.5px solid ${fpOtp.length === 6 ? C.success : C.border}`,
-                    borderRadius: 8, padding: '0 14px', fontSize: 22, fontWeight: 700,
-                    letterSpacing: 10, color: C.textPri, outline: 'none', background: '#fff',
-                    textAlign: 'center', fontFamily: 'monospace',
-                    transition: 'border-color 0.15s',
-                  }}
-                />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: C.textSec, textTransform: 'uppercase', letterSpacing: '0.06em' }}>New 4-digit PIN</span>
-                <input
-                  value={fpPin}
-                  onChange={e => setFpPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                  placeholder="••••"
-                  inputMode="numeric"
-                  maxLength={4}
-                  type="password"
-                  style={{
-                    height: 44, border: `1.5px solid ${fpPin.length === 4 ? C.success : C.border}`,
-                    borderRadius: 8, padding: '0 14px', fontSize: 18, fontWeight: 700,
-                    color: C.textPri, outline: 'none', background: '#fff',
-                    textAlign: 'center', fontFamily: 'monospace',
-                    transition: 'border-color 0.15s',
-                  }}
-                />
-              </div>
-              <button
-                onClick={handleResetPin}
-                disabled={fpBusy || fpOtp.length !== 6 || fpPin.length !== 4}
-                style={{
-                  height: 44, borderRadius: 9, border: 'none',
-                  background: (fpBusy || fpOtp.length !== 6 || fpPin.length !== 4) ? C.elevated : C.primary,
-                  color: (fpBusy || fpOtp.length !== 6 || fpPin.length !== 4) ? C.textDim : '#fff',
-                  fontSize: 13, fontWeight: 700,
-                  cursor: (fpBusy || fpOtp.length !== 6 || fpPin.length !== 4) ? 'not-allowed' : 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                  fontFamily: "'Plus Jakarta Sans', sans-serif",
-                  transition: 'background 0.2s, color 0.2s',
-                }}
-              >
-                <LockOutlinedIcon sx={{ fontSize: 15 }} />
-                {fpBusy ? 'Resetting…' : 'Reset PIN'}
-              </button>
-              <button
-                onClick={handleSendOtp}
-                disabled={fpBusy}
-                style={{
-                  border: 'none', background: 'none', cursor: fpBusy ? 'wait' : 'pointer',
-                  fontSize: 11, fontWeight: 600, color: C.textDim, textDecoration: 'underline',
-                  textAlign: 'center', padding: 0, opacity: fpBusy ? 0.6 : 1,
-                  fontFamily: "'Plus Jakarta Sans', sans-serif",
-                }}
-              >
-                Resend OTP
-              </button>
-            </div>
-          )}
+      {pinSuccessMsg && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(46,125,79,0.08)', border: '1px solid rgba(46,125,79,0.25)', borderRadius: 9, padding: '10px 14px' }}>
+          <CheckCircleOutlineIcon sx={{ fontSize: 15, color: C.success }} />
+          <span style={{ fontSize: 13, fontWeight: 600, color: C.success }}>{pinSuccessMsg}</span>
         </div>
       )}
 
-      {/* ─ Danger Zone ─ */}
-      <div style={{ background: C.surface, border: `1px solid rgba(183,28,28,0.25)`, borderRadius: 12, padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <DeleteOutlineOutlinedIcon sx={{ fontSize: 16, color: C.error }} />
-          <p style={{ margin: 0, fontSize: 12, fontWeight: 800, color: C.error }}>Danger Zone</p>
+      {/* ══ BRANDING & IDENTITY ══════════════════════════════════ */}
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden' }}>
+        {/* Section header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', borderBottom: `1px solid ${C.border}`, background: '#F9F6F4' }}>
+          <div style={{ width: 34, height: 34, borderRadius: 9, background: C.elevated, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <StorefrontOutlinedIcon sx={{ fontSize: 18, color: C.primary }} />
+          </div>
+          <div>
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri }}>Branding & Identity</p>
+            <p style={{ margin: '1px 0 0', fontSize: 11, color: C.textSec }}>Store logo and your manager profile picture</p>
+          </div>
         </div>
-        <p style={{ margin: 0, fontSize: 12, color: C.textSec, lineHeight: '18px' }}>
-          Permanently delete your manager account. This action cannot be undone.
-          All your data will remain in the system for audit purposes, but you will lose access immediately.
-        </p>
-        <button
-          onClick={() => { setDelModalOpen(true); setDelError(''); }}
-          style={{
-            height: 40, borderRadius: 8, border: `1.5px solid rgba(183,28,28,0.35)`,
-            background: 'rgba(183,28,28,0.06)', color: C.error,
-            fontSize: 12, fontWeight: 700, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-            fontFamily: "'Plus Jakarta Sans', sans-serif",
-          }}
-        >
-          <DeleteOutlineOutlinedIcon sx={{ fontSize: 15 }} /> Delete My Account
-        </button>
+
+        {/* Two-column body */}
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 0 }}>
+
+          {/* ── Store Logo ── */}
+          <div style={{ padding: '20px', borderRight: isMobile ? 'none' : `1px solid ${C.border}`, borderBottom: isMobile ? `1px solid ${C.border}` : 'none', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div>
+              <p style={{ margin: '0 0 3px', fontSize: 11, fontWeight: 700, color: C.textSec, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Store Logo</p>
+              <p style={{ margin: 0, fontSize: 11, color: C.textDim, lineHeight: '16px' }}>Shown in the sidebar, mobile header, and printed receipts</p>
+            </div>
+            <ImageUploader
+              currentUrl={logoUrl}
+              onUpload={handleLogoUpload}
+              onDelete={handleLogoDelete}
+              label=""
+              shape="square"
+              size={80}
+              hint="JPEG, PNG, WebP · max 5 MB"
+            />
+          </div>
+
+          {/* ── Manager Photo ── */}
+          <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div>
+              <p style={{ margin: '0 0 3px', fontSize: 11, fontWeight: 700, color: C.textSec, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Manager Photo</p>
+              <p style={{ margin: 0, fontSize: 11, color: C.textDim, lineHeight: '16px' }}>Displayed in the portal navigation</p>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div style={{ flexShrink: 0 }}>
+                <ImageUploader
+                  currentUrl={avatarUrl}
+                  onUpload={handleAvatarUpload}
+                  onDelete={handleAvatarDelete}
+                  label=""
+                  shape="circle"
+                  size={72}
+                  hint={null}
+                />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ margin: '0 0 2px', fontSize: 15, fontWeight: 800, color: C.textPri, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{profile?.name ?? '—'}</p>
+                <p style={{ margin: '0 0 7px', fontSize: 11, color: C.textSec, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{profile?.email ?? '—'}</p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 9px', borderRadius: 20, background: roleBadgeColor.bg, color: roleBadgeColor.color, border: `1px solid ${roleBadgeColor.border}` }}>
+                    {profile?.role?.toUpperCase()}
+                  </span>
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 9px', borderRadius: 20, background: C.elevated, color: C.textSec }}>
+                    #{profile?.employeeCode}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
       </div>
 
+      {/* ══ ACCOUNT DETAILS ══════════════════════════════════ */}
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', borderBottom: `1px solid ${C.border}`, background: '#F9F6F4' }}>
+          <div style={{ width: 34, height: 34, borderRadius: 9, background: C.elevated, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <LocationOnOutlinedIcon sx={{ fontSize: 18, color: C.primary }} />
+          </div>
+          <div>
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri }}>Account Details</p>
+            <p style={{ margin: '1px 0 0', fontSize: 11, color: C.textSec }}>Your personal contact information</p>
+          </div>
+        </div>
+        <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: C.textSec, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Address</span>
+            <textarea
+              value={address}
+              onChange={e => setAddress(e.target.value)}
+              placeholder="Your address (optional)"
+              rows={3}
+              style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', fontSize: 13, color: C.textPri, background: '#fff', outline: 'none', lineHeight: '20px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+            />
+          </div>
+          {addrMsg && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, background: addrMsg.type === 'success' ? 'rgba(46,125,79,0.08)' : 'rgba(183,28,28,0.07)', border: `1px solid ${addrMsg.type === 'success' ? 'rgba(46,125,79,0.25)' : 'rgba(183,28,28,0.22)'}`, borderRadius: 7, padding: '8px 12px' }}>
+              {addrMsg.type === 'success' ? <CheckCircleOutlineIcon sx={{ fontSize: 14, color: C.success }} /> : <WarningAmberOutlinedIcon sx={{ fontSize: 14, color: C.error }} />}
+              <span style={{ fontSize: 12, fontWeight: 600, color: addrMsg.type === 'success' ? C.success : C.error }}>{addrMsg.text}</span>
+            </div>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button
+              onClick={handleSaveAddress}
+              disabled={addrSaving}
+              style={{ height: 38, padding: '0 20px', borderRadius: 8, background: C.primary, color: '#fff', border: 'none', fontSize: 12, fontWeight: 700, cursor: addrSaving ? 'wait' : 'pointer', opacity: addrSaving ? 0.6 : 1, display: 'flex', alignItems: 'center', gap: 6, fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+            >
+              <CheckCircleOutlineIcon sx={{ fontSize: 14 }} />
+              {addrSaving ? 'Saving…' : 'Save Address'}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ══ SECURITY ══════════════════════════════════ */}
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', borderBottom: `1px solid ${C.border}`, background: '#F9F6F4' }}>
+          <div style={{ width: 34, height: 34, borderRadius: 9, background: C.elevated, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <LockOutlinedIcon sx={{ fontSize: 18, color: C.primary }} />
+          </div>
+          <div>
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri }}>Security</p>
+            <p style={{ margin: '1px 0 0', fontSize: 11, color: C.textSec }}>Authentication and account access controls</p>
+          </div>
+        </div>
+
+        {/* ── Change PIN row ── */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '16px 20px', borderBottom: `1px solid ${C.border}` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 38, height: 38, borderRadius: 9, background: C.elevated, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <KeyOutlinedIcon sx={{ fontSize: 18, color: C.primary }} />
+            </div>
+            <div>
+              <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri }}>Change PIN</p>
+              <p style={{ margin: '2px 0 0', fontSize: 11, color: C.textSec }}>Update your 4-digit authentication PIN</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setPinModalOpen(true)}
+            style={{ padding: '8px 18px', borderRadius: 8, border: `1.5px solid ${C.border}`, background: C.surface, color: C.primary, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: "'Plus Jakarta Sans', sans-serif", flexShrink: 0 }}
+          >
+            Change
+          </button>
+        </div>
+
+        {/* ── Forgot PIN row ── */}
+        <div style={{ padding: '16px 20px', borderBottom: `1px solid ${C.border}` }}>
+          {fpStage === 'idle' ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ width: 38, height: 38, borderRadius: 9, background: C.elevated, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <MarkEmailReadOutlinedIcon sx={{ fontSize: 18, color: C.textDim }} />
+                </div>
+                <div>
+                  <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri }}>Forgot PIN</p>
+                  <p style={{ margin: '2px 0 0', fontSize: 11, color: C.textSec }}>Send a one-time code to your email to reset your PIN</p>
+                </div>
+              </div>
+              <button
+                onClick={handleSendOtp}
+                disabled={fpBusy}
+                style={{ padding: '8px 18px', borderRadius: 8, border: `1.5px solid ${C.border}`, background: C.surface, color: C.textSec, fontSize: 12, fontWeight: 700, cursor: fpBusy ? 'wait' : 'pointer', opacity: fpBusy ? 0.6 : 1, whiteSpace: 'nowrap', fontFamily: "'Plus Jakarta Sans', sans-serif", flexShrink: 0 }}
+              >
+                {fpBusy ? 'Sending…' : 'Send OTP'}
+              </button>
+            </div>
+          ) : fpStage === 'done' ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ width: 38, height: 38, borderRadius: 9, background: 'rgba(46,125,79,0.1)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <CheckCircleOutlineIcon sx={{ fontSize: 20, color: C.success }} />
+              </div>
+              <div>
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.success }}>PIN reset successfully.</p>
+                <button onClick={() => { setFpStage('idle'); setFpMsg(null); }} style={{ marginTop: 3, border: 'none', background: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600, color: C.info, textDecoration: 'underline', padding: 0, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* OTP form — inline within security section */
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <MarkEmailReadOutlinedIcon sx={{ fontSize: 15, color: C.info }} />
+                  <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: C.textPri }}>PIN Reset via Email OTP</p>
+                </div>
+                <button onClick={() => { setFpStage('idle'); setFpOtp(''); setFpPin(''); setFpMsg(null); }} style={{ display: 'flex', alignItems: 'center', gap: 4, border: 'none', background: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600, color: C.textDim, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                  <CloseOutlinedIcon sx={{ fontSize: 13 }} /> Cancel
+                </button>
+              </div>
+              {fpMsg && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, background: fpMsg.type === 'success' ? 'rgba(46,125,79,0.08)' : 'rgba(183,28,28,0.07)', border: `1px solid ${fpMsg.type === 'success' ? 'rgba(46,125,79,0.25)' : 'rgba(183,28,28,0.22)'}`, borderRadius: 7, padding: '8px 12px' }}>
+                  {fpMsg.type === 'success' ? <CheckCircleOutlineIcon sx={{ fontSize: 14, color: C.success }} /> : <WarningAmberOutlinedIcon sx={{ fontSize: 14, color: C.error }} />}
+                  <span style={{ fontSize: 12, fontWeight: 600, color: fpMsg.type === 'success' ? C.success : C.error }}>{fpMsg.text}</span>
+                </div>
+              )}
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: C.textSec, textTransform: 'uppercase', letterSpacing: '0.06em' }}>6-digit OTP from email</span>
+                  <input
+                    value={fpOtp}
+                    onChange={e => setFpOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="000000"
+                    inputMode="numeric"
+                    maxLength={6}
+                    style={{ height: 44, border: `1.5px solid ${fpOtp.length === 6 ? C.success : C.border}`, borderRadius: 8, padding: '0 14px', fontSize: 22, fontWeight: 700, letterSpacing: 10, color: C.textPri, outline: 'none', background: '#fff', textAlign: 'center', fontFamily: 'monospace', transition: 'border-color 0.15s' }}
+                  />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: C.textSec, textTransform: 'uppercase', letterSpacing: '0.06em' }}>New 4-digit PIN</span>
+                  <input
+                    value={fpPin}
+                    onChange={e => setFpPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                    placeholder="••••"
+                    inputMode="numeric"
+                    maxLength={4}
+                    type="password"
+                    style={{ height: 44, border: `1.5px solid ${fpPin.length === 4 ? C.success : C.border}`, borderRadius: 8, padding: '0 14px', fontSize: 18, fontWeight: 700, color: C.textPri, outline: 'none', background: '#fff', textAlign: 'center', fontFamily: 'monospace', transition: 'border-color 0.15s' }}
+                  />
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button
+                  onClick={handleResetPin}
+                  disabled={fpBusy || fpOtp.length !== 6 || fpPin.length !== 4}
+                  style={{ flex: 1, height: 42, borderRadius: 9, border: 'none', background: (fpBusy || fpOtp.length !== 6 || fpPin.length !== 4) ? C.elevated : C.primary, color: (fpBusy || fpOtp.length !== 6 || fpPin.length !== 4) ? C.textDim : '#fff', fontSize: 13, fontWeight: 700, cursor: (fpBusy || fpOtp.length !== 6 || fpPin.length !== 4) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: "'Plus Jakarta Sans', sans-serif", transition: 'background 0.2s, color 0.2s' }}
+                >
+                  <LockOutlinedIcon sx={{ fontSize: 15 }} />
+                  {fpBusy ? 'Resetting…' : 'Reset PIN'}
+                </button>
+                <button
+                  onClick={handleSendOtp}
+                  disabled={fpBusy}
+                  style={{ padding: '0 16px', height: 42, borderRadius: 9, border: `1px solid ${C.border}`, background: C.surface, fontSize: 12, fontWeight: 600, color: C.textSec, cursor: fpBusy ? 'wait' : 'pointer', opacity: fpBusy ? 0.6 : 1, fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+                >
+                  Resend OTP
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── Danger Zone — nested at bottom of Security card ── */}
+        <div style={{ padding: '16px 20px', background: 'rgba(183,28,28,0.025)', borderTop: `1px solid rgba(183,28,28,0.15)` }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ width: 38, height: 38, borderRadius: 9, background: 'rgba(183,28,28,0.09)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <DeleteOutlineOutlinedIcon sx={{ fontSize: 18, color: C.error }} />
+              </div>
+              <div>
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.error }}>Delete Account</p>
+                <p style={{ margin: '2px 0 0', fontSize: 11, color: C.textSec }}>Permanently remove your account. You will lose access immediately.</p>
+              </div>
+            </div>
+            <button
+              onClick={() => { setDelModalOpen(true); setDelError(''); }}
+              style={{ padding: '8px 18px', borderRadius: 8, border: `1.5px solid rgba(183,28,28,0.30)`, background: 'rgba(183,28,28,0.07)', color: C.error, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: "'Plus Jakarta Sans', sans-serif", flexShrink: 0 }}
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
@@ -2106,7 +2177,9 @@ function ProfileManagementTab({ token }) {
 ══════════════════════════════════ */
 export default function ManagerSettingsPage() {
   const { token, user } = useAuthStore();
-  const [activeTab, setActiveTab] = useState('biometric');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') ?? 'biometric';
+  const setActiveTab = (key) => setSearchParams({ tab: key }, { replace: true });
 
   return (
     <div style={{

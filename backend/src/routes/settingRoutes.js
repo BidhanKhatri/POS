@@ -1,6 +1,8 @@
 import express from 'express';
 import { protect, managerOrAdmin } from '../middleware/authMiddleware.js';
 import Setting from '../models/Setting.js';
+import { imageUpload } from '../middleware/uploadMiddleware.js';
+import { uploadBuffer, deleteFile } from '../services/imagekitService.js';
 
 const router = express.Router();
 
@@ -91,6 +93,53 @@ router.patch('/stock-tracking', protect, managerOrAdmin, async (req, res, next) 
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
     res.json({ stockTrackingEnabled: doc.stockTrackingEnabled });
+  } catch (e) { next(e); }
+});
+
+// GET /api/settings/logo
+router.get('/logo', protect, async (req, res, next) => {
+  try {
+    const doc = await Setting.findById('global');
+    res.json({ success: true, data: doc?.storeLogo ?? { url: null, fileId: null, fileName: null } });
+  } catch (e) { next(e); }
+});
+
+// PATCH /api/settings/logo — upload / replace store logo
+router.patch('/logo', protect, managerOrAdmin, imageUpload('image'), async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded.' });
+
+    const existing = await Setting.findById('global');
+    if (existing?.storeLogo?.fileId) await deleteFile(existing.storeLogo.fileId);
+
+    const logoData = await uploadBuffer({
+      buffer:   req.file.buffer,
+      fileName: 'store-logo',
+      folder:   '/pos/logos',
+      tags:     ['logo'],
+    });
+
+    const doc = await Setting.findByIdAndUpdate(
+      'global',
+      { $set: { storeLogo: logoData } },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    res.json({ success: true, data: doc.storeLogo });
+  } catch (e) { next(e); }
+});
+
+// DELETE /api/settings/logo
+router.delete('/logo', protect, managerOrAdmin, async (req, res, next) => {
+  try {
+    const doc = await Setting.findById('global');
+    if (doc?.storeLogo?.fileId) await deleteFile(doc.storeLogo.fileId);
+
+    await Setting.findByIdAndUpdate(
+      'global',
+      { $set: { storeLogo: { url: null, fileId: null, fileName: null } } },
+      { upsert: true }
+    );
+    res.json({ success: true, message: 'Store logo removed.' });
   } catch (e) { next(e); }
 });
 

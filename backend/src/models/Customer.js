@@ -6,6 +6,11 @@ const customerSchema = new mongoose.Schema({
   email:    { type: String, trim: true, lowercase: true },
   notes:    { type: String, trim: true, maxlength: 500 },
   isActive: { type: Boolean, default: true },
+  image: {
+    url:      { type: String, default: null },
+    fileId:   { type: String, default: null },
+    fileName: { type: String, default: null },
+  },
 }, { timestamps: true });
 
 customerSchema.index({ phone: 1 }, { sparse: true });

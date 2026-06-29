@@ -1,16 +1,42 @@
 import React, { useEffect, useRef, useState } from 'react';
 import posLogo from '../assets/POS-logo.png';
 import { useLoading } from '../context/LoadingContext';
+import useAuthStore from '../store/useAuthStore';
 
-const MIN_MS     = 800;   // minimum visible time so the logo doesn't flash
-const FADE_MS    = 400;   // fade-out duration
-const TIMEOUT_MS = 5000;  // force-dismiss if data never loads (e.g. no internet)
+const MIN_MS     = 800;
+const FADE_MS    = 400;
+const TIMEOUT_MS = 5000;
+const CACHE_KEY  = 'pos-store-logo-url';
 
 export default function SplashScreen() {
   const { loading, stopLoading } = useLoading();
   const [fading,  setFading]  = useState(false);
   const [visible, setVisible] = useState(true);
   const mountedAt = useRef(Date.now());
+
+  // Seed from cache immediately (no flash on repeat loads), then refresh from API
+  const [logoSrc, setLogoSrc] = useState(() => localStorage.getItem(CACHE_KEY) || posLogo);
+
+  useEffect(() => {
+    const token = useAuthStore.getState().token;
+    if (!token) return;
+    let cancelled = false;
+    fetch('/api/settings/logo', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (cancelled) return;
+        const url = data?.data?.url ?? null;
+        if (url) {
+          localStorage.setItem(CACHE_KEY, url);
+          setLogoSrc(url);
+        } else {
+          localStorage.removeItem(CACHE_KEY);
+          setLogoSrc(posLogo);
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   // Hard timeout — dismiss after 5 s regardless of loading state
   useEffect(() => {
@@ -20,12 +46,10 @@ export default function SplashScreen() {
 
   useEffect(() => {
     if (loading) return;
-
     const elapsed = Date.now() - mountedAt.current;
     const delay   = Math.max(0, MIN_MS - elapsed);
-
-    const t1 = setTimeout(() => setFading(true),   delay);
-    const t2 = setTimeout(() => setVisible(false),  delay + FADE_MS);
+    const t1 = setTimeout(() => setFading(true),  delay);
+    const t2 = setTimeout(() => setVisible(false), delay + FADE_MS);
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [loading]);
 
@@ -60,12 +84,14 @@ export default function SplashScreen() {
         pointerEvents: fading ? 'none' : 'all',
       }}>
         <img
-          src={posLogo}
+          src={logoSrc}
           alt="POS"
+          onError={() => setLogoSrc(posLogo)}
           style={{
             width: 'min(180px, 42vw)',
             height: 'auto',
             borderRadius: 20,
+            objectFit: 'contain',
             animation: 'pos-fade-in 0.45s ease both, pos-pulse 2s ease-in-out 0.45s infinite',
           }}
         />
