@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useMediaQuery } from '@mui/material';
+import { useQuery } from '@tanstack/react-query';
 import PointOfSaleIcon               from '@mui/icons-material/PointOfSale';
 import AccessTimeOutlinedIcon        from '@mui/icons-material/AccessTimeOutlined';
 import GridViewOutlinedIcon          from '@mui/icons-material/GridViewOutlined';
@@ -80,16 +81,32 @@ const SIDEBAR_SECTIONS = [
 
 const SIDEBAR_W = 232;
 
+const API = import.meta.env.VITE_API_BASE_URL ?? '';
+const LOGO_CACHE_KEY = 'pos-store-logo-url';
+
 export default function EmployeeLayout() {
   const navigate    = useNavigate();
   const { pathname } = useLocation();
-  const { user, logout } = useAuthStore();
+  const { user, logout, token } = useAuthStore();
   const [menuOpen, setMenuOpen] = useState(false);
   const [logoutModalOpen, setLogoutModalOpen] = useState(false);
   const [headerHeight, setHeaderHeight] = useState(57);
   const headerRef = useRef(null);
   const isDesktop = useMediaQuery('(min-width:1024px)');
   const { stopLoading } = useLoading();
+
+  const { data: logoData } = useQuery({
+    queryKey: ['settings-logo'],
+    queryFn: async () => {
+      const res = await fetch(`${API}/api/settings/logo`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return res.ok ? res.json() : null;
+    },
+    staleTime: 5 * 60 * 1000,
+    enabled: !!token,
+  });
+  const storeLogo = logoData?.data?.url ?? localStorage.getItem(LOGO_CACHE_KEY) ?? null;
 
   // Safety net: dismiss the splash at most 1.2s after any navigation
   useEffect(() => {
@@ -161,9 +178,12 @@ export default function EmployeeLayout() {
                 width: 32, height: 32, borderRadius: 9,
                 background: '#3E2723',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                flexShrink: 0,
+                flexShrink: 0, overflow: 'hidden',
               }}>
-                <span style={{ fontSize: 14, fontWeight: 800, color: '#D4A373', letterSpacing: '-0.5px' }}>E</span>
+                {storeLogo
+                  ? <img src={storeLogo} alt="Store" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : <span style={{ fontSize: 14, fontWeight: 800, color: '#D4A373', letterSpacing: '-0.5px' }}>E</span>
+                }
               </div>
               <div>
                 <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#2B1D1A', lineHeight: '17px' }}>Employee</p>
@@ -396,27 +416,21 @@ export default function EmployeeLayout() {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {user?.imageUrl ? (
-            <img
-              src={user.imageUrl}
-              alt={user.name}
-              style={{
-                width: 32, height: 32, borderRadius: 8, objectFit: 'cover',
-                flexShrink: 0, border: '1.5px solid rgba(255,255,255,0.20)',
-              }}
-            />
-          ) : (
-            <div style={{
-              width: 32, height: 32, borderRadius: 8,
-              background: 'rgba(255,255,255,0.15)',
-              border: '1.5px solid rgba(255,255,255,0.20)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              flexShrink: 0,
-              fontSize: 14, fontWeight: 700, color: '#fff',
-            }}>
-              {(user?.name || 'E').charAt(0).toUpperCase()}
-            </div>
-          )}
+          {/* Store logo replaces the employee initial in the header */}
+          <div style={{
+            width: 34, height: 34, borderRadius: 9, overflow: 'hidden',
+            background: storeLogo ? 'transparent' : 'rgba(255,255,255,0.15)',
+            border: '1.5px solid rgba(255,255,255,0.20)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            flexShrink: 0,
+          }}>
+            {storeLogo
+              ? <img src={storeLogo} alt="Store" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              : <span style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>
+                  {(user?.name || 'E').charAt(0).toUpperCase()}
+                </span>
+            }
+          </div>
           <div>
             <p style={{ fontSize: 13, fontWeight: 700, color: '#fff', lineHeight: '17px', margin: 0 }}>
               {user?.name || 'Employee'}

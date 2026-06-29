@@ -138,9 +138,20 @@ export default function TerminalPage() {
   // Shift ended and not clocked in — terminal is also inaccessible
   const shiftEnded = todayScheduleState === 'PAST' && !gateShift;
 
+  // Stale shift = clocked in on a previous calendar day (missed clock-out)
+  // Sales must never be attributed to a prior day's shift — block access
+  const isStaleShift = (() => {
+    if (!gateShift?.clockInTime) return false;
+    const d = new Date(gateShift.clockInTime);
+    const t = new Date();
+    return d.getFullYear() !== t.getFullYear() ||
+           d.getMonth()    !== t.getMonth()    ||
+           d.getDate()     !== t.getDate();
+  })();
+
   /* ── Lock background scroll when gate overlay is active ── */
   const gateActive = user?.role === 'Employee' &&
-    (gateLoading || schedLoading || noScheduleToday || shiftEnded || !gateShift);
+    (gateLoading || schedLoading || noScheduleToday || shiftEnded || isStaleShift || !gateShift);
   useEffect(() => {
     if (gateActive) {
       document.body.style.overflow = 'hidden';
@@ -753,6 +764,51 @@ export default function TerminalPage() {
                   Check Again
                 </button>
               </div>
+            </div>
+          ) : isStaleShift ? (
+            /* ── Missed clock-out gate ── */
+            <div>
+              <div style={{
+                width: 60, height: 60, borderRadius: 16,
+                background: 'rgba(178,106,0,0.12)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                margin: '0 auto 18px',
+              }}>
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="9" stroke={C.warning} strokeWidth="2"/>
+                  <path d="M12 7v5" stroke={C.warning} strokeWidth="2.5" strokeLinecap="round"/>
+                  <circle cx="12" cy="16" r="1.2" fill={C.warning}/>
+                </svg>
+              </div>
+
+              <h2 style={{ margin: '0 0 8px', fontSize: 21, fontWeight: 800, color: C.textPri, letterSpacing: '-0.3px' }}>
+                Missed Clock-Out
+              </h2>
+              <p style={{ margin: '0 0 6px', fontSize: 14, fontWeight: 500, color: C.textSec, lineHeight: 1.55 }}>
+                You have an open shift from a previous day that needs to be recovered before you can process sales.
+              </p>
+              <p style={{ margin: '0 0 28px', fontSize: 12, fontWeight: 600, color: C.warning, lineHeight: 1.5 }}>
+                Today's sales cannot be recorded against a previous day's shift.
+              </p>
+
+              <button
+                onClick={() => navigate('/employee/shift')}
+                style={{
+                  width: '100%', minHeight: 48,
+                  padding: '12px 24px', borderRadius: 8,
+                  border: `1px solid ${C.warning}`,
+                  background: C.warning,
+                  color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                  letterSpacing: '0.01em', fontFamily: FONT,
+                  boxShadow: 'none',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
+                  <path d="M12 2a10 10 0 100 20A10 10 0 0012 2zm0 5v5l4 2" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                Recover Clock-Out on Schedule
+              </button>
             </div>
           ) : shiftEnded ? (
             <div>

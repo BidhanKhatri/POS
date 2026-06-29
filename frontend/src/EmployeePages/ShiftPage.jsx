@@ -163,6 +163,13 @@ export default function ShiftPage() {
   const [showReasonBox, setShowReasonBox] = useState(false);
   const [clockOutSuccess,setClockOutSuccess] = useState(false);
 
+  // ── Stale shift recovery ──────────────────────────────────────────────────
+  const [recoverTime,    setRecoverTime]    = useState('');   // HH:MM value from time input
+  const [recoverReason,  setRecoverReason]  = useState('');
+  const [recoverBusy,    setRecoverBusy]    = useState(false);
+  const [recoverError,   setRecoverError]   = useState('');
+  const [recoverSuccess, setRecoverSuccess] = useState(false);
+
   // ── Countdown tick ────────────────────────────────────────────────────────
   const [tick, setTick] = useState(0); // increments every 30s to re-evaluate state
   const tickRef = useRef(null);
@@ -243,6 +250,65 @@ export default function ShiftPage() {
       : `${MONTHS[s.getMonth()]} – ${MONTHS[e.getMonth()]} ${e.getFullYear()}`;
   })();
 
+  // ── Stale shift detection ─────────────────────────────────────────────────
+  // A shift is stale if it was opened on a different calendar day than today.
+  // Midnight-spanning shifts (e.g. 10 PM – 2 AM) are handled correctly because
+  // if the employee clocked in yesterday at 10 PM and it is now 1 AM, the
+  // elapsed time is only 3 h — well under any "stale" threshold. The only
+  // case we catch is when they genuinely forgot to clock out.
+  const isStaleShift = (() => {
+    if (!activeShift?.clockInTime) return false;
+    const clockInDate = new Date(activeShift.clockInTime);
+    const today = new Date();
+    return (
+      clockInDate.getFullYear() !== today.getFullYear() ||
+      clockInDate.getMonth()    !== today.getMonth()    ||
+      clockInDate.getDate()     !== today.getDate()
+    );
+  })();
+
+  // Build ISO datetime from the stale clock-in date + chosen HH:MM.
+  // Handles overnight: if chosen time is earlier than clock-in time on the
+  // same date, it means the next calendar day (e.g. clocked in 22:00, chose 01:00).
+  const buildRecoveryISO = (clockInTime, hhMM) => {
+    if (!clockInTime || !hhMM) return null;
+    const [h, m] = hhMM.split(':').map(Number);
+    const dt = new Date(clockInTime);
+    dt.setHours(h, m, 0, 0);
+    if (dt <= new Date(clockInTime)) dt.setDate(dt.getDate() + 1);
+    return dt;
+  };
+
+  // Live derived value — used for front-end validation feedback
+  const recoveryDT  = buildRecoveryISO(activeShift?.clockInTime, recoverTime);
+  const recoveryInFuture = recoveryDT ? recoveryDT > new Date() : false;
+
+  const handleRecoverClockOut = async () => {
+    if (!recoverTime) { setRecoverError('Please select a clock-out time.'); return; }
+    if (recoveryInFuture) { setRecoverError('Clock-out time cannot be in the future.'); return; }
+    setRecoverBusy(true); setRecoverError('');
+    try {
+      const r = await fetch(`${API}/api/shifts/recover-clockout`, {
+        method: 'POST', headers,
+        body: JSON.stringify({
+          clockOutTime:   recoveryDT.toISOString(),
+          clockOutReason: recoverReason.trim() || null,
+        }),
+      });
+      const d = await r.json();
+      if (d.success) {
+        setActiveShift(null);
+        setRecoverSuccess(true);
+        setRecoverTime('');
+        setRecoverReason('');
+        loadSchedule();
+      } else {
+        setRecoverError(d.message || 'Recovery failed.');
+      }
+    } catch { setRecoverError('Network error. Please try again.'); }
+    finally { setRecoverBusy(false); }
+  };
+
   // ── Clock actions ─────────────────────────────────────────────────────────
   const handleClockIn = async () => {
     setClockInBusy(true);
@@ -298,6 +364,23 @@ export default function ShiftPage() {
 
   // ── Shift status panel ────────────────────────────────────────────────────
   const isLoading = schedLoad || shiftLoad;
+
+  // Recovery success banner — rendered ABOVE the main panel so the clock-in
+  // option still shows beneath it after the stale shift is cleared.
+  const recoverSuccessBanner = recoverSuccess ? (
+    <StatusBanner
+      icon={CheckCircleOutlineOutlinedIcon}
+      color={C.success}
+      bg="rgba(46,125,79,0.06)"
+      title="Previous shift recovered"
+      subtitle="Your missed clock-out has been recorded in your shift history."
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', background: 'rgba(46,125,79,0.08)', borderRadius: 8 }}>
+        <LoginOutlinedIcon sx={{ fontSize: 14, color: C.success }} />
+        <span style={{ fontSize: 12, fontWeight: 600, color: C.success }}>You can now clock in for today's shift below.</span>
+      </div>
+    </StatusBanner>
+  ) : null;
 
   const shiftStatusPanel = (() => {
     if (isLoading) {
@@ -372,63 +455,201 @@ export default function ShiftPage() {
       );
     }
 
+    // ── STALE SHIFT — clocked in on a previous calendar day ─────────────────
+    if (activeShift && isStaleShift) {
+      const clockInDay  = new Date(activeShift.clockInTime).toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
+      const clockInFmt  = fmtClockTime(activeShift.clockInTime);
+      const hasError    = recoverError || recoveryInFuture;
+      const errorMsg    = recoveryInFuture ? 'This time is in the future. Choose a past time.' : recoverError;
+
+      return (
+        <div style={{
+          background: C.surface,
+          border: `1.5px solid ${C.warning}60`,
+          borderRadius: 12, overflow: 'hidden', marginBottom: 16,
+        }}>
+          {/* ── Warning header ── */}
+          <div style={{ background: 'rgba(178,106,0,0.09)', padding: '14px 18px', borderBottom: `1px solid ${C.warning}30` }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(178,106,0,0.16)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <LogoutOutlinedIcon sx={{ fontSize: 18, color: C.warning }} />
+              </div>
+              <div>
+                <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: C.warning }}>Missed Clock-Out</p>
+                <p style={{ margin: '2px 0 0', fontSize: 12, fontWeight: 500, color: C.textSec }}>
+                  You didn't clock out on <strong>{clockInDay}</strong> (clocked in at {clockInFmt})
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Recovery form ── */}
+          <div style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <p style={{ margin: 0, fontSize: 12, color: C.textSec, lineHeight: '18px' }}>
+              Select the time you actually finished working on <strong>{clockInDay}</strong>. This is recorded permanently in your shift history.
+            </p>
+
+            {/* Time picker */}
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 700, color: hasError ? C.error : C.textSec, letterSpacing: '0.04em', display: 'block', marginBottom: 5 }}>
+                What time did you finish? <span style={{ color: C.error }}>*</span>
+              </label>
+              <input
+                type="time"
+                value={recoverTime}
+                onChange={(e) => { setRecoverTime(e.target.value); setRecoverError(''); }}
+                style={{
+                  width: '100%', boxSizing: 'border-box',
+                  padding: '10px 12px', borderRadius: 8,
+                  border: `1.5px solid ${hasError ? C.error : recoverTime ? C.success : C.divider}`,
+                  fontSize: 16, fontWeight: 700, fontFamily: FONT, color: C.textPri,
+                  background: '#fff', outline: 'none',
+                  transition: 'border-color 0.15s',
+                }}
+              />
+              {recoverTime && !recoveryInFuture && (
+                <p style={{ margin: '4px 0 0', fontSize: 11, color: C.success, fontWeight: 600 }}>
+                  Will record clock-out: {new Date(recoveryDT).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                </p>
+              )}
+            </div>
+
+            {/* Notes */}
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 700, color: C.textSec, letterSpacing: '0.04em', display: 'block', marginBottom: 5 }}>
+                Notes <span style={{ fontWeight: 400, color: C.textMute }}>(optional)</span>
+              </label>
+              <input
+                type="text"
+                value={recoverReason}
+                onChange={(e) => setRecoverReason(e.target.value)}
+                placeholder="e.g. Left at scheduled time, forgot to clock out"
+                style={{
+                  width: '100%', boxSizing: 'border-box',
+                  padding: '9px 12px', borderRadius: 8,
+                  border: `1px solid ${C.divider}`,
+                  fontSize: 13, fontFamily: FONT, color: C.textPri,
+                  background: '#fff', outline: 'none',
+                }}
+              />
+            </div>
+
+            {hasError && (
+              <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: C.error, background: 'rgba(183,28,28,0.07)', padding: '7px 10px', borderRadius: 8 }}>
+                {errorMsg}
+              </p>
+            )}
+
+            <ActionButton
+              onClick={handleRecoverClockOut}
+              loading={recoverBusy}
+              disabled={!recoverTime || recoveryInFuture}
+              color={C.warning}
+              icon={LogoutOutlinedIcon}
+            >
+              Recover Clock-Out
+            </ActionButton>
+
+            <p style={{ margin: 0, fontSize: 10, color: C.textMute, textAlign: 'center', lineHeight: '15px' }}>
+              This is permanent and visible to your manager. Contact them if you need a correction.
+            </p>
+          </div>
+        </div>
+      );
+    }
+
     // ── CLOCKED IN (IN_WINDOW or PAST but still open) ───────────────────────
     if (activeShift) {
       const isOverdue = scheduleState === 'PAST';
       const s = todayShifts[0];
+      const accentColor = isOverdue ? C.warning : C.success;
+      const clockOutColor = isOverdue ? C.warning : C.error;
+
       return (
-        <div style={{ background: C.surface, border: `1px solid ${C.divider}`, borderRadius: 12, overflow: 'hidden', marginBottom: 16 }}>
-          {/* Status header */}
-          <div style={{ background: isOverdue ? 'rgba(178,106,0,0.07)' : 'rgba(46,125,79,0.07)', padding: '14px 18px', borderBottom: `1px solid ${C.divider}` }}>
+        <div style={{
+          background: C.surface,
+          border: `1.5px solid ${accentColor}50`,
+          borderRadius: 12, overflow: 'hidden', marginBottom: 16,
+        }}>
+
+          {/* ── Shift Active header ── */}
+          <div style={{
+            background: isOverdue ? 'rgba(178,106,0,0.08)' : 'rgba(46,125,79,0.08)',
+            padding: '14px 18px',
+            borderBottom: `1px solid ${accentColor}30`,
+          }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 36, height: 36, borderRadius: 10, background: isOverdue ? 'rgba(178,106,0,0.14)' : 'rgba(46,125,79,0.14)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <AccessTimeOutlinedIcon sx={{ fontSize: 18, color: isOverdue ? C.warning : C.success }} />
+                <div style={{
+                  width: 36, height: 36, borderRadius: 10,
+                  background: `${accentColor}20`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                }}>
+                  <AccessTimeOutlinedIcon sx={{ fontSize: 18, color: accentColor }} />
                 </div>
                 <div>
-                  <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: C.textPri }}>
+                  <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: accentColor }}>
                     {isOverdue ? 'Shift window ended — please clock out' : 'Shift Active'}
                   </p>
-                  <p style={{ margin: '1px 0 0', fontSize: 12, fontWeight: 500, color: C.textSec }}>
+                  <p style={{ margin: '2px 0 0', fontSize: 12, fontWeight: 500, color: C.textSec }}>
                     Clocked in at {fmtClockTime(activeShift.clockInTime)} · {elapsedLabel} elapsed
                   </p>
                 </div>
               </div>
-              {/* Live pulse dot */}
+              {/* Live pulse dot — success green only when active */}
               {!isOverdue && (
-                <span style={{ width: 10, height: 10, borderRadius: '50%', background: C.success, flexShrink: 0, animation: 'pulseDot 2s ease infinite' }} />
+                <span style={{
+                  width: 10, height: 10, borderRadius: '50%',
+                  background: C.success, flexShrink: 0,
+                  animation: 'pulseDot 2s ease infinite',
+                }} />
               )}
             </div>
           </div>
 
-          {/* Schedule reference */}
+          {/* ── Schedule reference row ── */}
           {s && (
-            <div style={{ padding: '10px 18px', borderBottom: `1px solid ${C.elevated}`, display: 'flex', gap: 16 }}>
-              <div>
-                <p style={{ margin: 0, fontSize: 9, fontWeight: 700, color: C.textMute, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Scheduled</p>
-                <p style={{ margin: '2px 0 0', fontSize: 13, fontWeight: 700, color: C.textPri }}>{fmt12(s.startTime)} – {fmt12(s.endTime)}</p>
-              </div>
-              <div>
-                <p style={{ margin: 0, fontSize: 9, fontWeight: 700, color: C.textMute, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Hours</p>
-                <p style={{ margin: '2px 0 0', fontSize: 13, fontWeight: 700, color: C.textPri }}>{s.scheduledHours}h</p>
-              </div>
-              <div>
-                <p style={{ margin: 0, fontSize: 9, fontWeight: 700, color: C.textMute, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Source</p>
-                <p style={{ margin: '2px 0 0', fontSize: 13, fontWeight: 700, color: C.textPri }}>{activeShift.scheduleSource || 'POS'}</p>
-              </div>
+            <div style={{
+              padding: '10px 18px',
+              borderBottom: `1px solid ${C.elevated}`,
+              display: 'flex', gap: 20,
+            }}>
+              {[
+                { label: 'Scheduled', value: `${fmt12(s.startTime)} – ${fmt12(s.endTime)}` },
+                { label: 'Hours',     value: `${s.scheduledHours}h` },
+                { label: 'Source',    value: activeShift.scheduleSource || 'POS' },
+              ].map(({ label, value }) => (
+                <div key={label}>
+                  <p style={{ margin: 0, fontSize: 9, fontWeight: 700, color: C.textMute, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</p>
+                  <p style={{ margin: '3px 0 0', fontSize: 13, fontWeight: 700, color: C.textPri }}>{value}</p>
+                </div>
+              ))}
             </div>
           )}
 
-          {/* Clock-out area */}
-          <div style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {/* ── Clock-out section — Error (#B71C1C) / Warning (#B26A00) tint ── */}
+          <div style={{
+            padding: '14px 18px',
+            background: `${clockOutColor}06`,
+            borderTop: `1px solid ${clockOutColor}20`,
+            display: 'flex', flexDirection: 'column', gap: 10,
+          }}>
+            {/* Section label */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <LogoutOutlinedIcon sx={{ fontSize: 13, color: clockOutColor }} />
+              <p style={{ margin: 0, fontSize: 10, fontWeight: 800, color: clockOutColor, textTransform: 'uppercase', letterSpacing: '0.09em' }}>
+                {isOverdue ? 'Overdue — Clock Out Now' : 'Clock Out'}
+              </p>
+            </div>
+
             {clockError && (
-              <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: C.error, background: 'rgba(183,28,28,0.07)', padding: '7px 10px', borderRadius: 8 }}>{clockError}</p>
+              <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: C.error, background: 'rgba(183,28,28,0.08)', padding: '7px 10px', borderRadius: 8 }}>{clockError}</p>
             )}
 
             {/* Early clock-out reason box */}
             {showReasonBox && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: C.textSec, letterSpacing: '0.04em' }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: C.error, letterSpacing: '0.04em' }}>
                   Reason for early clock-out <span style={{ color: C.error }}>*</span>
                 </label>
                 <textarea
@@ -438,7 +659,9 @@ export default function ShiftPage() {
                   placeholder="e.g. Manager approved early leave"
                   style={{
                     width: '100%', boxSizing: 'border-box', resize: 'vertical',
-                    padding: '9px 12px', borderRadius: 8, border: `1px solid ${C.divider}`,
+                    padding: '9px 12px', borderRadius: 8,
+                    border: `1px solid ${C.error}50`,
+                    background: 'rgba(183,28,28,0.03)',
                     fontSize: 13, fontFamily: FONT, color: C.textPri,
                     outline: 'none',
                   }}
@@ -452,7 +675,7 @@ export default function ShiftPage() {
               </div>
             )}
 
-            <ActionButton onClick={handleClockOut} loading={clockOutBusy} color={isOverdue ? C.warning : C.error} icon={LogoutOutlinedIcon}>
+            <ActionButton onClick={handleClockOut} loading={clockOutBusy} color={clockOutColor} icon={LogoutOutlinedIcon}>
               {showReasonBox ? 'Confirm Clock Out' : 'Clock Out'}
             </ActionButton>
 
@@ -583,7 +806,7 @@ export default function ShiftPage() {
   // ── Desktop right panel ───────────────────────────────────────────────────
   const desktopSidePanel = (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {/* Shift status (primary action) */}
+      {recoverSuccessBanner}
       {shiftStatusPanel}
       {goToTerminal}
 
@@ -643,6 +866,7 @@ export default function ShiftPage() {
         </div>
       ) : (
         <>
+          {recoverSuccessBanner}
           {shiftStatusPanel}
           {goToTerminal}
           {scheduleCard}

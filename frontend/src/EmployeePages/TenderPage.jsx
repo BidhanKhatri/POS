@@ -297,12 +297,17 @@ export default function TenderPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // intentionally runs once on mount
 
+  const [contactTouched, setContactTouched] = useState(false);
+
   const isRefund   = transactionType === 'RF';
   const isCardTender = selectedMethod === 'CREDIT' || selectedMethod === 'DEBIT';
 
-  const buyerNameValid = buyerName.trim().length > 0;
-  const cardLast4Valid = !isCardTender || /^\d{4}$/.test(cardLast4.trim());
-  const canSubmit = !!selectedMethod && buyerNameValid && cardLast4Valid && !processing;
+  const buyerNameValid    = buyerName.trim().length > 0;
+  const buyerContactValid = buyerPhone.trim().length > 0 || buyerEmail.trim().length > 0;
+  const cardLast4Valid    = !isCardTender || /^\d{4}$/.test(cardLast4.trim());
+  const canSubmit = !!selectedMethod && buyerNameValid && buyerContactValid && cardLast4Valid && !processing;
+
+  const showContactError = contactTouched && !buyerContactValid;
 
   const audioCtx = useRef(null);
 
@@ -332,6 +337,7 @@ export default function TenderPage() {
   };
 
   const handleProcess = async () => {
+    if (!buyerContactValid) { setContactTouched(true); return; }
     if (!canSubmit) return;
     beep(1318, 90, 'sine', 0.13);             // high confirm chime
     setTimeout(() => beep(1567, 70, 'sine', 0.09), 80); // two-tone ding
@@ -703,14 +709,53 @@ export default function TenderPage() {
         <label style={fieldLabel}>Name *</label>
         <input type="text" value={buyerName} onChange={(e) => setBuyerName(e.target.value)} placeholder="Buyer's full name" style={fieldInput} />
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: isCardTender ? 12 : 0 }}>
-        <div>
-          <label style={fieldLabel}>Phone</label>
-          <input type="tel" value={buyerPhone} onChange={(e) => setBuyerPhone(e.target.value)} placeholder="Optional" style={fieldInput} />
+      {/* Phone / Email — at least one required */}
+      <div style={{ marginBottom: isCardTender ? 12 : 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#A09490', letterSpacing: '0.07em', textTransform: 'uppercase' }}>
+            Contact <span style={{ color: showContactError ? '#B71C1C' : '#B26A00' }}>*</span>
+          </span>
+          <span style={{ fontSize: 10, fontWeight: 600, color: showContactError ? '#B71C1C' : '#B26A00', letterSpacing: '0.03em' }}>
+            {showContactError ? 'Phone or Email is required' : 'Provide phone or email (or both)'}
+          </span>
         </div>
-        <div>
-          <label style={fieldLabel}>Email</label>
-          <input type="email" value={buyerEmail} onChange={(e) => setBuyerEmail(e.target.value)} placeholder="Optional" style={fieldInput} />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div>
+            <label style={fieldLabel}>Phone</label>
+            <input
+              type="tel"
+              value={buyerPhone}
+              onChange={(e) => { setBuyerPhone(e.target.value); setContactTouched(true); }}
+              onBlur={() => setContactTouched(true)}
+              placeholder="e.g. 555-0100"
+              style={{
+                ...fieldInput,
+                border: showContactError && !buyerPhone.trim()
+                  ? '1px solid #B71C1C'
+                  : buyerPhone.trim()
+                    ? '1px solid #2E7D4F'
+                    : '1px solid #DDD2CC',
+              }}
+            />
+          </div>
+          <div>
+            <label style={fieldLabel}>Email</label>
+            <input
+              type="email"
+              value={buyerEmail}
+              onChange={(e) => { setBuyerEmail(e.target.value); setContactTouched(true); }}
+              onBlur={() => setContactTouched(true)}
+              placeholder="e.g. buyer@email.com"
+              style={{
+                ...fieldInput,
+                border: showContactError && !buyerEmail.trim()
+                  ? '1px solid #B71C1C'
+                  : buyerEmail.trim()
+                    ? '1px solid #2E7D4F'
+                    : '1px solid #DDD2CC',
+              }}
+            />
+          </div>
         </div>
       </div>
       {isCardTender && (

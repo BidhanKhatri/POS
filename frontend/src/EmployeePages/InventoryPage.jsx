@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useMediaQuery } from '@mui/material';
+import Dialog from '@mui/material/Dialog';
+import DialogContent from '@mui/material/DialogContent';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import SearchOutlinedIcon from '@mui/icons-material/SearchOutlined';
 import CloseOutlinedIcon from '@mui/icons-material/CloseOutlined';
@@ -8,6 +10,7 @@ import ErrorOutlineOutlinedIcon from '@mui/icons-material/ErrorOutlineOutlined';
 import RefreshOutlinedIcon from '@mui/icons-material/RefreshOutlined';
 import QrCodeOutlinedIcon from '@mui/icons-material/QrCodeOutlined';
 import BlockOutlinedIcon from '@mui/icons-material/BlockOutlined';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import useAuthStore from '../store/useAuthStore';
 import CornerCard from '../components/CornerCard/CornerCard';
 import { useSocketEvent } from '../context/SocketContext';
@@ -31,6 +34,143 @@ function StockPill({ qty }) {
   return <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 10, background: 'rgba(46,125,79,0.10)', color: C.success }}>OK</span>;
 }
 
+function getImageUrl(product) {
+  return product?.images?.[0]?.url ?? product?.image?.url ?? null;
+}
+
+function ProductThumb({ src, size = 36 }) {
+  const [err, setErr] = useState(false);
+  if (src && !err) {
+    return (
+      <img
+        src={src} alt=""
+        onError={() => setErr(true)}
+        style={{ width: size, height: size, borderRadius: 8, objectFit: 'cover', border: `1px solid ${C.border}`, flexShrink: 0, display: 'block' }}
+      />
+    );
+  }
+  return (
+    <div style={{ width: size, height: size, borderRadius: 8, background: C.elevated, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${C.border}` }}>
+      <Inventory2OutlinedIcon sx={{ fontSize: size * 0.45, color: C.primary }} />
+    </div>
+  );
+}
+
+function InfoButton({ onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      title="Product info"
+      style={{
+        width: 28, height: 28, borderRadius: 8, flexShrink: 0,
+        border: `1px solid ${C.border}`, background: C.surface,
+        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: C.textSec, padding: 0,
+      }}
+      onMouseEnter={e => { e.currentTarget.style.background = C.elevated; e.currentTarget.style.color = C.primary; }}
+      onMouseLeave={e => { e.currentTarget.style.background = C.surface; e.currentTarget.style.color = C.textSec; }}
+    >
+      <InfoOutlinedIcon sx={{ fontSize: 15 }} />
+    </button>
+  );
+}
+
+function ProductInfoModal({ product, stockTracking, onClose }) {
+  const [imgErr, setImgErr] = useState(false);
+  useEffect(() => { setImgErr(false); }, [product?._id]);
+
+  if (!product) return null;
+
+  const imgSrc = getImageUrl(product);
+  const stockColor = product.stockQty === 0 ? C.error : product.stockQty <= LOW ? C.warning : C.success;
+
+  const Row = ({ label, value, valueColor }) => (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, padding: '9px 0', borderBottom: `1px solid #F0E8E4` }}>
+      <span style={{ fontSize: 12, fontWeight: 600, color: C.textDim, flexShrink: 0 }}>{label}</span>
+      <span style={{ fontSize: 13, fontWeight: 700, color: valueColor ?? C.textPri, textAlign: 'right', wordBreak: 'break-all' }}>{value}</span>
+    </div>
+  );
+
+  return (
+    <Dialog open onClose={onClose} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: '14px', fontFamily: FONT, overflow: 'hidden' } }}>
+      <DialogContent sx={{ p: 0 }}>
+        {/* Header */}
+        <div style={{ padding: '16px 20px 0', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+            <InfoOutlinedIcon sx={{ fontSize: 18, color: C.primary, flexShrink: 0 }} />
+            <h2 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: C.textPri, letterSpacing: '-0.2px' }}>Product Info</h2>
+          </div>
+          <button
+            onClick={onClose}
+            style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+          >
+            <CloseOutlinedIcon sx={{ fontSize: 15, color: C.textDim }} />
+          </button>
+        </div>
+
+        <div style={{ padding: '16px 20px 20px', fontFamily: FONT }}>
+          {/* Product image */}
+          <div style={{ width: '100%', aspectRatio: '16/9', borderRadius: 10, overflow: 'hidden', background: C.elevated, border: `1px solid ${C.border}`, marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {imgSrc && !imgErr ? (
+              <img src={imgSrc} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} onError={() => setImgErr(true)} />
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                <Inventory2OutlinedIcon sx={{ fontSize: 40, color: C.primary, opacity: 0.3 }} />
+                <span style={{ fontSize: 11, fontWeight: 600, color: C.textDim }}>No image</span>
+              </div>
+            )}
+          </div>
+
+          {/* Name + status */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 14 }}>
+            <div style={{ minWidth: 0 }}>
+              <p style={{ margin: 0, fontSize: 17, fontWeight: 800, color: C.textPri, lineHeight: '22px', letterSpacing: '-0.2px' }}>{product.name}</p>
+              {product.category && (
+                <p style={{ margin: '2px 0 0', fontSize: 11, fontWeight: 600, color: C.textDim }}>{product.category}</p>
+              )}
+            </div>
+            <span style={{
+              flexShrink: 0, fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 8, marginTop: 2,
+              background: product.isActive === false ? 'rgba(183,28,28,0.09)' : 'rgba(46,125,79,0.09)',
+              color: product.isActive === false ? C.error : C.success,
+            }}>
+              {product.isActive === false ? 'INACTIVE' : 'ACTIVE'}
+            </span>
+          </div>
+
+          {/* Info rows */}
+          <div style={{ borderTop: `1px solid #F0E8E4` }}>
+            <Row label="Price" value={`$${product.price.toFixed(2)}`} />
+            <Row label="SKU" value={product.sku} />
+            {product.barcode
+              ? <Row label="Barcode" value={product.barcode} />
+              : <Row label="Barcode" value="—" valueColor={C.textDim} />
+            }
+            <Row label="Quick Slot" value={product.quickSlot ? `P${product.quickSlot}` : '—'} valueColor={product.quickSlot ? C.textPri : C.textDim} />
+            {stockTracking ? (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '9px 0', borderBottom: `1px solid #F0E8E4` }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: C.textDim }}>Stock</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 14, fontWeight: 800, color: stockColor }}>{product.stockQty}</span>
+                  <StockPill qty={product.stockQty} />
+                </div>
+              </div>
+            ) : (
+              <Row label="Stock" value="Tracking disabled" valueColor={C.textDim} />
+            )}
+            {product.description && (
+              <div style={{ padding: '9px 0' }}>
+                <p style={{ margin: '0 0 4px', fontSize: 12, fontWeight: 600, color: C.textDim }}>Description</p>
+                <p style={{ margin: 0, fontSize: 13, color: C.textPri, lineHeight: '19px' }}>{product.description}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function InventoryPage() {
   const { token } = useAuthStore();
   const [products, setProducts] = useState([]);
@@ -38,6 +178,7 @@ export default function InventoryPage() {
   const [search, setSearch] = useState('');
   const [pageErr, setPageErr] = useState('');
   const [stockTracking, setStockTracking] = useState(true);
+  const [infoProduct, setInfoProduct] = useState(null);
   const isDesktop = useMediaQuery('(min-width:1024px)');
 
   useEffect(() => {
@@ -61,8 +202,6 @@ export default function InventoryPage() {
 
   useEffect(() => { fetchProducts(); }, [fetchProducts]);
 
-  // Real-time: update stock qty in-place when a barcode sync comes in,
-  // and refresh the full list on a low-stock alert
   useSocketEvent(EVENTS.BARCODE_STOCK_SYNC, ({ productId, stockQty }) => {
     setProducts((prev) =>
       prev.map((p) => p._id === productId ? { ...p, stockQty } : p)
@@ -105,6 +244,8 @@ export default function InventoryPage() {
   if (!isDesktop) {
     return (
       <div style={{ padding: '20px 16px 32px', maxWidth: 480, margin: '0 auto', fontFamily: FONT }}>
+
+        <ProductInfoModal product={infoProduct} stockTracking={stockTracking} onClose={() => setInfoProduct(null)} />
 
         {/* Page header */}
         <div style={{ marginBottom: 16 }}>
@@ -157,11 +298,11 @@ export default function InventoryPage() {
           <div style={{ background: 'rgba(183,28,28,0.08)', border: '1px solid rgba(183,28,28,0.22)', borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 13, color: C.error }}>{pageErr}</div>
         )}
 
-        {/* Table */}
+        {/* Table — Image | Product | Stock | Price | Info */}
         <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden' }}>
-          <div style={{ background: C.tableHdr, borderBottom: `1px solid ${C.border}`, padding: '9px 14px', display: 'grid', gridTemplateColumns: '1fr 58px 66px', gap: 6, alignItems: 'center' }}>
-            {['Product', 'Stock', 'Price'].map(h => (
-              <span key={h} style={{ fontSize: 10, fontWeight: 700, color: C.primary, letterSpacing: '0.07em', textTransform: 'uppercase' }}>{h}</span>
+          <div style={{ background: C.tableHdr, borderBottom: `1px solid ${C.border}`, padding: '9px 14px', display: 'grid', gridTemplateColumns: '32px 1fr 52px 62px 28px', gap: 6, alignItems: 'center' }}>
+            {['', 'Product', 'Stock', 'Price', ''].map((h, idx) => (
+              <span key={idx} style={{ fontSize: 10, fontWeight: 700, color: C.primary, letterSpacing: '0.07em', textTransform: 'uppercase' }}>{h}</span>
             ))}
           </div>
           {loading ? (
@@ -174,25 +315,39 @@ export default function InventoryPage() {
               <p style={{ fontSize: 14, fontWeight: 700, color: C.textPri, margin: 0 }}>{search ? 'No products match your search' : 'No products configured'}</p>
               <p style={{ fontSize: 12, fontWeight: 500, color: C.textSec, margin: 0, maxWidth: 240, lineHeight: '18px' }}>{search ? 'Try a different name, SKU or barcode.' : 'Products will appear here once configured by a manager.'}</p>
             </div>
-          ) : filtered.map((p, i) => (
-            <div key={p._id} style={{ padding: '11px 14px', borderBottom: i < filtered.length - 1 ? `1px solid #F0E8E4` : 'none', display: 'grid', gridTemplateColumns: '1fr 58px 66px', gap: 6, alignItems: 'center', background: i % 2 ? '#FDFCFB' : C.surface }}>
-              <div style={{ minWidth: 0 }}>
-                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</p>
-                <p style={{ margin: '1px 0 0', fontSize: 10, fontWeight: 600, color: C.textDim, letterSpacing: '0.04em' }}>{p.sku}{p.quickSlot ? ` · P${p.quickSlot}` : ''}</p>
+          ) : filtered.map((p, i) => {
+            const imgSrc = getImageUrl(p);
+            return (
+              <div key={p._id} style={{ padding: '10px 14px', borderBottom: i < filtered.length - 1 ? `1px solid #F0E8E4` : 'none', display: 'grid', gridTemplateColumns: '32px 1fr 52px 62px 28px', gap: 6, alignItems: 'center', background: i % 2 ? '#FDFCFB' : C.surface }}>
+                {/* Image */}
+                <ProductThumb src={imgSrc} size={32} />
+
+                {/* Product name */}
+                <div style={{ minWidth: 0 }}>
+                  <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</p>
+                  <p style={{ margin: '1px 0 0', fontSize: 10, fontWeight: 600, color: C.textDim, letterSpacing: '0.04em' }}>{p.sku}{p.quickSlot ? ` · P${p.quickSlot}` : ''}</p>
+                </div>
+
+                {/* Stock */}
+                <div>
+                  {stockTracking ? (
+                    <>
+                      <p style={{ margin: 0, fontSize: 14, fontWeight: 800, lineHeight: '18px', color: p.stockQty === 0 ? C.error : p.stockQty <= LOW ? C.warning : C.textPri }}>{p.stockQty}</p>
+                      <StockPill qty={p.stockQty} />
+                    </>
+                  ) : (
+                    <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textDim }}>—</p>
+                  )}
+                </div>
+
+                {/* Price */}
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri }}>${p.price.toFixed(2)}</p>
+
+                {/* Info button */}
+                <InfoButton onClick={() => setInfoProduct(p)} />
               </div>
-              <div>
-                {stockTracking ? (
-                  <>
-                    <p style={{ margin: 0, fontSize: 14, fontWeight: 800, lineHeight: '18px', color: p.stockQty === 0 ? C.error : p.stockQty <= LOW ? C.warning : C.textPri }}>{p.stockQty}</p>
-                    <StockPill qty={p.stockQty} />
-                  </>
-                ) : (
-                  <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textDim }}>—</p>
-                )}
-              </div>
-              <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri }}>${p.price.toFixed(2)}</p>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {filtered.length > 0 && (
@@ -210,6 +365,8 @@ export default function InventoryPage() {
   // ── Desktop layout ────────────────────────────────────────────────────────────
   return (
     <div style={{ padding: '28px 32px 40px', fontFamily: FONT, background: C.bg, minHeight: '100dvh' }}>
+
+      <ProductInfoModal product={infoProduct} stockTracking={stockTracking} onClose={() => setInfoProduct(null)} />
 
       {/* Page header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24 }}>
@@ -282,16 +439,16 @@ export default function InventoryPage() {
       {/* Product table */}
       <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden' }}>
 
-        {/* Table header */}
+        {/* Table header — Image | Product | SKU | Barcode | Slot | Stock | Price | Info */}
         <div style={{
           background: C.tableHdr, borderBottom: `1px solid ${C.border}`,
           padding: '11px 20px',
           display: 'grid',
-          gridTemplateColumns: '2fr 1fr 120px 90px 90px 80px',
+          gridTemplateColumns: '44px 2fr 1fr 130px 72px 90px 80px 36px',
           gap: 12, alignItems: 'center',
         }}>
-          {['Product', 'SKU', 'Barcode', 'Slot', 'Stock', 'Price'].map(h => (
-            <span key={h} style={{ fontSize: 10, fontWeight: 700, color: C.primary, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{h}</span>
+          {['Image', 'Product', 'SKU', 'Barcode', 'Slot', 'Stock', 'Price', ''].map((h, idx) => (
+            <span key={idx} style={{ fontSize: 10, fontWeight: 700, color: C.primary, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{h}</span>
           ))}
         </div>
 
@@ -309,68 +466,74 @@ export default function InventoryPage() {
               {search ? 'Try a different name, SKU or barcode.' : 'Products will appear here once configured by a manager.'}
             </p>
           </div>
-        ) : filtered.map((p, i) => (
-          <div key={p._id} style={{
-            padding: '13px 20px',
-            borderBottom: i < filtered.length - 1 ? `1px solid #F0E8E4` : 'none',
-            display: 'grid',
-            gridTemplateColumns: '2fr 1fr 120px 90px 90px 80px',
-            gap: 12, alignItems: 'center',
-            background: i % 2 ? '#FDFCFB' : C.surface,
-            transition: 'background 0.12s',
-          }}
-            onMouseEnter={e => e.currentTarget.style.background = C.hover}
-            onMouseLeave={e => e.currentTarget.style.background = i % 2 ? '#FDFCFB' : C.surface}
-          >
-            {/* Name + active badge */}
-            <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ width: 34, height: 34, borderRadius: 9, background: C.elevated, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Inventory2OutlinedIcon sx={{ fontSize: 16, color: C.primary }} />
+        ) : filtered.map((p, i) => {
+          const imgSrc = getImageUrl(p);
+          return (
+            <div key={p._id} style={{
+              padding: '11px 20px',
+              borderBottom: i < filtered.length - 1 ? `1px solid #F0E8E4` : 'none',
+              display: 'grid',
+              gridTemplateColumns: '44px 2fr 1fr 130px 72px 90px 80px 36px',
+              gap: 12, alignItems: 'center',
+              background: i % 2 ? '#FDFCFB' : C.surface,
+              transition: 'background 0.12s',
+            }}
+              onMouseEnter={e => e.currentTarget.style.background = C.hover}
+              onMouseLeave={e => e.currentTarget.style.background = i % 2 ? '#FDFCFB' : C.surface}
+            >
+              {/* Image thumbnail */}
+              <ProductThumb src={imgSrc} size={38} />
+
+              {/* Name + active badge */}
+              <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ minWidth: 0 }}>
+                  <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</p>
+                  {p.isActive === false && (
+                    <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 6, background: 'rgba(183,28,28,0.09)', color: C.error }}>INACTIVE</span>
+                  )}
+                </div>
               </div>
-              <div style={{ minWidth: 0 }}>
-                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</p>
-                {p.isActive === false && (
-                  <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 6, background: 'rgba(183,28,28,0.09)', color: C.error }}>INACTIVE</span>
+
+              {/* SKU */}
+              <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: C.textDim, fontFamily: 'monospace', letterSpacing: '0.04em' }}>{p.sku}</p>
+
+              {/* Barcode */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+                {p.barcode ? (
+                  <>
+                    <QrCodeOutlinedIcon sx={{ fontSize: 13, color: C.success, flexShrink: 0 }} />
+                    <span style={{ fontSize: 11, fontWeight: 600, color: C.textDim, fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.barcode}</span>
+                  </>
+                ) : (
+                  <span style={{ fontSize: 11, fontWeight: 600, color: C.textDim }}>—</span>
                 )}
               </div>
+
+              {/* Quick slot */}
+              <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: p.quickSlot ? C.textPri : C.textDim }}>
+                {p.quickSlot ? `P${p.quickSlot}` : '—'}
+              </p>
+
+              {/* Stock */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                {stockTracking ? (
+                  <>
+                    <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: p.stockQty === 0 ? C.error : p.stockQty <= LOW ? C.warning : C.textPri }}>{p.stockQty}</p>
+                    <StockPill qty={p.stockQty} />
+                  </>
+                ) : (
+                  <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textDim }}>—</p>
+                )}
+              </div>
+
+              {/* Price */}
+              <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: C.textPri }}>${p.price.toFixed(2)}</p>
+
+              {/* Info button */}
+              <InfoButton onClick={() => setInfoProduct(p)} />
             </div>
-
-            {/* SKU */}
-            <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: C.textDim, fontFamily: 'monospace', letterSpacing: '0.04em' }}>{p.sku}</p>
-
-            {/* Barcode */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
-              {p.barcode ? (
-                <>
-                  <QrCodeOutlinedIcon sx={{ fontSize: 13, color: C.success, flexShrink: 0 }} />
-                  <span style={{ fontSize: 11, fontWeight: 600, color: C.textDim, fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.barcode}</span>
-                </>
-              ) : (
-                <span style={{ fontSize: 11, fontWeight: 600, color: C.textDim }}>—</span>
-              )}
-            </div>
-
-            {/* Quick slot */}
-            <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: p.quickSlot ? C.textPri : C.textDim }}>
-              {p.quickSlot ? `P${p.quickSlot}` : '—'}
-            </p>
-
-            {/* Stock */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              {stockTracking ? (
-                <>
-                  <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: p.stockQty === 0 ? C.error : p.stockQty <= LOW ? C.warning : C.textPri }}>{p.stockQty}</p>
-                  <StockPill qty={p.stockQty} />
-                </>
-              ) : (
-                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textDim }}>—</p>
-              )}
-            </div>
-
-            {/* Price */}
-            <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: C.textPri }}>${p.price.toFixed(2)}</p>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {filtered.length > 0 && (

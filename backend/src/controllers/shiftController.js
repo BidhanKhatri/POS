@@ -70,4 +70,29 @@ const getMyActiveShift = async (req, res, next) => {
   }
 };
 
-export { clockIn, clockOut, getMyActiveShift };
+const recoverClockOut = async (req, res, next) => {
+  try {
+    const { clockOutTime, clockOutReason } = req.body;
+    if (!clockOutTime) {
+      return res.status(400).json({ success: false, message: 'clockOutTime is required.' });
+    }
+
+    const shift = await shiftService.recoverClockOut(req.user._id, {
+      clockOutTime,
+      clockOutReason: clockOutReason ?? null,
+    });
+
+    res.status(200).json({ success: true, data: shift });
+    emit(ROOMS.MANAGERS, EVENTS.SHIFT_UPDATE, {
+      action: 'CLOCK_OUT_RECOVERED',
+      employee: { id: req.user._id, name: req.user.name },
+      shiftId: shift._id,
+      clockOutTime: shift.clockOutTime,
+    });
+  } catch (error) {
+    res.status(400);
+    next(error);
+  }
+};
+
+export { clockIn, clockOut, getMyActiveShift, recoverClockOut };

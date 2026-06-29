@@ -65,4 +65,37 @@ const closeShift = async (employeeId, { closingCash = 0, clockOutReason = null }
 const getActiveShift = async (employeeId) =>
   Shift.findOne({ employeeId, status: 'OPEN' });
 
-export { openShift, closeShift, getActiveShift };
+/**
+ * Recover a stale (forgotten) clock-out.
+ * Called when an employee forgot to clock out on a previous day.
+ * clockOutTime must be an ISO string — it is trusted as the corrected time.
+ * earlyClockOut is forced false (the shift window has long passed).
+ */
+const recoverClockOut = async (employeeId, { clockOutTime, clockOutReason = null } = {}) => {
+  const shift = await Shift.findOne({ employeeId, status: 'OPEN' });
+  if (!shift) throw new Error('No open shift found for this employee.');
+
+  const correctedTime = clockOutTime ? new Date(clockOutTime) : new Date();
+  if (isNaN(correctedTime.getTime())) throw new Error('Invalid clockOutTime provided.');
+
+  // Sanity: corrected time must be after clock-in
+  if (correctedTime <= shift.clockInTime) {
+    throw new Error('Clock-out time must be after clock-in time.');
+  }
+  // Sanity: corrected time must not be in the future
+  if (correctedTime > new Date()) {
+    throw new Error('Clock-out time cannot be in the future.');
+  }
+
+  shift.status         = 'CLOSED';
+  shift.clockOutTime   = correctedTime;
+  shift.closingCash    = 0;
+  shift.earlyClockOut  = false; // shift ended long ago — not "early"
+  shift.clockOutReason = clockOutReason?.trim()
+    ? clockOutReason.trim()
+    : 'Missed clock-out — recovered by employee';
+  await shift.save();
+  return shift;
+};
+
+export { openShift, closeShift, getActiveShift, recoverClockOut };
