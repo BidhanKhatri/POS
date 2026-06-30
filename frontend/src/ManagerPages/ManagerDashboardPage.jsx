@@ -38,6 +38,7 @@ import AccessTimeOutlinedIcon      from '@mui/icons-material/AccessTimeOutlined'
 import { useLoading }              from '../context/LoadingContext';
 import useAuthStore                from '../store/useAuthStore';
 import { useSocketEvent }          from '../context/SocketContext';
+import { API_URL as API }          from '../config/api';
 
 // ── Design tokens (consistent with the rest of the app) ──────────────────────
 const C = {
