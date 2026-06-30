@@ -1,5 +1,6 @@
-import dotenv from 'dotenv';
-dotenv.config();
+// .env is loaded by Node's --env-file flag before any module evaluates.
+// Do NOT use dotenv.config() here — in ESM all imports are hoisted, so
+// dotenv.config() would run AFTER app.js has already read process.env.
 import http from 'http';
 import mongoose from 'mongoose';
 import app from './app.js';
