@@ -3,30 +3,13 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import { setIO } from './emitter.js';
 import { ROOMS } from './events.js';
-
-const allowedOrigins = [
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
-  'http://localhost:5174',
-  'http://127.0.0.1:5174',
-  'http://localhost:5175',
-  'http://127.0.0.1:5175',
-  'http://192.168.1.95:5173',
-  'http://192.168.1.95:5174',
-  'http://192.168.1.95:5175',
-];
-
-function originAllowed(origin) {
-  if (!origin) return true;
-  if (allowedOrigins.includes(origin)) return true;
-  return /^https:\/\/[a-z0-9-]+\.ngrok(-free)?\.(?:app|dev|io)$/.test(origin);
-}
+// Reuse the same origin-validation logic from app.js so CORS stays in sync
+import { isOriginAllowed } from '../app.js';
 
 export function initSocket(httpServer) {
   const io = new Server(httpServer, {
     cors: {
-      // Socket.IO cors.origin must use the callback form (origin, cb) => cb(err, allow)
-      origin: (origin, cb) => cb(null, originAllowed(origin)),
+      origin: (origin, cb) => cb(null, isOriginAllowed(origin)),
       methods: ['GET', 'POST'],
       credentials: true,
     },

@@ -7,29 +7,51 @@ import routes from './routes/index.js';
 
 const app = express();
 
-const allowedOrigins = [
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
-  'http://localhost:5174',
-  'http://127.0.0.1:5174',
-  'http://localhost:5175',
-  'http://127.0.0.1:5175',
-  // LAN access for mobile/Chrome testing
-  'http://192.168.1.95:5173',
-  'http://192.168.1.95:5174',
-  'http://192.168.1.95:5175',
-];
+// ── Trust Proxy ────────────────────────────────────────────────────────────────
+// Required when running behind Nginx (or any reverse proxy).
+// Without this, express-rate-limit throws a ValidationError because
+// X-Forwarded-For is set but trust proxy is false.
+// '1' means trust the first proxy hop (Nginx), which is the standard VPS setup.
+app.set('trust proxy', 1);
+
+// ── CORS origin list ───────────────────────────────────────────────────────────
+// Populated from CORS_ORIGINS env var (comma-separated).
+// Falls back to localhost dev ports so the server works without a .env file.
+const envOrigins = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean)
+  : [
+      'http://localhost:5173',
+      'http://127.0.0.1:5173',
+      'http://localhost:5174',
+      'http://127.0.0.1:5174',
+      'http://localhost:5175',
+      'http://127.0.0.1:5175',
+      'http://192.168.1.95:5173',
+      'http://192.168.1.95:5174',
+      'http://192.168.1.95:5175',
+    ];
+
+// Ngrok pattern — always allowed for local HTTPS mobile testing
+const NGROK_RE = /^https:\/\/[a-z0-9-]+\.ngrok(-free)?\.(?:app|dev|io)$/;
+
+/**
+ * Shared origin-validation function used by both Express CORS middleware
+ * and Socket.IO so the two are always in sync.
+ *
+ * @param {string|undefined} origin
+ * @returns {boolean}
+ */
+export function isOriginAllowed(origin) {
+  if (!origin) return true;                  // same-origin / server-to-server calls
+  if (envOrigins.includes(origin)) return true;
+  if (NGROK_RE.test(origin)) return true;
+  return false;
+}
 
 const corsOptions = {
   origin(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-    // Allow any ngrok tunnel (for local HTTPS mobile testing)
-    if (/^https:\/\/[a-z0-9-]+\.ngrok(-free)?\.(?:app|dev|io)$/.test(origin)) {
-      return callback(null, true);
-    }
-    return callback(new Error(`Origin ${origin} is not allowed by CORS`));
+    if (isOriginAllowed(origin)) return callback(null, true);
+    return callback(new Error(`CORS: origin "${origin}" is not allowed`));
   },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
@@ -37,25 +59,31 @@ const corsOptions = {
   optionsSuccessStatus: 204,
 };
 
-// Security Middleware
+// ── Security Middleware ────────────────────────────────────────────────────────
 app.use(helmet());
 app.use(cors(corsOptions));
 
-// Rate Limiting — generous limit; report pages fire 6+ concurrent queries
+// Respond to all OPTIONS preflight requests immediately
+app.options('*', cors(corsOptions));
+
+// ── Rate Limiting ──────────────────────────────────────────────────────────────
+// Generous limit — report pages fire 6+ concurrent queries.
+// trust proxy (set above) ensures the real client IP is read from
+// X-Forwarded-For rather than the Nginx proxy IP.
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 500,
 });
 app.use('/api', limiter);
 
-// Body parser
+// ── Body Parser ────────────────────────────────────────────────────────────────
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// API Routes
+// ── API Routes ─────────────────────────────────────────────────────────────────
 app.use('/api', routes);
 
-// Error Handling Middleware
+// ── Error Handling ─────────────────────────────────────────────────────────────
 app.use(notFound);
 app.use(errorHandler);
 
