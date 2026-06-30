@@ -1,26 +1,33 @@
-import React, { useState } from 'react';
-import { Dialog, DialogContent } from '@mui/material';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Dialog, DialogContent, useMediaQuery } from '@mui/material';
 import AdminPanelSettingsOutlinedIcon from '@mui/icons-material/AdminPanelSettingsOutlined';
 import CancelOutlinedIcon            from '@mui/icons-material/CancelOutlined';
 import LocalOfferOutlinedIcon        from '@mui/icons-material/LocalOfferOutlined';
-import HistoryOutlinedIcon           from '@mui/icons-material/HistoryOutlined';
+import SellOutlinedIcon              from '@mui/icons-material/SellOutlined';
 import PersonOutlinedIcon            from '@mui/icons-material/PersonOutlined';
 import LockOutlinedIcon              from '@mui/icons-material/LockOutlined';
 import KeyOutlinedIcon               from '@mui/icons-material/KeyOutlined';
 import BackspaceOutlinedIcon         from '@mui/icons-material/BackspaceOutlined';
 import ErrorOutlineOutlinedIcon      from '@mui/icons-material/ErrorOutlineOutlined';
 import CheckCircleOutlinedIcon       from '@mui/icons-material/CheckCircleOutlined';
+import CloseOutlinedIcon             from '@mui/icons-material/CloseOutlined';
+import RefreshOutlinedIcon           from '@mui/icons-material/RefreshOutlined';
+import SearchOutlinedIcon            from '@mui/icons-material/SearchOutlined';
+import ChevronLeftOutlinedIcon       from '@mui/icons-material/ChevronLeftOutlined';
+import ChevronRightOutlinedIcon      from '@mui/icons-material/ChevronRightOutlined';
+import useAuthStore from '../store/useAuthStore';
+import CornerPanel from '../components/CornerPanel/CornerPanel';
+import { useSocketEvent } from '../context/SocketContext';
+import { EVENTS } from '../socket/events';
 
-/* ─────────────────────────────────────────────
-   Design tokens — AGENTS.md
-───────────────────────────────────────────── */
+const API = import.meta.env.VITE_API_BASE_URL ?? '';
+
 const C = {
   primary:  '#3E2723',
   accent:   '#D4A373',
   error:    '#B71C1C',
   success:  '#2E7D4F',
   warning:  '#B26A00',
-  info:     '#0277BD',
   textPri:  '#2B1D1A',
   textSec:  '#6B5B57',
   textDim:  '#A09490',
@@ -30,96 +37,120 @@ const C = {
   elevated: '#EFE7E2',
 };
 
-/* ─────────────────────────────────────────────
-   Priority config
-───────────────────────────────────────────── */
-const PRIORITY = {
-  HIGH:     { label: 'HIGH PRIORITY',  leftBorder: C.error,   badgeBg: 'rgba(183,28,28,0.09)', badgeColor: C.error   },
-  STANDARD: { label: 'STANDARD',       leftBorder: C.textDim, badgeBg: C.elevated,             badgeColor: C.textSec },
-  LOYALTY:  { label: 'LOYALTY ACTION', leftBorder: C.accent,  badgeBg: 'rgba(212,163,115,0.15)', badgeColor: C.warning },
-};
-
 const TYPE_META = {
-  REFUND:   { icon: AdminPanelSettingsOutlinedIcon, label: 'Refund Request'   },
-  VOID:     { icon: CancelOutlinedIcon,             label: 'Void Request'     },
-  DISCOUNT: { icon: LocalOfferOutlinedIcon,         label: 'Discount Request' },
+  REFUND:       { icon: AdminPanelSettingsOutlinedIcon, label: 'Refund Request',         actionLabel: 'Verify & Authorize', priority: 'HIGH'     },
+  VOID:         { icon: CancelOutlinedIcon,             label: 'Void Request',           actionLabel: 'Confirm Void',       priority: 'STANDARD' },
+  DISCOUNT:     { icon: LocalOfferOutlinedIcon,         label: 'Discount Request',       actionLabel: 'Approve Discount',   priority: 'LOYALTY'  },
+  PRICE_CHANGE: { icon: SellOutlinedIcon,               label: 'Price Override Request', actionLabel: 'Approve Price',      priority: 'LOYALTY'  },
 };
 
-/* ─────────────────────────────────────────────
-   Mock pending overrides
-───────────────────────────────────────────── */
-const PENDING = [
-  {
-    id: '#8921', type: 'REFUND', priority: 'HIGH',
-    employee: { name: 'Sarah Jenkins', code: '402' },
-    details: [
-      { label: 'Amount', value: '$42.50',          errorColor: true },
-      { label: 'Items',  value: 'Heritage Roast (1)' },
-    ],
-    logs: ['Initiated 4m 12s ago', 'Requires PIN authorization'],
-    actionLabel: 'Verify & Authorize',
-  },
-  {
-    id: '#8922', type: 'VOID', priority: 'STANDARD',
-    employee: { name: 'Michael Chen', code: '305' },
-    details: [
-      { label: 'Total',  value: '$125.00' },
-      { label: 'Reason', value: 'Change of Mind' },
-    ],
-    quote: 'Customer realized they forgot their wallet and preferred to restart the transaction later.',
-    actionLabel: 'Confirm Void',
-  },
-  {
-    id: '#8923', type: 'DISCOUNT', priority: 'LOYALTY',
-    employee: { name: 'Elena Rodriguez', code: '412' },
-    details: [
-      { label: 'Original', value: '$210.00' },
-      { label: 'Proposed', value: '25% OFF', accentColor: true },
-    ],
-    reason: 'VIP Loyalty',
-    actionLabel: 'Approve Discount',
-  },
-];
+const PRIORITY = {
+  HIGH:     { label: 'HIGH PRIORITY',  badgeBg: 'rgba(183,28,28,0.09)',   badgeColor: C.error   },
+  STANDARD: { label: 'STANDARD',       badgeBg: C.elevated,               badgeColor: C.textSec },
+  LOYALTY:  { label: 'LOYALTY ACTION', badgeBg: 'rgba(212,163,115,0.15)', badgeColor: C.warning },
+};
 
-/* ─────────────────────────────────────────────
-   Mock history
-───────────────────────────────────────────── */
-const HISTORY = [
-  { time: '10:45 AM', type: 'Manager Sale Entry', employee: 'Kevin S. (09)',   amount: '$450.00', status: 'APPROVED' },
-  { time: '10:32 AM', type: 'Price Override',      employee: 'Sarah J. (402)',  amount: '$12.99',  status: 'DENIED'   },
-  { time: '09:58 AM', type: 'Void Request',         employee: 'James K. (211)', amount: '$89.00',  status: 'APPROVED' },
-  { time: '09:14 AM', type: 'Refund',               employee: 'Amy L. (307)',   amount: '$34.50',  status: 'APPROVED' },
-];
+const STATUS_STYLE = {
+  APPROVED: { bg: 'rgba(46,125,79,0.10)',  color: C.success, border: 'rgba(46,125,79,0.25)'  },
+  DENIED:   { bg: 'rgba(183,28,28,0.09)', color: C.error,   border: 'rgba(183,28,28,0.20)'  },
+};
+
+const PENDING_PER_PAGE = 5;
+
+const formatMoney = (n) => `$${Number(n ?? 0).toFixed(2)}`;
+
+const timeAgo = (dateStr) => {
+  const diffMs = Date.now() - new Date(dateStr).getTime();
+  const mins   = Math.floor(diffMs / 60000);
+  if (mins < 1)  return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24)  return `${hrs}h ago`;
+  return new Date(dateStr).toLocaleDateString();
+};
+
+function pageRange(current, total) {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i);
+  const set = new Set([0, total - 1, current]);
+  if (current > 1) set.add(current - 1);
+  if (current < total - 2) set.add(current + 1);
+  const sorted = [...set].sort((a, b) => a - b);
+  const result = [];
+  for (let i = 0; i < sorted.length; i++) {
+    if (i > 0 && sorted[i] - sorted[i - 1] > 1) result.push(null);
+    result.push(sorted[i]);
+  }
+  return result;
+}
 
 /* ─────────────────────────────────────────────
    PIN Dialog
 ───────────────────────────────────────────── */
-function PinDialog({ open, override, onClose, onConfirm }) {
-  const [pin, setPin] = useState('');
+function PinDialog({ open, override, error, submitting, onClose, onConfirm, mode = 'approve' }) {
+  const [pin,   setPin]   = useState('');
   const [shake, setShake] = useState(false);
+  const isMobile = useMediaQuery('(max-width:480px)');
+
+  useEffect(() => { if (open) { setPin(''); } }, [open]);
+
+  // Auto-submit when 4th digit is entered
+  useEffect(() => {
+    if (pin.length === 4) {
+      const t = setTimeout(() => onConfirm(pin), 120);
+      return () => clearTimeout(t);
+    }
+  }, [pin]);
 
   const push = (d) => {
-    if (pin.length < 4) setPin((p) => p + d);
+    if (submitting) return;
+    setPin((p) => { if (p.length >= 4) return p; return p + d; });
   };
-  const del = () => setPin((p) => p.slice(0, -1));
-  const clear = () => setPin('');
+  const del   = () => { if (!submitting) setPin((p) => p.slice(0, -1)); };
+  const clear = () => { if (!submitting) setPin(''); };
 
-  const handleConfirm = () => {
-    if (pin.length < 4) {
-      setShake(true);
-      setTimeout(() => setShake(false), 450);
-      return;
-    }
-    onConfirm(pin);
-    setPin('');
+  const handleClose = () => { setPin(''); onClose(); };
+
+  const meta       = TYPE_META[override?.actionType] || TYPE_META.REFUND;
+  const isDiscount = override?.actionType === 'DISCOUNT';
+  const isRefund   = override?.actionType === 'REFUND';
+  const originalPrice = isDiscount ? (override?.amount || 0) + (override?.discountAmount || 0) : (override?.amount || 0);
+  const amountDisplay = isDiscount
+    ? `${formatMoney(originalPrice)} → ${formatMoney(override?.amount)}`
+    : formatMoney(override?.amount);
+
+  const ROWS = [['1','2','3'],['4','5','6'],['7','8','9']];
+
+  const keyBtn = (label, onClick, variant = 'digit') => {
+    const isDigit   = variant === 'digit';
+    const isAction  = variant === 'action';
+    const sz = isMobile ? 68 : 72;
+    return (
+      <button
+        key={label}
+        onClick={onClick}
+        disabled={submitting}
+        className="active:translate-y-[3px]"
+        style={{
+          width: sz, height: sz,
+          borderRadius: 14,
+          border: `1px solid ${isDigit ? C.border : 'transparent'}`,
+          background: isDigit ? C.surface : isAction ? C.bg : 'transparent',
+          fontSize: isDigit ? (isMobile ? 20 : 22) : 12,
+          fontWeight: isDigit ? 700 : 600,
+          color: isDigit ? C.textPri : C.textSec,
+          cursor: submitting ? 'not-allowed' : 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: isDigit ? `0 3px 0 ${C.border}` : 'none',
+          transition: 'box-shadow 0.1s, transform 0.1s',
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
+          flexShrink: 0,
+          opacity: submitting ? 0.5 : 1,
+        }}
+      >
+        {label}
+      </button>
+    );
   };
-
-  const handleClose = () => {
-    setPin('');
-    onClose();
-  };
-
-  const KEYS = ['1','2','3','4','5','6','7','8','9'];
 
   return (
     <Dialog
@@ -127,104 +158,171 @@ function PinDialog({ open, override, onClose, onConfirm }) {
       onClose={handleClose}
       PaperProps={{
         style: {
-          borderRadius: 16, maxWidth: 320, width: '100%',
-          boxShadow: '0 20px 60px rgba(42,23,21,0.18)',
-          margin: 16,
+          borderRadius: 20,
+          width: isMobile ? '96vw' : 720,
+          maxWidth: 720,
+          margin: 'auto',
+          boxShadow: '0 24px 80px rgba(42,23,21,0.22), 0 8px 24px rgba(42,23,21,0.12)',
+          overflow: 'hidden',
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
         },
       }}
+      slotProps={{ backdrop: { style: { backdropFilter: 'blur(3px)', background: 'rgba(42,23,21,0.35)' } } }}
     >
-      <DialogContent style={{ padding: '28px 24px 24px' }}>
-
-        {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: 20 }}>
+      {/* ── Dark header strip ── */}
+      <div style={{
+        background: mode === 'deny'
+          ? `linear-gradient(135deg, ${C.error} 0%, #7B1010 100%)`
+          : `linear-gradient(135deg, ${C.primary} 0%, #5D4037 100%)`,
+        padding: '16px 20px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{
-            width: 48, height: 48, borderRadius: 14, background: C.elevated,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 12px',
+            width: 36, height: 36, borderRadius: 10,
+            background: mode === 'deny' ? 'rgba(255,255,255,0.15)' : 'rgba(212,163,115,0.18)',
+            border: `1px solid ${mode === 'deny' ? 'rgba(255,255,255,0.25)' : 'rgba(212,163,115,0.30)'}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
           }}>
-            <LockOutlinedIcon sx={{ fontSize: 24, color: C.primary }} />
+            <LockOutlinedIcon sx={{ fontSize: 18, color: mode === 'deny' ? '#fff' : C.accent }} />
           </div>
-          <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: C.textPri }}>Manager PIN</p>
-          <p style={{ margin: '4px 0 0', fontSize: 12, fontWeight: 500, color: C.textSec, lineHeight: '18px' }}>
-            Enter your PIN to authorize<br />
-            <strong style={{ color: C.textPri }}>{override?.id} — {TYPE_META[override?.type]?.label}</strong>
-          </p>
+          <div>
+            <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: '#fff', lineHeight: 1.2 }}>
+              {mode === 'deny' ? 'Confirm Denial' : 'Manager PIN Verification'}
+            </p>
+            <p style={{ margin: '2px 0 0', fontSize: 10, fontWeight: 600, color: 'rgba(255,255,255,0.55)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+              {meta.label}
+            </p>
+          </div>
         </div>
+        <button onClick={handleClose} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex', opacity: 0.6 }}>
+          <CloseOutlinedIcon sx={{ fontSize: 18, color: '#fff' }} />
+        </button>
+      </div>
 
-        {/* PIN dots */}
-        <div className={shake ? 'pin-shake' : ''} style={{ display: 'flex', justifyContent: 'center', gap: 12, marginBottom: 20 }}>
-          {[0,1,2,3].map((i) => (
-            <div key={i} style={{
-              width: 14, height: 14, borderRadius: '50%',
-              background: i < pin.length ? C.primary : 'transparent',
-              border: `2px solid ${i < pin.length ? C.primary : C.border}`,
-              transition: 'background 0.15s, border-color 0.15s',
-            }} />
-          ))}
-        </div>
+      {/* ── Body: two-column on desktop, stacked on mobile ── */}
+      <div style={{
+        display: 'flex',
+        flexDirection: isMobile ? 'column' : 'row',
+      }}>
 
-        {/* Numpad */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 16 }}>
-          {KEYS.map((d) => (
-            <button key={d} onClick={() => push(d)} style={{
-              height: 50, borderRadius: 10,
-              border: `1px solid ${C.border}`,
-              background: C.surface,
-              fontSize: 20, fontWeight: 700, color: C.textPri,
-              cursor: 'pointer',
-              boxShadow: `0 3px 0 ${C.border}`,
+        {/* LEFT — context + PIN indicator + actions */}
+        <div style={{
+          flex: 1,
+          padding: isMobile ? '18px 18px 0' : '22px 24px 24px',
+          display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 16,
+          borderRight: isMobile ? 'none' : `1px solid ${C.border}`,
+          borderBottom: isMobile ? `1px solid ${C.border}` : 'none',
+        }}>
+
+          {/* Override context */}
+          <div>
+            <p style={{ margin: '0 0 10px', fontSize: 9, fontWeight: 700, color: C.textDim, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+              Override Details
+            </p>
+            <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', marginBottom: 8 }}>
+              <p style={{ margin: '0 0 1px', fontSize: 10, fontWeight: 600, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Product</p>
+              <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri }}>
+                {override?.productName || '—'}{override?.sku ? ` · ${override.sku}` : ''}
+              </p>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px' }}>
+                <p style={{ margin: '0 0 1px', fontSize: 10, fontWeight: 600, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  {isDiscount ? 'Original' : 'Amount'}
+                </p>
+                <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: C.textPri, letterSpacing: '-0.3px' }}>
+                  {formatMoney(originalPrice)}
+                </p>
+              </div>
+              {isDiscount && (
+                <div style={{ background: `${C.success}0D`, border: `1px solid ${C.success}40`, borderRadius: 10, padding: '10px 14px' }}>
+                  <p style={{ margin: '0 0 1px', fontSize: 10, fontWeight: 600, color: C.success, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Final Total</p>
+                  <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: C.success, letterSpacing: '-0.3px' }}>
+                    {formatMoney(override?.amount)}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* PIN dots */}
+          <div>
+            <p style={{ margin: '0 0 10px', fontSize: 9, fontWeight: 700, color: C.textDim, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+              Enter 4-Digit PIN
+            </p>
+            <div className={shake ? 'pin-shake' : ''} style={{
+              display: 'flex', gap: 12, padding: '14px 18px', borderRadius: 12,
+              background: C.bg, border: `1.5px solid ${error ? C.error : pin.length === 4 ? (mode === 'deny' ? C.error : C.primary) : C.border}`,
+              transition: 'border-color 0.15s',
             }}>
-              {d}
+              {[0,1,2,3].map((i) => (
+                <div key={i} style={{
+                  flex: 1, height: 14, borderRadius: 4,
+                  background: i < pin.length ? (mode === 'deny' ? C.error : C.primary) : C.border,
+                  transition: 'background 0.12s',
+                }} />
+              ))}
+            </div>
+            {error && <p style={{ margin: '6px 0 0', fontSize: 11, fontWeight: 700, color: C.error }}>{error}</p>}
+          </div>
+
+          {/* Actions */}
+          <div style={{ display: 'flex', gap: 8, paddingBottom: isMobile ? 18 : 0 }}>
+            <button
+              onClick={handleClose}
+              disabled={submitting}
+              style={{
+                flex: 1, height: 44, borderRadius: 10,
+                border: `1px solid ${C.border}`, background: C.surface,
+                fontSize: 13, fontWeight: 600, color: C.textSec,
+                cursor: submitting ? 'not-allowed' : 'pointer',
+                fontFamily: "'Plus Jakarta Sans', sans-serif",
+              }}
+            >
+              Cancel
             </button>
+            <button
+              onClick={() => { if (pin.length < 4) { setShake(true); setTimeout(() => setShake(false), 450); return; } onConfirm(pin); }}
+              disabled={submitting || pin.length < 4}
+              style={{
+                flex: 2, height: 44, borderRadius: 10,
+                border: pin.length === 4 ? `2px solid ${mode === 'deny' ? C.error : C.accent}` : `1px solid ${C.border}`,
+                background: pin.length === 4 ? (mode === 'deny' ? C.error : C.primary) : C.elevated,
+                fontSize: 13, fontWeight: 700, color: pin.length === 4 ? '#fff' : C.textDim,
+                cursor: submitting || pin.length < 4 ? 'not-allowed' : 'pointer',
+                opacity: submitting ? 0.65 : 1,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                fontFamily: "'Plus Jakarta Sans', sans-serif",
+                boxShadow: pin.length === 4 ? `0 3px 0 ${mode === 'deny' ? '#7B0000' : '#2A1715'}` : 'none',
+                transition: 'all 0.15s',
+              }}
+            >
+              <KeyOutlinedIcon sx={{ fontSize: 15 }} />
+              {submitting ? 'Verifying…' : mode === 'deny' ? 'Confirm Deny' : 'Authorize'}
+            </button>
+          </div>
+        </div>
+
+        {/* RIGHT — numpad */}
+        <div style={{
+          padding: isMobile ? '18px' : '20px 24px',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8,
+          background: C.bg,
+        }}>
+          {ROWS.map((row) => (
+            <div key={row[0]} style={{ display: 'flex', gap: 8 }}>
+              {row.map((d) => keyBtn(d, () => push(d), 'digit'))}
+            </div>
           ))}
-          {/* Row 4: clear, 0, backspace */}
-          <button onClick={clear} style={{
-            height: 50, borderRadius: 10,
-            border: `1px solid ${C.border}`, background: C.bg,
-            fontSize: 11, fontWeight: 700, color: C.textSec, letterSpacing: '0.06em',
-            cursor: 'pointer', boxShadow: `0 3px 0 ${C.border}`,
-          }}>
-            CLR
-          </button>
-          <button onClick={() => push('0')} style={{
-            height: 50, borderRadius: 10,
-            border: `1px solid ${C.border}`, background: C.surface,
-            fontSize: 20, fontWeight: 700, color: C.textPri,
-            cursor: 'pointer', boxShadow: `0 3px 0 ${C.border}`,
-          }}>
-            0
-          </button>
-          <button onClick={del} style={{
-            height: 50, borderRadius: 10,
-            border: `1px solid ${C.border}`, background: C.bg,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer', boxShadow: `0 3px 0 ${C.border}`,
-          }}>
-            <BackspaceOutlinedIcon sx={{ fontSize: 20, color: C.textSec }} />
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {keyBtn('CLR', clear, 'action')}
+            {keyBtn('0', () => push('0'), 'digit')}
+            {keyBtn(<BackspaceOutlinedIcon sx={{ fontSize: 18 }} />, del, 'action')}
+          </div>
         </div>
 
-        {/* Actions */}
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={handleClose} style={{
-            flex: 1, height: 44, borderRadius: 10,
-            border: `1px solid ${C.border}`, background: C.surface,
-            fontSize: 13, fontWeight: 600, color: C.textSec, cursor: 'pointer',
-          }}>
-            Cancel
-          </button>
-          <button onClick={handleConfirm} style={{
-            flex: 2, height: 44, borderRadius: 10,
-            border: 'none', background: C.primary,
-            fontSize: 13, fontWeight: 700, color: '#fff',
-            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-          }}>
-            <KeyOutlinedIcon sx={{ fontSize: 16 }} />
-            Authorize
-          </button>
-        </div>
-
-      </DialogContent>
+      </div>
     </Dialog>
   );
 }
@@ -232,167 +330,471 @@ function PinDialog({ open, override, onClose, onConfirm }) {
 /* ─────────────────────────────────────────────
    Override Card
 ───────────────────────────────────────────── */
-function OverrideCard({ item, onAction }) {
-  const p = PRIORITY[item.priority];
-  const meta = TYPE_META[item.type];
+function OverrideCard({ item, onAuthorize, onDeny, denying, isDesktop }) {
+  const meta = TYPE_META[item.actionType] || TYPE_META.REFUND;
+  const p    = PRIORITY[meta.priority];
   const Icon = meta.icon;
+  const isDiscount    = item.actionType === 'DISCOUNT';
+  const isVoid        = item.actionType === 'VOID';
+  const isPriceChange = item.actionType === 'PRICE_CHANGE';
+  const originalAmount = (item.amount || 0) + (item.discountAmount || 0);
+  const finalTotal = item.amount || 0;
+  const discountTypeSub = item.discountType === 'PERCENTAGE'
+    ? `${item.discountValue}% off`
+    : 'fixed amount';
+  const details = isDiscount
+    ? [
+        { label: 'Original Price', value: formatMoney(originalAmount),            sub: null,             errorColor: false },
+        { label: 'Discount Off',   value: `−${formatMoney(item.discountAmount)}`, sub: discountTypeSub,  errorColor: false },
+        { label: 'Final Total',    value: formatMoney(finalTotal),                sub: null,             accent: true      },
+      ]
+    : isVoid
+    ? [
+        { label: 'Sale Total', value: formatMoney(item.amount), errorColor: true },
+        { label: 'Invoice',    value: item.invoiceNo || '—' },
+      ]
+    : isPriceChange
+    ? [
+        { label: 'Catalog Price',  value: formatMoney(item.defaultPrice),  errorColor: false },
+        { label: 'Variance',       value: `${item.sellingPrice > item.defaultPrice ? '+' : '−'}${Number(item.variancePercent || 0).toFixed(1)}%`, errorColor: false },
+        { label: 'Selling Price',  value: formatMoney(item.sellingPrice),  accent: true },
+      ]
+    : [
+        { label: 'Amount', value: formatMoney(item.amount), errorColor: true },
+        { label: 'Item',   value: `${item.productName || ''}${item.sku ? ` (${item.sku})` : ''}${item.requestedQty ? ` ×${item.requestedQty}` : ''}` },
+      ];
 
   return (
-    <div style={{
-      background: C.surface,
-      border: `1px solid ${C.border}`,
-      borderRadius: 12,
-      overflow: 'hidden',
-    }}>
-      {/* Card header */}
-      <div style={{ padding: '12px 14px 10px', borderBottom: `1px solid ${C.border}` }}>
+    <CornerPanel color={p.badgeColor} style={{ borderRadius: 12 }}>
+      <div style={{ padding: isDesktop ? '14px 18px 12px' : '12px 14px 10px', borderBottom: `1px solid ${C.border}` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-          <span style={{
-            fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase',
-            padding: '3px 8px', borderRadius: 5,
-            background: p.badgeBg, color: p.badgeColor,
-          }}>
-            {p.label}
-          </span>
+          <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '3px 8px', borderRadius: 5, background: p.badgeBg, color: p.badgeColor }}>{p.label}</span>
           <Icon sx={{ fontSize: 16, color: C.textDim }} />
         </div>
-        <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: C.textPri, letterSpacing: '-0.2px' }}>
-          {meta.label} <span style={{ color: C.textDim, fontWeight: 600 }}>{item.id}</span>
+        <p style={{ margin: 0, fontSize: isDesktop ? 16 : 15, fontWeight: 800, color: C.textPri, letterSpacing: '-0.2px' }}>
+          {meta.label} <span style={{ color: C.textDim, fontWeight: 600 }}>#{String(item._id).slice(-6).toUpperCase()}</span>
         </p>
+        {item.invoiceNo && <p style={{ margin: '2px 0 0', fontSize: 11, fontWeight: 700, color: C.textSec }}>Invoice <span style={{ color: C.primary }}>{item.invoiceNo}</span></p>}
       </div>
 
-      {/* Employee row */}
-      <div style={{ padding: '10px 14px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 8 }}>
-        <div style={{
-          width: 28, height: 28, borderRadius: 8, background: C.elevated, flexShrink: 0,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
+      <div style={{ padding: isDesktop ? '12px 18px' : '10px 14px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ width: 28, height: 28, borderRadius: 8, background: C.elevated, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <PersonOutlinedIcon sx={{ fontSize: 16, color: C.textSec }} />
         </div>
         <div>
           <p style={{ margin: 0, fontSize: 11, fontWeight: 500, color: C.textDim, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Employee</p>
           <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri }}>
-            {item.employee.name} <span style={{ color: C.textDim, fontWeight: 500 }}>(ID: {item.employee.code})</span>
+            {item.employeeId?.name || 'Unknown'} <span style={{ color: C.textDim, fontWeight: 500 }}>(ID: {item.employeeId?.employeeCode || '—'})</span>
           </p>
         </div>
       </div>
 
-      {/* Detail rows */}
-      <div style={{ padding: '10px 14px', borderBottom: `1px solid ${C.border}` }}>
-        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${item.details.length}, 1fr)`, gap: 8 }}>
-          {item.details.map(({ label, value, errorColor, accentColor }) => (
+      <div style={{ padding: isDesktop ? '12px 18px' : '10px 14px', borderBottom: `1px solid ${C.border}` }}>
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${details.length}, 1fr)`, gap: 8 }}>
+          {details.map(({ label, value, sub, errorColor, accent }) => (
             <div key={label} style={{
-              background: accentColor ? 'rgba(212,163,115,0.12)' : C.bg,
-              border: `1px solid ${accentColor ? 'rgba(212,163,115,0.35)' : C.border}`,
+              background: accent ? `${C.success}0D` : C.bg,
+              border: `1px solid ${accent ? `${C.success}40` : C.border}`,
               borderRadius: 8, padding: '8px 10px',
             }}>
-              <p style={{ margin: '0 0 3px', fontSize: 9, fontWeight: 700, color: C.textDim, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                {label}
-              </p>
-              <p style={{ margin: 0, fontSize: 15, fontWeight: 800, letterSpacing: '-0.2px', color: errorColor ? C.error : accentColor ? C.warning : C.textPri }}>
-                {value}
-              </p>
+              <p style={{ margin: '0 0 3px', fontSize: 9, fontWeight: 700, color: accent ? C.success : C.textDim, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{label}</p>
+              <p style={{ margin: 0, fontSize: 15, fontWeight: 800, letterSpacing: '-0.2px', color: errorColor ? C.error : accent ? C.success : C.textPri }}>{value}</p>
+              {sub && <p style={{ margin: '2px 0 0', fontSize: 9, fontWeight: 600, color: C.textDim, letterSpacing: '0.04em' }}>{sub}</p>}
             </div>
           ))}
         </div>
+        {(isDiscount || isPriceChange) ? (
+          <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {/* Product + limit row */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
+              <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: C.textSec }}>
+                Product: <strong style={{ color: C.textPri }}>{item.productName || '—'}{item.sku ? ` (${item.sku})` : ''}</strong>
+              </p>
+              {isDiscount && item.discountLimit != null && (
+                <>
+                  <span style={{ color: C.textDim }}>·</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: C.textSec }}>
+                    Limit: <strong style={{ color: C.warning }}>{item.discountLimit}%</strong>
+                  </span>
+                  {item.discountType === 'PERCENTAGE' && item.discountValue > item.discountLimit && (
+                    <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 7px', borderRadius: 10, background: 'rgba(183,28,28,0.09)', border: '1px solid rgba(183,28,28,0.25)', color: C.error }}>
+                      ⚠ Exceeds by {(item.discountValue - item.discountLimit).toFixed(1)}%
+                    </span>
+                  )}
+                </>
+              )}
+              {isPriceChange && item.varianceLimit != null && (
+                <>
+                  <span style={{ color: C.textDim }}>·</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: C.textSec }}>
+                    Variance Limit: <strong style={{ color: C.warning }}>{item.varianceLimit}%</strong>
+                  </span>
+                  {item.variancePercent > item.varianceLimit && (
+                    <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 7px', borderRadius: 10, background: 'rgba(183,28,28,0.09)', border: '1px solid rgba(183,28,28,0.25)', color: C.error }}>
+                      ⚠ Exceeds by {(item.variancePercent - item.varianceLimit).toFixed(1)}%
+                    </span>
+                  )}
+                </>
+              )}
+            </div>
 
-        {/* Customer quote */}
-        {item.quote && (
-          <div style={{
-            marginTop: 8, padding: '8px 12px',
-            borderLeft: `3px solid ${C.accent}`,
-            background: 'rgba(212,163,115,0.08)',
-            borderRadius: '0 6px 6px 0',
-          }}>
-            <p style={{ margin: 0, fontSize: 12, fontStyle: 'italic', color: C.textSec, lineHeight: '18px' }}>
-              "{item.quote}"
-            </p>
+            {/* Buyer details from saleContext */}
+            {item.saleContext?.buyer?.name && (
+              <div style={{ display: 'flex', flexDirection: isDesktop ? 'row' : 'column', flexWrap: 'wrap', gap: isDesktop ? 16 : 3 }}>
+                <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: C.textSec }}>
+                  Buyer: <strong style={{ color: C.textPri }}>{item.saleContext.buyer.name}</strong>
+                  {item.saleContext.buyer.phone ? <span style={{ color: C.textDim }}> · {item.saleContext.buyer.phone}</span> : null}
+                  {item.saleContext.buyer.email ? <span style={{ color: C.textDim }}> · {item.saleContext.buyer.email}</span> : null}
+                </p>
+                {item.saleContext.paymentMethod && (
+                  <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: C.textSec }}>
+                    Payment: <strong style={{ color: C.textPri }}>{item.saleContext.paymentMethod}</strong>
+                    {item.saleContext.card?.last4 ? <span style={{ color: C.textDim }}> •••• {item.saleContext.card.last4}</span> : null}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
-        )}
-
-        {/* Reason chip */}
+        ) : !isVoid ? (
+          <>
+            <div style={{ marginTop: 8, display: 'flex', flexDirection: isDesktop ? 'row' : 'column', flexWrap: 'wrap', gap: isDesktop ? 16 : 3 }}>
+              <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: C.textSec }}>Buyer: <strong style={{ color: C.textPri }}>{item.buyer?.name || '—'}</strong>{item.buyer?.phone ? ` · ${item.buyer.phone}` : ''}</p>
+              <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: C.textSec }}>Refund via: <strong style={{ color: C.textPri }}>{item.paymentMethod}</strong>{item.card?.last4 ? ` •••• ${item.card.last4}` : ''}</p>
+            </div>
+            {(item.methodOverridden || !item.buyerVerified) && (
+              <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {item.methodOverridden && <span style={{ fontSize: 10, fontWeight: 800, padding: '3px 9px', borderRadius: 20, background: 'rgba(183,28,28,0.09)', border: '1px solid rgba(183,28,28,0.25)', color: C.error }}>⚠ Refund method differs from original payment</span>}
+                {!item.buyerVerified   && <span style={{ fontSize: 10, fontWeight: 800, padding: '3px 9px', borderRadius: 20, background: 'rgba(178,106,0,0.10)', border: '1px solid rgba(178,106,0,0.30)', color: C.warning }}>⚠ Buyer not verified against invoice</span>}
+              </div>
+            )}
+          </>
+        ) : null}
         {item.reason && (
           <div style={{ marginTop: 8 }}>
             <p style={{ margin: '0 0 4px', fontSize: 9, fontWeight: 700, color: C.textDim, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Reason</p>
-            <div style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-              padding: '5px 12px', borderRadius: 8,
-              border: `1px solid ${C.border}`, background: C.surface,
-            }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface }}>
               <span style={{ fontSize: 13, fontWeight: 600, color: C.textPri }}>{item.reason}</span>
             </div>
           </div>
         )}
       </div>
 
-      {/* Audit logs */}
-      {item.logs && (
-        <div style={{ padding: '8px 14px', borderBottom: `1px solid ${C.border}` }}>
-          <p style={{ margin: '0 0 5px', fontSize: 9, fontWeight: 700, color: C.textDim, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-            Audit Log
-          </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            {item.logs.map((log, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                <span style={{ width: 5, height: 5, borderRadius: '50%', background: C.textDim, flexShrink: 0 }} />
-                <span style={{ fontSize: 12, fontWeight: 500, color: C.textSec }}>{log}</span>
-              </div>
-            ))}
-          </div>
+      <div style={{ padding: isDesktop ? '10px 18px' : '8px 14px', borderBottom: `1px solid ${C.border}` }}>
+        <p style={{ margin: '0 0 5px', fontSize: 9, fontWeight: 700, color: C.textDim, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Audit Log</p>
+        <div style={{ display: 'flex', flexDirection: isDesktop ? 'row' : 'column', gap: isDesktop ? 16 : 3 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}><span style={{ width: 5, height: 5, borderRadius: '50%', background: C.textDim, flexShrink: 0 }} /><span style={{ fontSize: 12, fontWeight: 500, color: C.textSec }}>Initiated {timeAgo(item.createdAt)}</span></div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}><span style={{ width: 5, height: 5, borderRadius: '50%', background: C.textDim, flexShrink: 0 }} /><span style={{ fontSize: 12, fontWeight: 500, color: C.textSec }}>Requires PIN authorization</span></div>
         </div>
-      )}
+      </div>
 
-      {/* Action button */}
-      <div style={{ padding: '12px 14px' }}>
-        <button
-          onClick={() => onAction(item)}
-          style={{
-            width: '100%', height: 44, borderRadius: 10,
-            border: item.priority === 'STANDARD' ? `1.5px solid ${C.primary}` : 'none',
-            background: item.priority === 'STANDARD' ? C.surface : C.primary,
-            color: item.priority === 'STANDARD' ? C.primary : '#fff',
-            fontSize: 13, fontWeight: 700, letterSpacing: '0.04em',
-            cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-          }}
-        >
-          <LockOutlinedIcon sx={{ fontSize: 15 }} />
-          {item.actionLabel}
+      <div style={{ padding: isDesktop ? '14px 18px' : '12px 14px', display: 'flex', gap: 8 }}>
+        <button onClick={() => onDeny(item)} disabled={denying} style={{ height: 44, borderRadius: 10, padding: '0 16px', border: `1.5px solid ${C.border}`, background: C.surface, color: C.error, fontSize: 13, fontWeight: 700, cursor: denying ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+          <CloseOutlinedIcon sx={{ fontSize: 15 }} /> Deny
+        </button>
+        <button onClick={() => onAuthorize(item)} style={{ flex: 1, height: 44, borderRadius: 10, border: 'none', background: C.primary, color: '#fff', fontSize: 13, fontWeight: 700, letterSpacing: '0.04em', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
+          <LockOutlinedIcon sx={{ fontSize: 15 }} /> {meta.actionLabel}
         </button>
       </div>
-    </div>
+    </CornerPanel>
   );
 }
 
 /* ─────────────────────────────────────────────
    History Row
 ───────────────────────────────────────────── */
-function HistoryRow({ item, last }) {
-  const approved = item.status === 'APPROVED';
-  return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: '60px 1fr auto',
-      gap: 12,
-      alignItems: 'center',
-      padding: '11px 14px',
-      borderBottom: last ? 'none' : `1px solid ${C.border}`,
-    }}>
-      <span style={{ fontSize: 11, fontWeight: 600, color: C.textDim }}>{item.time}</span>
-      <div>
-        <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri }}>{item.type}</p>
-        <p style={{ margin: '1px 0 0', fontSize: 11, fontWeight: 500, color: C.textSec }}>{item.employee} · {item.amount}</p>
+function HistoryRow({ item, last, isDesktop }) {
+  const meta = TYPE_META[item.actionType] || TYPE_META.REFUND;
+  const ss   = STATUS_STYLE[item.status] || STATUS_STYLE.DENIED;
+
+  const badge = (
+    <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', padding: '3px 9px', borderRadius: 20, background: ss.bg, color: ss.color, border: `1px solid ${ss.border}`, flexShrink: 0, whiteSpace: 'nowrap' }}>
+      {item.status}
+    </span>
+  );
+
+  if (isDesktop) {
+    return (
+      <div style={{ display: 'grid', gridTemplateColumns: '72px 1fr 140px 80px auto', gap: 12, alignItems: 'center', padding: '11px 18px', borderBottom: last ? 'none' : `1px solid ${C.border}` }}>
+        <span style={{ fontSize: 11, fontWeight: 600, color: C.textDim }}>
+          {new Date(item.resolvedAt || item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        </span>
+        <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri }}>{meta.label}</p>
+        <p style={{ margin: 0, fontSize: 12, fontWeight: 500, color: C.textSec, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {item.employeeId?.name || 'Unknown'} · {item.employeeId?.employeeCode || '—'}
+        </p>
+        <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri }}>{formatMoney(item.amount)}</p>
+        {badge}
       </div>
-      <span style={{
-        fontSize: 10, fontWeight: 700, letterSpacing: '0.08em',
-        padding: '3px 9px', borderRadius: 20,
-        background: approved ? 'rgba(46,125,79,0.10)' : 'rgba(183,28,28,0.09)',
-        color: approved ? C.success : C.error,
-        border: `1px solid ${approved ? 'rgba(46,125,79,0.25)' : 'rgba(183,28,28,0.20)'}`,
-        flexShrink: 0,
-      }}>
-        {item.status}
+    );
+  }
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '60px 1fr auto', gap: 12, alignItems: 'center', padding: '11px 14px', borderBottom: last ? 'none' : `1px solid ${C.border}` }}>
+      <span style={{ fontSize: 11, fontWeight: 600, color: C.textDim }}>
+        {new Date(item.resolvedAt || item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
       </span>
+      <div>
+        <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri }}>{meta.label}</p>
+        <p style={{ margin: '1px 0 0', fontSize: 11, fontWeight: 500, color: C.textSec }}>
+          {item.employeeId?.name || 'Unknown'} ({item.employeeId?.employeeCode || '—'}) · {formatMoney(item.amount)}
+        </p>
+      </div>
+      {badge}
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────
+   Pending Panel — search + filter + pagination
+───────────────────────────────────────────── */
+const TYPE_FILTERS = [
+  { key: 'ALL',      label: 'All'      },
+  { key: 'REFUND',   label: 'Refund'   },
+  { key: 'VOID',     label: 'Void'     },
+  { key: 'DISCOUNT', label: 'Discount' },
+];
+
+function PendingPanel({ pending, onAuthorize, onDeny, denyingId, isDesktop }) {
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState('ALL');
+  const [page,   setPage]   = useState(0);
+
+  useEffect(() => { setPage(0); }, [search, filter]);
+
+  /* 1. Filter by type */
+  const byType = filter === 'ALL'
+    ? pending
+    : pending.filter((o) => o.actionType === filter);
+
+  /* 2. Apply search */
+  const q = search.trim().toLowerCase();
+  const searched = q
+    ? byType.filter((item) => {
+        const meta = TYPE_META[item.actionType] || TYPE_META.REFUND;
+        return (
+          (item.employeeId?.name        || '').toLowerCase().includes(q) ||
+          (item.employeeId?.employeeCode|| '').toLowerCase().includes(q) ||
+          (item.invoiceNo               || '').toLowerCase().includes(q) ||
+          (item.buyer?.name             || '').toLowerCase().includes(q) ||
+          (item.productName             || '').toLowerCase().includes(q) ||
+          meta.label.toLowerCase().includes(q) ||
+          formatMoney(item.amount).includes(q)
+        );
+      })
+    : byType;
+
+  /* 3. Paginate */
+  const totalPages = Math.max(1, Math.ceil(searched.length / PENDING_PER_PAGE));
+  const safePage   = Math.min(page, totalPages - 1);
+  const displayed  = searched.slice(safePage * PENDING_PER_PAGE, (safePage + 1) * PENDING_PER_PAGE);
+  const startIdx   = searched.length === 0 ? 0 : safePage * PENDING_PER_PAGE + 1;
+  const endIdx     = Math.min((safePage + 1) * PENDING_PER_PAGE, searched.length);
+
+  const typeCounts = {};
+  TYPE_FILTERS.forEach(({ key }) => {
+    typeCounts[key] = key === 'ALL' ? pending.length : pending.filter((o) => o.actionType === key).length;
+  });
+
+  /* Empty states */
+  if (pending.length === 0) {
+    return (
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '36px 24px', textAlign: 'center' }}>
+        <div style={{ width: 44, height: 44, borderRadius: 12, background: C.elevated, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px' }}>
+          <AdminPanelSettingsOutlinedIcon sx={{ fontSize: 22, color: C.success }} />
+        </div>
+        <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: C.textPri }}>All Clear</p>
+        <p style={{ margin: '4px 0 0', fontSize: 12, fontWeight: 500, color: C.textSec }}>No pending override requests.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+      {/* Search */}
+      <div style={{ position: 'relative' }}>
+        <SearchOutlinedIcon sx={{ fontSize: 15, color: C.textDim, position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search by employee, invoice, type…"
+          style={{
+            width: '100%', height: 36,
+            padding: '0 32px 0 32px',
+            borderRadius: 8,
+            border: `1px solid ${search ? C.primary : C.border}`,
+            background: C.surface,
+            fontSize: 12, fontWeight: 500, color: C.textPri,
+            outline: 'none', boxSizing: 'border-box',
+            transition: 'border-color 0.15s',
+          }}
+        />
+        {search && (
+          <button onClick={() => setSearch('')} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}>
+            <CloseOutlinedIcon sx={{ fontSize: 14, color: C.textDim }} />
+          </button>
+        )}
+      </div>
+
+      {/* Filter tabs */}
+      <div style={{ display: 'flex', gap: 5 }}>
+        {TYPE_FILTERS.map(({ key, label }) => {
+          const active = filter === key;
+          return (
+            <button
+              key={key}
+              onClick={() => setFilter(key)}
+              style={{
+                flex: 1, padding: '6px 8px', borderRadius: 7,
+                border: `1px solid ${active ? C.primary : C.border}`,
+                background: active ? C.primary : C.surface,
+                fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                color: active ? '#fff' : C.textSec,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                transition: 'background 0.15s, border-color 0.15s',
+              }}
+            >
+              {label}
+              <span style={{
+                fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 10, minWidth: 18, textAlign: 'center',
+                background: active ? 'rgba(255,255,255,0.20)' : C.elevated,
+                color: active ? '#fff' : C.textDim,
+              }}>
+                {typeCounts[key]}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Results info when searching */}
+      {(q || filter !== 'ALL') && (
+        <p style={{ margin: 0, fontSize: 11, fontWeight: 500, color: C.textDim }}>
+          {searched.length === 0
+            ? 'No results match your search.'
+            : `Showing ${startIdx}–${endIdx} of ${searched.length} result${searched.length !== 1 ? 's' : ''}`}
+        </p>
+      )}
+
+      {/* Cards */}
+      {searched.length === 0 ? (
+        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '28px 24px', textAlign: 'center' }}>
+          <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri }}>No results found</p>
+          <p style={{ margin: '4px 0 0', fontSize: 12, fontWeight: 500, color: C.textSec }}>Try a different search term or filter.</p>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {displayed.map((item) => (
+            <OverrideCard
+              key={item._id}
+              item={item}
+              onAuthorize={onAuthorize}
+              onDeny={onDeny}
+              denying={denyingId === item._id}
+              isDesktop={isDesktop}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 4 }}>
+          <span style={{ fontSize: 11, fontWeight: 500, color: C.textDim }}>
+            Page {safePage + 1} of {totalPages}
+          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+            <button
+              onClick={() => setPage((p) => p - 1)}
+              disabled={safePage === 0}
+              style={{ width: 30, height: 30, borderRadius: 7, border: `1px solid ${C.border}`, background: C.surface, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: safePage === 0 ? 'default' : 'pointer', opacity: safePage === 0 ? 0.35 : 1 }}
+            >
+              <ChevronLeftOutlinedIcon sx={{ fontSize: 17, color: C.textSec }} />
+            </button>
+
+            {pageRange(safePage, totalPages).map((p, idx) =>
+              p === null ? (
+                <span key={`e-${idx}`} style={{ width: 30, textAlign: 'center', fontSize: 12, color: C.textDim }}>…</span>
+              ) : (
+                <button
+                  key={p}
+                  onClick={() => setPage(p)}
+                  style={{
+                    width: 30, height: 30, borderRadius: 7,
+                    border: `1px solid ${p === safePage ? C.primary : C.border}`,
+                    background: p === safePage ? C.primary : C.surface,
+                    fontSize: 12, fontWeight: 700,
+                    color: p === safePage ? '#fff' : C.textSec,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {p + 1}
+                </button>
+              )
+            )}
+
+            <button
+              onClick={() => setPage((p) => p + 1)}
+              disabled={safePage === totalPages - 1}
+              style={{ width: 30, height: 30, borderRadius: 7, border: `1px solid ${C.border}`, background: C.surface, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: safePage === totalPages - 1 ? 'default' : 'pointer', opacity: safePage === totalPages - 1 ? 0.35 : 1 }}
+            >
+              <ChevronRightOutlinedIcon sx={{ fontSize: 17, color: C.textSec }} />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────
+   Simple History Table
+───────────────────────────────────────────── */
+function HistoryTable({ history, isDesktop }) {
+  return (
+    <div className="no-scrollbar" style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, overflowX: 'auto' }}>
+      <div style={{
+        minWidth: isDesktop ? 560 : 'auto',
+      }}>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: isDesktop ? '72px 1fr 140px 80px auto' : '60px 1fr auto',
+          gap: 12,
+          padding: isDesktop ? '10px 18px' : '9px 14px',
+          background: '#F3EDE9',
+          borderBottom: `1px solid ${C.border}`,
+          borderRadius: '11px 11px 0 0',
+        }}>
+          {(isDesktop
+            ? ['Time', 'Type', 'Employee', 'Amount', 'Status']
+            : ['Time', 'Request', 'Status']
+          ).map((h) => (
+            <span key={h} style={{ fontSize: 10, fontWeight: 700, color: C.primary, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</span>
+          ))}
+        </div>
+        {history.length === 0 ? (
+          <div style={{ padding: '28px 14px', textAlign: 'center', fontSize: 12, fontWeight: 500, color: C.textDim }}>
+            No resolved overrides yet.
+          </div>
+        ) : (
+          history.map((item, i) => (
+            <HistoryRow key={item._id} item={item} last={i === history.length - 1} isDesktop={isDesktop} />
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────
+   Section Divider (mobile)
+───────────────────────────────────────────── */
+function SectionDivider({ label }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+      <div style={{ flex: 1, height: 1, background: C.border }} />
+      <span style={{ fontSize: 10, fontWeight: 700, color: C.textDim, letterSpacing: '0.12em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{label}</span>
+      <div style={{ flex: 1, height: 1, background: C.border }} />
     </div>
   );
 }
@@ -401,154 +803,195 @@ function HistoryRow({ item, last }) {
    Main Page
 ───────────────────────────────────────────── */
 export default function ManagerOverridePage() {
-  const [pinTarget, setPinTarget] = useState(null);
-  const [resolved, setResolved]   = useState([]);
+  const token     = useAuthStore((s) => s.token);
+  const headers   = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+  const isDesktop = useMediaQuery('(min-width:1024px)');
 
-  const pending = PENDING.filter((o) => !resolved.includes(o.id));
+  const [overrides,      setOverrides]      = useState([]);
+  const [loading,        setLoading]        = useState(true);
+  const [pinTarget,      setPinTarget]      = useState(null);
+  const [pinError,       setPinError]       = useState('');
+  const [submitting,     setSubmitting]     = useState(false);
+  const [denyPinTarget,  setDenyPinTarget]  = useState(null);
+  const [denyPinError,   setDenyPinError]   = useState('');
+  const [denySubmitting, setDenySubmitting] = useState(false);
 
-  const handleAction = (item) => setPinTarget(item);
+  const loadOverrides = useCallback(() => {
+    setLoading(true);
+    fetch(`${API}/api/overrides`, { headers })
+      .then((r) => r.json())
+      .then((data) => setOverrides(Array.isArray(data) ? data : []))
+      .finally(() => setLoading(false));
+  }, [token]);
 
-  const handlePinConfirm = () => {
-    if (pinTarget) setResolved((p) => [...p, pinTarget.id]);
-    setPinTarget(null);
+  useEffect(() => { loadOverrides(); }, [loadOverrides]);
+
+  // Real-time: refresh list when a new override arrives or one is resolved
+  useSocketEvent(EVENTS.OVERRIDE_NEW,      () => loadOverrides());
+  useSocketEvent(EVENTS.OVERRIDE_RESOLVED, () => loadOverrides());
+
+  const pending  = overrides.filter((o) => o.status === 'PENDING');
+  const resolved = overrides.filter((o) => o.status !== 'PENDING');
+
+  const handleAuthorize  = (item) => { setPinError(''); setPinTarget(item); };
+  const handlePinConfirm = async (pin) => {
+    setSubmitting(true); setPinError('');
+    try {
+      const res  = await fetch(`${API}/api/overrides/${pinTarget._id}/approve`, { method: 'POST', headers, body: JSON.stringify({ pin }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Authorization failed');
+      setPinTarget(null); loadOverrides();
+    } catch (e) { setPinError(e.message); }
+    finally { setSubmitting(false); }
+  };
+  const handleDeny = (item) => { setDenyPinError(''); setDenyPinTarget(item); };
+  const handleDenyPinConfirm = async (pin) => {
+    setDenySubmitting(true); setDenyPinError('');
+    try {
+      const res  = await fetch(`${API}/api/overrides/${denyPinTarget._id}/deny`, { method: 'POST', headers, body: JSON.stringify({ pin }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Denial failed');
+      setDenyPinTarget(null); loadOverrides();
+    } catch (e) { setDenyPinError(e.message); }
+    finally { setDenySubmitting(false); }
   };
 
+  const statItems = [
+    { label: 'Active',   value: pending.length,  color: pending.length > 0 ? C.error : C.success, Icon: ErrorOutlineOutlinedIcon, iconBg: pending.length > 0 ? 'rgba(183,28,28,0.10)' : 'rgba(46,125,79,0.10)' },
+    { label: 'Resolved', value: resolved.length, color: C.success,                                 Icon: CheckCircleOutlinedIcon,  iconBg: 'rgba(46,125,79,0.10)' },
+  ];
+
+  /* ══════════════════════════════════════════
+     DESKTOP
+  ══════════════════════════════════════════ */
+  if (isDesktop) {
+    return (
+      <div style={{ height: '100dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+
+        {/* Top bar */}
+        <div style={{ padding: '24px 32px 20px', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+            <div>
+              <p style={{ margin: '0 0 2px', fontSize: 11, fontWeight: 600, color: C.textDim, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Manager Portal</p>
+              <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: C.textPri, letterSpacing: '-0.4px' }}>Overrides</h1>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <button onClick={loadOverrides} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, fontSize: 12, fontWeight: 600, color: C.textSec, cursor: 'pointer' }}>
+                <RefreshOutlinedIcon sx={{ fontSize: 15 }} /> Refresh
+              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 13px', borderRadius: 20, background: 'rgba(46,125,79,0.10)', border: '1px solid rgba(46,125,79,0.22)' }}>
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: C.success, flexShrink: 0 }} />
+                <span style={{ fontSize: 11, fontWeight: 700, color: C.success, letterSpacing: '0.04em' }}>Live</span>
+              </div>
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 220px)', gap: 12 }}>
+            {statItems.map(({ label, value, color, Icon, iconBg }) => (
+              <CornerPanel key={label} color={color} style={{ padding: '13px 18px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ width: 38, height: 38, borderRadius: 10, background: iconBg, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon sx={{ fontSize: 20, color }} />
+                </div>
+                <div>
+                  <p style={{ margin: 0, fontSize: 24, fontWeight: 800, color: C.textPri, lineHeight: 1, letterSpacing: '-0.6px' }}>{String(value).padStart(2, '0')}</p>
+                  <p style={{ margin: '4px 0 0', fontSize: 10, fontWeight: 600, color: C.textDim, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{label}</p>
+                </div>
+              </CornerPanel>
+            ))}
+          </div>
+        </div>
+
+        {/* 2-column body */}
+        <div style={{ flex: 1, display: 'flex', overflow: 'hidden', borderTop: `1px solid ${C.border}` }}>
+
+          {/* Left: pending — searchable, filterable, paginated */}
+          <div className="no-scrollbar" style={{ flex: 1, overflowY: 'auto', padding: '20px 24px 32px 32px' }}>
+            <CornerPanel color={pending.length > 0 ? C.error : C.textDim} style={{ marginBottom: 16, padding: '12px 16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 3, height: 16, borderRadius: 2, background: pending.length > 0 ? C.error : C.textDim }} />
+                  <span style={{ fontSize: 11, fontWeight: 700, color: C.textDim, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Pending Authorization</span>
+                </div>
+                {pending.length > 0 && (
+                  <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: 'rgba(183,28,28,0.09)', color: C.error, border: '1px solid rgba(183,28,28,0.20)' }}>
+                    {pending.length} pending
+                  </span>
+                )}
+              </div>
+            </CornerPanel>
+            {loading ? (
+              <div style={{ textAlign: 'center', padding: '24px 0', fontSize: 12, fontWeight: 600, color: C.textDim }}>Loading overrides…</div>
+            ) : (
+              <PendingPanel pending={pending} onAuthorize={handleAuthorize} onDeny={handleDeny} denyingId={null} isDesktop />
+            )}
+          </div>
+
+          {/* Right: history — fixed, scrolls independently */}
+          <div className="no-scrollbar" style={{ width: 460, flexShrink: 0, overflowY: 'auto', padding: '20px 32px 32px 24px', borderLeft: `1px solid ${C.border}`, background: '#FAF8F6' }}>
+            <CornerPanel color={C.textDim} bg="#FAF8F6" style={{ marginBottom: 16, padding: '12px 16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 3, height: 16, borderRadius: 2, background: C.textDim }} />
+                  <span style={{ fontSize: 11, fontWeight: 700, color: C.textDim, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Override History</span>
+                </div>
+                {resolved.length > 0 && (
+                  <span style={{ fontSize: 11, fontWeight: 600, color: C.textDim }}>{resolved.length} resolved</span>
+                )}
+              </div>
+            </CornerPanel>
+            <HistoryTable history={resolved} isDesktop />
+          </div>
+        </div>
+
+        <PinDialog open={!!pinTarget} override={pinTarget} error={pinError} submitting={submitting} onClose={() => setPinTarget(null)} onConfirm={handlePinConfirm} />
+        <PinDialog open={!!denyPinTarget} override={denyPinTarget} error={denyPinError} submitting={denySubmitting} onClose={() => setDenyPinTarget(null)} onConfirm={handleDenyPinConfirm} mode="deny" />
+      </div>
+    );
+  }
+
+  /* ══════════════════════════════════════════
+     MOBILE
+  ══════════════════════════════════════════ */
   return (
     <div style={{ padding: '20px 16px 32px', maxWidth: 480, margin: '0 auto' }}>
-
-      {/* ── Page header ── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <div>
-          <p style={{ margin: '0 0 1px', fontSize: 10, fontWeight: 600, color: C.textDim, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
-            Manager Portal
-          </p>
-          <h1 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: C.textPri, letterSpacing: '-0.1px' }}>
-            Overrides
-          </h1>
+          <p style={{ margin: '0 0 1px', fontSize: 10, fontWeight: 600, color: C.textDim, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Manager Portal</p>
+          <h1 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: C.textPri, letterSpacing: '-0.1px' }}>Overrides</h1>
         </div>
-        {/* Live indicator */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 11px', borderRadius: 20, background: 'rgba(46,125,79,0.10)', border: '1px solid rgba(46,125,79,0.22)' }}>
           <span style={{ width: 7, height: 7, borderRadius: '50%', background: C.success, flexShrink: 0 }} />
           <span style={{ fontSize: 11, fontWeight: 700, color: C.success, letterSpacing: '0.04em' }}>Live</span>
         </div>
       </div>
 
-      {/* ── Queue summary ── */}
-      {(() => {
-        const activeColor   = pending.length > 0 ? C.error   : C.success;
-        const resolvedColor = C.success;
-        const cards = [
-          {
-            label: 'Active',
-            value: pending.length,
-            color: activeColor,
-            Icon: ErrorOutlineOutlinedIcon,
-            iconBg: pending.length > 0 ? 'rgba(183,28,28,0.10)' : 'rgba(46,125,79,0.10)',
-          },
-          {
-            label: 'Resolved',
-            value: HISTORY.length + resolved.length,
-            color: resolvedColor,
-            Icon: CheckCircleOutlinedIcon,
-            iconBg: 'rgba(46,125,79,0.10)',
-          },
-        ];
-        return (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 20 }}>
-            {cards.map(({ label, value, color, Icon, iconBg }) => (
-              <div key={label} style={{
-                background: C.surface,
-                border: `1px solid ${C.border}`,
-                borderLeft: `2px solid ${color}`,
-                borderRadius: 10,
-                padding: '11px 14px',
-                display: 'flex', alignItems: 'center', gap: 10,
-              }}>
-                <div style={{
-                  width: 34, height: 34, borderRadius: 9,
-                  background: iconBg, flexShrink: 0,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                  <Icon sx={{ fontSize: 18, color }} />
-                </div>
-                <div>
-                  <p style={{ margin: 0, fontSize: 20, fontWeight: 800, color: C.textPri, lineHeight: 1, letterSpacing: '-0.4px' }}>
-                    {String(value).padStart(2, '0')}
-                  </p>
-                  <p style={{ margin: '3px 0 0', fontSize: 10, fontWeight: 600, color: C.textDim, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                    {label}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        );
-      })()}
-
-      {/* ── Pending overrides ── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-        <div style={{ flex: 1, height: 1, background: C.border }} />
-        <span style={{ fontSize: 10, fontWeight: 700, color: C.textDim, letterSpacing: '0.12em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-          Pending Authorization
-        </span>
-        <div style={{ flex: 1, height: 1, background: C.border }} />
-      </div>
-
-      {pending.length === 0 ? (
-        <div style={{
-          background: C.surface, border: `1px solid ${C.border}`,
-          borderRadius: 12, padding: '36px 24px',
-          textAlign: 'center', marginBottom: 20,
-        }}>
-          <div style={{ width: 44, height: 44, borderRadius: 12, background: C.elevated, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px' }}>
-            <AdminPanelSettingsOutlinedIcon sx={{ fontSize: 22, color: C.success }} />
-          </div>
-          <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: C.textPri }}>All Clear</p>
-          <p style={{ margin: '4px 0 0', fontSize: 12, fontWeight: 500, color: C.textSec }}>No pending override requests.</p>
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
-          {pending.map((item) => (
-            <OverrideCard key={item.id} item={item} onAction={handleAction} />
-          ))}
-        </div>
-      )}
-
-      {/* ── Override history ── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-        <div style={{ flex: 1, height: 1, background: C.border }} />
-        <span style={{ fontSize: 10, fontWeight: 700, color: C.textDim, letterSpacing: '0.12em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-          Override History
-        </span>
-        <div style={{ flex: 1, height: 1, background: C.border }} />
-      </div>
-
-      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden' }}>
-        {/* Table header */}
-        <div style={{
-          display: 'grid', gridTemplateColumns: '60px 1fr auto',
-          gap: 12, padding: '9px 14px',
-          background: '#F3EDE9', borderBottom: `1px solid ${C.border}`,
-        }}>
-          {['Time', 'Request', 'Status'].map((h) => (
-            <span key={h} style={{ fontSize: 10, fontWeight: 700, color: C.primary, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-              {h}
-            </span>
-          ))}
-        </div>
-        {HISTORY.map((item, i) => (
-          <HistoryRow key={i} item={item} last={i === HISTORY.length - 1} />
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 20 }}>
+        {statItems.map(({ label, value, color, Icon, iconBg }) => (
+          <CornerPanel key={label} color={color} style={{ padding: '11px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 34, height: 34, borderRadius: 9, background: iconBg, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Icon sx={{ fontSize: 18, color }} />
+            </div>
+            <div>
+              <p style={{ margin: 0, fontSize: 20, fontWeight: 800, color: C.textPri, lineHeight: 1, letterSpacing: '-0.4px' }}>{String(value).padStart(2, '0')}</p>
+              <p style={{ margin: '3px 0 0', fontSize: 10, fontWeight: 600, color: C.textDim, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{label}</p>
+            </div>
+          </CornerPanel>
         ))}
       </div>
 
-      {/* PIN dialog */}
-      <PinDialog
-        open={!!pinTarget}
-        override={pinTarget}
-        onClose={() => setPinTarget(null)}
-        onConfirm={handlePinConfirm}
-      />
+      <SectionDivider label="Pending Authorization" />
+      <div style={{ marginBottom: 24 }}>
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '24px 0', fontSize: 12, fontWeight: 600, color: C.textDim }}>Loading overrides…</div>
+        ) : (
+          <PendingPanel pending={pending} onAuthorize={handleAuthorize} onDeny={handleDeny} denyingId={null} isDesktop={false} />
+        )}
+      </div>
 
+      <SectionDivider label="Override History" />
+      <HistoryTable history={resolved} isDesktop={false} />
+
+      <PinDialog open={!!pinTarget} override={pinTarget} error={pinError} submitting={submitting} onClose={() => setPinTarget(null)} onConfirm={handlePinConfirm} />
+      <PinDialog open={!!denyPinTarget} override={denyPinTarget} error={denyPinError} submitting={denySubmitting} onClose={() => setDenyPinTarget(null)} onConfirm={handleDenyPinConfirm} mode="deny" />
     </div>
   );
 }

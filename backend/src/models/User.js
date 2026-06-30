@@ -43,6 +43,11 @@ const userSchema = new mongoose.Schema(
             type: String,
             trim: true,
         },
+        // fileId of a self-uploaded ImageKit avatar (distinct from Clerk imageUrl)
+        imageFileId: {
+            type: String,
+            default: null,
+        },
         authProvider: {
             type: String,
             enum: ['local', 'clerk'],
@@ -63,6 +68,29 @@ const userSchema = new mongoose.Schema(
             type: Boolean,
             default: true,
             index: true,
+        },
+        // Account lifecycle state — drives the approval workflow.
+        // Default ACTIVE preserves backward compat for all existing users.
+        // New local signups are created as PENDING until a manager approves.
+        status: {
+            type: String,
+            enum: ['PENDING', 'ACTIVE', 'REJECTED', 'SUSPENDED'],
+            default: 'ACTIVE',
+            index: true,
+        },
+        // Links this POS user to their corresponding EMS employee record.
+        // Used to pull schedule/shift data from Staffing Betit (EMS).
+        // Falls back to email matching when this is absent.
+        staffingBetitEmployeeId: {
+            type: String,
+            default: null,
+            index: true,
+            sparse: true,
+        },
+        address: {
+            type: String,
+            default: '',
+            trim: true,
         },
     },
     {

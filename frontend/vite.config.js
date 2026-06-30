@@ -11,8 +11,16 @@ export default defineConfig(({ mode }) => {
       'process.env.VITE_CLERK_PUBLISHABLE_KEY': JSON.stringify(env.VITE_CLERK_PUBLISHABLE_KEY),
     },
     server: {
+      host: true,
+      port: 5173,
+      allowedHosts: true,
       proxy: {
-        '/api': 'http://localhost:5001',
+        '/api': 'http://127.0.0.1:5001',
+        '/socket.io': {
+          target: 'http://127.0.0.1:5001',
+          ws: true,
+          changeOrigin: true,
+        },
       },
     },
   };

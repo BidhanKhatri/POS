@@ -14,6 +14,10 @@ const allowedOrigins = [
   'http://127.0.0.1:5174',
   'http://localhost:5175',
   'http://127.0.0.1:5175',
+  // LAN access for mobile/Chrome testing
+  'http://192.168.1.95:5173',
+  'http://192.168.1.95:5174',
+  'http://192.168.1.95:5175',
 ];
 
 const corsOptions = {
@@ -21,7 +25,10 @@ const corsOptions = {
     if (!origin || allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
-
+    // Allow any ngrok tunnel (for local HTTPS mobile testing)
+    if (/^https:\/\/[a-z0-9-]+\.ngrok(-free)?\.(?:app|dev|io)$/.test(origin)) {
+      return callback(null, true);
+    }
     return callback(new Error(`Origin ${origin} is not allowed by CORS`));
   },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -34,15 +41,12 @@ const corsOptions = {
 app.use(helmet());
 app.use(cors(corsOptions));
 
-// Rate Limiting
+// Rate Limiting — generous limit; report pages fire 6+ concurrent queries
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  windowMs: 15 * 60 * 1000,
+  max: 500,
 });
 app.use('/api', limiter);
-
-// Clerk webhooks require the raw request body for Svix signature verification.
-app.use('/api/auth/clerk/webhook', express.raw({ type: 'application/json' }));
 
 // Body parser
 app.use(express.json());
