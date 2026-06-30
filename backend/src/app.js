@@ -63,9 +63,6 @@ const corsOptions = {
 app.use(helmet());
 app.use(cors(corsOptions));
 
-// Respond to all OPTIONS preflight requests immediately
-app.options('*', cors(corsOptions));
-
 // ── Rate Limiting ──────────────────────────────────────────────────────────────
 // Generous limit — report pages fire 6+ concurrent queries.
 // trust proxy (set above) ensures the real client IP is read from
