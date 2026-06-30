@@ -28,7 +28,7 @@ import useAuthStore from '../store/useAuthStore';
 import { useReportCashiers, useEmployeeReport, buildDateRange } from '../hooks/useReportQuery';
 import { useQuery } from '@tanstack/react-query';
 
-const API = import.meta.env.VITE_API_BASE_URL ?? '';
+import { API_URL as API } from '../config/api';
 
 function useAllEmployees() {
   const token = useAuthStore(s => s.token);

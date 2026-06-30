@@ -30,7 +30,7 @@ import EventAvailableOutlinedIcon    from '@mui/icons-material/EventAvailableOut
 import useAuthStore from '../store/useAuthStore';
 import { buildDateRange } from '../hooks/useReportQuery';
 
-const API  = import.meta.env.VITE_API_BASE_URL ?? '';
+import { API_URL as API } from '../config/api';
 const FONT = "'Plus Jakarta Sans', sans-serif";
 
 const C = {

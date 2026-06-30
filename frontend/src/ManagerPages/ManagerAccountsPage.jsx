@@ -8,7 +8,7 @@ import RefreshOutlinedIcon        from '@mui/icons-material/RefreshOutlined';
 import useAuthStore from '../store/useAuthStore';
 import CornerCard from '../components/CornerCard/CornerCard';
 
-const API = import.meta.env.VITE_API_BASE_URL ?? '';
+import { API_URL as API } from '../config/api';
 
 const C = {
   primary: '#3E2723', primaryLt: '#5A3A33',

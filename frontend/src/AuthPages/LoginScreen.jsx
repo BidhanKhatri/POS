@@ -13,6 +13,7 @@ import useAuthStore from '../store/useAuthStore';
 import { useWebAuthn } from '../hooks/useWebAuthn';
 import { useLoading } from '../context/LoadingContext';
 import toast, { Toaster } from 'react-hot-toast';
+import { API_URL as API } from '../config/api';
 
 const MAX_ATTEMPTS = 3;
 const LOCKOUT_SECONDS = 60;
@@ -179,7 +180,7 @@ const LoginScreen = () => {
 
     setLoading(true);
     try {
-      const res = await fetch('/api/auth/login', {
+      const res = await fetch(`${API}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim(), pin }),

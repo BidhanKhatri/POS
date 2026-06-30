@@ -6,7 +6,7 @@ import {
 } from '@simplewebauthn/browser';
 import useAuthStore from '../store/useAuthStore';
 
-const API = import.meta.env.VITE_API_BASE_URL ?? '';
+import { API_URL as API } from '../config/api';
 
 async function apiPost(path, body, token) {
   const headers = { 'Content-Type': 'application/json' };

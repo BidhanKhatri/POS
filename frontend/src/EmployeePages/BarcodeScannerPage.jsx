@@ -16,7 +16,7 @@ import FlashlightOffOutlinedIcon from '@mui/icons-material/FlashlightOffOutlined
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined';
 import useAuthStore from '../store/useAuthStore';
 
-const API = import.meta.env.VITE_API_BASE_URL ?? '';
+import { API_URL as API } from '../config/api';
 
 const C = {
   brown: '#3E2723', brownMid: '#5D4037', brownLight: '#6D4C41',

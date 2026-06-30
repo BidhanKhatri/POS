@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import posLogo from '../assets/POS-logo.png';
 import { useLoading } from '../context/LoadingContext';
 import useAuthStore from '../store/useAuthStore';
+import { API_URL as API } from '../config/api';
 
 const MIN_MS     = 800;
 const FADE_MS    = 400;
@@ -21,7 +22,7 @@ export default function SplashScreen() {
     const token = useAuthStore.getState().token;
     if (!token) return;
     let cancelled = false;
-    fetch('/api/settings/logo', { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`${API}/api/settings/logo`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (cancelled) return;

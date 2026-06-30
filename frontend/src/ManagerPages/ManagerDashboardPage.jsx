@@ -684,7 +684,7 @@ export default function ManagerDashboardPage() {
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const res = await fetch(`/api/dashboard/manager?period=${period}`, {
+      const res = await fetch(`${API}/api/dashboard/manager?period=${period}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error('Failed to load dashboard');

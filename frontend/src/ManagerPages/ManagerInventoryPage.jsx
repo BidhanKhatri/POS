@@ -23,7 +23,7 @@ import ImageUploader from '../components/ImageUploader/ImageUploader';
 import ProductImageUpload from '../components/ProductImageUpload/ProductImageUpload';
 import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined';
 
-const API = import.meta.env.VITE_API_BASE_URL ?? '';
+import { API_URL as API } from '../config/api';
 const LOW = 5;
 
 const C = {

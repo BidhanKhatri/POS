@@ -12,7 +12,7 @@ import PhoneOutlinedIcon         from '@mui/icons-material/PhoneOutlined';
 import useAuthStore              from '../store/useAuthStore';
 import CornerCard                from '../components/CornerCard/CornerCard';
 
-const API  = import.meta.env.VITE_API_BASE_URL ?? '';
+import { API_URL as API } from '../config/api';
 const FONT = "'Plus Jakarta Sans', sans-serif";
 
 const C = {

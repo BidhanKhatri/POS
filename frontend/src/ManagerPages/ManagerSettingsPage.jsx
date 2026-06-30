@@ -29,7 +29,7 @@ import useAuthStore from '../store/useAuthStore';
 import BiometricSetup from '../components/BiometricSetup/BiometricSetup';
 import ImageUploader from '../components/ImageUploader/ImageUploader';
 
-const API = import.meta.env.VITE_API_BASE_URL ?? '';
+import { API_URL as API } from '../config/api';
 
 const C = {
   primary: '#3E2723', primaryLt: '#5A3A33',

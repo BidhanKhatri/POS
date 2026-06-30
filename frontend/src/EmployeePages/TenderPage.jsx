@@ -19,7 +19,7 @@ import CornerCard from '../components/CornerCard/CornerCard';
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import ShoppingBagOutlinedIcon from '@mui/icons-material/ShoppingBagOutlined';
 
-const API = import.meta.env.VITE_API_BASE_URL ?? '';
+import { API_URL as API } from '../config/api';
 
 const PAYMENT_METHODS = [
   { id: 'CASH',   label: 'Cash',        icon: AttachMoneyIcon },

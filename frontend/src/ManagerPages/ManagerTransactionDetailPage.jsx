@@ -32,7 +32,7 @@ import InfoOutlinedIcon                     from '@mui/icons-material/InfoOutlin
 import { printReceipt, downloadPDF }        from '../utils/receiptUtils';
 import useAuthStore                         from '../store/useAuthStore';
 
-const API  = import.meta.env.VITE_API_BASE_URL ?? '';
+import { API_URL as API } from '../config/api';
 const FONT = "'Plus Jakarta Sans', sans-serif";
 
 const C = {

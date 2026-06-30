@@ -23,6 +23,7 @@ import ChevronLeftIcon                   from '@mui/icons-material/ChevronLeft';
 import useAuthStore from '../store/useAuthStore';
 import { useLoading } from '../context/LoadingContext';
 import SessionMonitor from '../components/SessionLock/SessionMonitor';
+import { API_URL as API } from '../config/api';
 
 // ─── Navigation structure ─────────────────────────────────────────────────────
 const NAV_GROUPS = [
@@ -104,7 +105,7 @@ export default function ManagerLayout() {
   // Hydrate imageUrl for already-logged-in sessions that predate the avatar feature
   useEffect(() => {
     if (!token || user?.imageUrl !== undefined) return;
-    fetch('/api/profile', { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`${API}/api/profile`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (data?.data?.imageUrl !== undefined) {
@@ -123,7 +124,7 @@ export default function ManagerLayout() {
 
   const { data: logoData } = useQuery({
     queryKey: ['settings-logo'],
-    queryFn: () => fetch('/api/settings/logo', { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` } }).then(r => r.ok ? r.json() : null),
+    queryFn: () => fetch(`${API}/api/settings/logo`, { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` } }).then(r => r.ok ? r.json() : null),
     staleTime: 5 * 60 * 1000,
     enabled: !!token,
   });
@@ -131,7 +132,7 @@ export default function ManagerLayout() {
 
   const { data: syncData } = useQuery({
     queryKey: ['settings-sync'],
-    queryFn: () => fetch('/api/settings/sync-staffing', { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` } }).then(r => r.ok ? r.json() : { syncStaffingBetit: false }),
+    queryFn: () => fetch(`${API}/api/settings/sync-staffing`, { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` } }).then(r => r.ok ? r.json() : { syncStaffingBetit: false }),
     staleTime: 0,
     enabled: !!user,
   });

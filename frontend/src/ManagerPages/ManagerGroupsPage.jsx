@@ -18,7 +18,7 @@ import CloseIcon                  from '@mui/icons-material/Close';
 import CheckIcon                  from '@mui/icons-material/Check';
 import useAuthStore from '../store/useAuthStore';
 
-const API  = import.meta.env.VITE_API_BASE_URL ?? '';
+import { API_URL as API, EMS_URL } from '../config/api';
 const FONT = "'Plus Jakarta Sans', sans-serif";
 
 const C = {
@@ -43,7 +43,7 @@ const C = {
   elevated:   '#EFE7E2',
 };
 
-const EMS_AVATAR_BASE = 'http://localhost:5002';
+const EMS_AVATAR_BASE = EMS_URL;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -665,7 +665,7 @@ export default function ManagerGroupsPage() {
           <InfoOutlinedIcon sx={{ fontSize: 16, color: C.info, flexShrink: 0, marginTop: '1px' }} />
           <p style={{ margin: 0, fontSize: 12, color: '#01579B', fontWeight: 500, lineHeight: '18px', fontFamily: FONT }}>
             <strong>Read-only view</strong> — groups are sourced from Staffing Betit (EMS). To create or modify groups, visit the{' '}
-            <a href="http://localhost:5002" target="_blank" rel="noopener noreferrer" style={{ color: C.info, fontWeight: 700, textDecoration: 'underline' }}>
+            <a href={EMS_URL} target="_blank" rel="noopener noreferrer" style={{ color: C.info, fontWeight: 700, textDecoration: 'underline' }}>
               Staffing Betit portal
             </a>. To disable this sync, go to <strong>Settings › Sync Data</strong>.
           </p>

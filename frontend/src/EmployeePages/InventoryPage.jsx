@@ -16,7 +16,7 @@ import CornerCard from '../components/CornerCard/CornerCard';
 import { useSocketEvent } from '../context/SocketContext';
 import { EVENTS } from '../socket/events';
 
-const API = import.meta.env.VITE_API_BASE_URL ?? '';
+import { API_URL as API } from '../config/api';
 const LOW = 5;
 const FONT = "'Plus Jakarta Sans', sans-serif";
 

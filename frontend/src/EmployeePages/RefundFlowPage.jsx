@@ -7,7 +7,7 @@ import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined';
 import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined';
 import useAuthStore from '../store/useAuthStore';
 
-const API = import.meta.env.VITE_API_BASE_URL ?? '';
+import { API_URL as API } from '../config/api';
 
 const C = {
   primary: '#3E2723', accent: '#D4A373', error: '#B71C1C', success: '#2E7D4F',

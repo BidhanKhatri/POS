@@ -81,7 +81,7 @@ const SIDEBAR_SECTIONS = [
 
 const SIDEBAR_W = 232;
 
-const API = import.meta.env.VITE_API_BASE_URL ?? '';
+import { API_URL as API } from '../config/api';
 const LOGO_CACHE_KEY = 'pos-store-logo-url';
 
 export default function EmployeeLayout() {

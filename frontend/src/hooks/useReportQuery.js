@@ -12,7 +12,7 @@
 import { useQuery } from '@tanstack/react-query';
 import useAuthStore from '../store/useAuthStore';
 
-const API = import.meta.env.VITE_API_BASE_URL ?? '';
+import { API_URL as API } from '../config/api';
 
 // ─── Core fetch helper ───────────────────────────────────────────────────────
 async function reportFetch(path, token) {

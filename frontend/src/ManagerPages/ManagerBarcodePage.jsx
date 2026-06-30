@@ -11,8 +11,7 @@ import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutlined';
 import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined';
 import CloseIcon from '@mui/icons-material/Close';
 import useAuthStore from '../store/useAuthStore';
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? '';
+import { API_URL as API_BASE } from '../config/api';
 
 const C = {
   brown: '#3E2723',

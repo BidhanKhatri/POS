@@ -5,7 +5,7 @@ import CloseOutlinedIcon             from '@mui/icons-material/CloseOutlined';
 import RefreshOutlinedIcon           from '@mui/icons-material/RefreshOutlined';
 import CloudUploadOutlinedIcon       from '@mui/icons-material/CloudUploadOutlined';
 
-const API          = import.meta.env.VITE_API_BASE_URL ?? '';
+import { API_URL as API } from '../../config/api';
 const ALLOWED      = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 const MAX_SIZE     = 5 * 1024 * 1024;
 const MAX_FILES    = 8;

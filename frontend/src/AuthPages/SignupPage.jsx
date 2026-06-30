@@ -9,6 +9,7 @@ import PersonOutlinedIcon from '@mui/icons-material/PersonOutlined';
 import EmailOutlinedIcon from '@mui/icons-material/EmailOutlined';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import toast, { Toaster } from 'react-hot-toast';
+import { API_URL as API } from '../config/api';
 
 const C = {
     primary: '#3E2723',
@@ -385,7 +386,7 @@ function SignupPage() {
         setLoading(true);
         setErrorMsg('');
         try {
-            const res = await fetch('/api/auth/signup', {
+            const res = await fetch(`${API}/api/auth/signup`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name: form.fullName.trim(), email: form.email.trim(), pin: pinStr }),

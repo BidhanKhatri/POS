@@ -11,7 +11,7 @@ import CornerCard from '../components/CornerCard/CornerCard';
 import useAuthStore from '../store/useAuthStore';
 import { useLoading } from '../context/LoadingContext';
 
-const API = import.meta.env.VITE_API_BASE_URL ?? '';
+import { API_URL as API } from '../config/api';
 
 const NUM_KEY =
   'flex items-center justify-center select-none cursor-pointer rounded-xl ' +
