@@ -248,23 +248,23 @@ function PinDialog({ open, override, error, submitting, onClose, onConfirm, mode
 
           {/* PIN dots */}
           <div>
-            <p style={{ margin: '0 0 10px', fontSize: 9, fontWeight: 700, color: C.textDim, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+            <p style={{ margin: `0 0 ${isMobile ? 6 : 10}px`, fontSize: 9, fontWeight: 700, color: C.textDim, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
               Enter 4-Digit PIN
             </p>
             <div className={shake ? 'pin-shake' : ''} style={{
-              display: 'flex', gap: 12, padding: '14px 18px', borderRadius: 12,
+              display: 'flex', gap: isMobile ? 8 : 12, padding: isMobile ? '8px 14px' : '14px 18px', borderRadius: isMobile ? 9 : 12,
               background: C.bg, border: `1.5px solid ${error ? C.error : pin.length === 4 ? (mode === 'deny' ? C.error : C.primary) : C.border}`,
               transition: 'border-color 0.15s',
             }}>
               {[0,1,2,3].map((i) => (
                 <div key={i} style={{
-                  flex: 1, height: 14, borderRadius: 4,
+                  flex: 1, height: isMobile ? 8 : 14, borderRadius: 3,
                   background: i < pin.length ? (mode === 'deny' ? C.error : C.primary) : C.border,
                   transition: 'background 0.12s',
                 }} />
               ))}
             </div>
-            {error && <p style={{ margin: '6px 0 0', fontSize: 11, fontWeight: 700, color: C.error }}>{error}</p>}
+            {error && <p style={{ margin: '5px 0 0', fontSize: 11, fontWeight: 700, color: C.error }}>{error}</p>}
           </div>
 
           {/* Actions */}
@@ -871,8 +871,10 @@ export default function ManagerOverridePage() {
         {/* Top bar */}
         <div style={{ padding: '24px 32px 20px', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-            <div>
-              <p style={{ margin: '0 0 2px', fontSize: 11, fontWeight: 600, color: C.textDim, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Manager Portal</p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ width: 40, height: 40, borderRadius: 10, background: C.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <AdminPanelSettingsOutlinedIcon sx={{ fontSize: 20, color: C.accent }} />
+              </div>
               <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: C.textPri, letterSpacing: '-0.4px' }}>Overrides</h1>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -954,8 +956,10 @@ export default function ManagerOverridePage() {
   return (
     <div style={{ padding: '20px 16px 32px', maxWidth: 480, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-        <div>
-          <p style={{ margin: '0 0 1px', fontSize: 10, fontWeight: 600, color: C.textDim, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Manager Portal</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 34, height: 34, borderRadius: 9, background: C.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <AdminPanelSettingsOutlinedIcon sx={{ fontSize: 17, color: C.accent }} />
+          </div>
           <h1 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: C.textPri, letterSpacing: '-0.1px' }}>Overrides</h1>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 11px', borderRadius: 20, background: 'rgba(46,125,79,0.10)', border: '1px solid rgba(46,125,79,0.22)' }}>

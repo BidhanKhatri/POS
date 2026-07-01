@@ -40,7 +40,7 @@ export default function TerminalPage() {
   // ── Shift gate (employees only) ──
   const [gateShift,    setGateShift]    = useState(null);
   const [gateLoading,  setGateLoading]  = useState(true);
-  const [todayShifts,  setTodayShifts]  = useState(null); // null = loading, [] = no shifts
+  const [todayShifts,  setTodayShifts]  = useState(null); // null = loading, array = today+yesterday shifts
   const [schedLoading, setSchedLoading] = useState(true);
 
   // ── Cart state ──
@@ -108,29 +108,55 @@ export default function TerminalPage() {
   /* ── Today's schedule check — lock terminal if no shift scheduled ── */
   useEffect(() => {
     if (user?.role !== 'Employee') { setSchedLoading(false); return; }
-    const today = new Date().toISOString().slice(0, 10);
+    const today     = new Date().toISOString().slice(0, 10);
+    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
     setSchedLoading(true);
-    fetch(`${API}/api/staffing/my-schedule?startDate=${today}&endDate=${today}`, {
+    // Fetch yesterday + today to detect overnight shifts spanning midnight
+    fetch(`${API}/api/staffing/my-schedule?startDate=${yesterday}&endDate=${today}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => r.json())
-      .then((d) => setTodayShifts(d.success ? (d.data ?? []) : []))
+      .then((d) => {
+        const all = d.success ? (d.data ?? []) : [];
+        // Store today + yesterday shifts together; gate logic splits them below
+        setTodayShifts(all);
+      })
       .catch(() => setTodayShifts([]))
       .finally(() => setSchedLoading(false));
   }, [token, user?.role]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Derive today's schedule state for gate ── */
   const todayScheduleState = (() => {
-    if (!todayShifts || todayShifts.length === 0) return 'NO_SHIFT';
-    const s = todayShifts[0];
-    const now = new Date();
-    const nm  = now.getHours() * 60 + now.getMinutes();
-    const [sh, sm] = s.startTime.split(':').map(Number);
-    const [eh, em] = s.endTime.split(':').map(Number);
-    const start = sh * 60 + sm;
-    const end   = eh * 60 + em;
-    if (nm < start) return 'UPCOMING';
-    if (nm <= end)  return 'IN_WINDOW';
+    if (!todayShifts) return 'NO_SHIFT';
+    const now         = new Date();
+    const todayStr    = now.toISOString().slice(0, 10);
+    const yestStr     = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    const todayList   = todayShifts.filter(s => s.date === todayStr);
+    const yestList    = todayShifts.filter(s => s.date === yestStr);
+
+    // Check yesterday's overnight shifts extending into today
+    for (const s of yestList) {
+      const [sy, sm, sd] = s.date.split('-').map(Number);
+      const [startH, startM] = s.startTime.split(':').map(Number);
+      const [endH, endM] = s.endTime.split(':').map(Number);
+      const startDT = new Date(sy, sm - 1, sd, startH, startM, 0, 0);
+      let endDT = new Date(sy, sm - 1, sd, endH, endM, 0, 0);
+      if (endDT <= startDT) {
+        endDT.setDate(endDT.getDate() + 1);
+        if (now <= endDT) return 'IN_WINDOW';
+      }
+    }
+
+    if (!todayList.length) return 'NO_SHIFT';
+    const s = todayList[0];
+    const [sy, sm, sd] = s.date.split('-').map(Number);
+    const [startH, startM] = s.startTime.split(':').map(Number);
+    const [endH, endM] = s.endTime.split(':').map(Number);
+    const startDT = new Date(sy, sm - 1, sd, startH, startM, 0, 0);
+    let endDT = new Date(sy, sm - 1, sd, endH, endM, 0, 0);
+    if (endDT <= startDT) endDT.setDate(endDT.getDate() + 1); // overnight
+    if (now < startDT) return 'UPCOMING';
+    if (now <= endDT)  return 'IN_WINDOW';
     return 'PAST';
   })();
 
@@ -138,15 +164,28 @@ export default function TerminalPage() {
   // Shift ended and not clocked in — terminal is also inaccessible
   const shiftEnded = todayScheduleState === 'PAST' && !gateShift;
 
-  // Stale shift = clocked in on a previous calendar day (missed clock-out)
-  // Sales must never be attributed to a prior day's shift — block access
+  // Stale shift = clocked in on a previous calendar day AND past scheduled end.
+  // Active overnight shifts (e.g. 10 PM – 2 AM) are NOT stale — we check
+  // scheduledEnd on the Shift doc before flagging.
   const isStaleShift = (() => {
     if (!gateShift?.clockInTime) return false;
-    const d = new Date(gateShift.clockInTime);
-    const t = new Date();
-    return d.getFullYear() !== t.getFullYear() ||
-           d.getMonth()    !== t.getMonth()    ||
-           d.getDate()     !== t.getDate();
+    const clockInDate = new Date(gateShift.clockInTime);
+    const now = new Date();
+    const clockedInToday = (
+      clockInDate.getFullYear() === now.getFullYear() &&
+      clockInDate.getMonth()    === now.getMonth()    &&
+      clockInDate.getDate()     === now.getDate()
+    );
+    if (clockedInToday) return false;
+    // Still within overnight window?
+    if (gateShift.scheduledEnd) {
+      const [h, m] = gateShift.scheduledEnd.split(':').map(Number);
+      const endDT = new Date(clockInDate.getFullYear(), clockInDate.getMonth(), clockInDate.getDate(), h, m, 0, 0);
+      const clockInHHmm = clockInDate.getHours() * 60 + clockInDate.getMinutes();
+      if (h * 60 + m <= clockInHHmm) endDT.setDate(endDT.getDate() + 1); // overnight
+      if (now <= endDT) return false;
+    }
+    return true;
   })();
 
   /* ── Lock background scroll when gate overlay is active ── */

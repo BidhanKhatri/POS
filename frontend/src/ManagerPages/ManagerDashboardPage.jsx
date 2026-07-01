@@ -220,7 +220,24 @@ function Skeleton({ height = 16, width = '100%', borderRadius = 6 }) {
       background: 'linear-gradient(90deg, #EDE5E0 25%, #F5F3F1 50%, #EDE5E0 75%)',
       backgroundSize: '200% 100%',
       animation: 'shimmer 1.4s infinite',
+      flexShrink: 0,
     }} />
+  );
+}
+
+function KpiCardSkeleton() {
+  return (
+    <div style={{
+      background: C.surface, border: `1px solid ${C.border}`,
+      borderRadius: 12, padding: '14px 16px',
+      display: 'flex', alignItems: 'center', gap: 12,
+    }}>
+      <Skeleton height={38} width={38} borderRadius={10} />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 7 }}>
+        <Skeleton height={18} width="68%" />
+        <Skeleton height={10} width="42%" />
+      </div>
+    </div>
   );
 }
 
@@ -316,8 +333,17 @@ function EmployeeLeaderboard({ employees, loading, onViewAll }) {
       <CardHeader title="Top Performers" subtitle="Revenue this period" action="View All" onAction={onViewAll} />
       <div>
         {loading ? (
-          <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {[1,2,3].map((k) => <Skeleton key={k} height={36} />)}
+          <div style={{ padding: '4px 16px 8px' }}>
+            {[1,2,3].map((k, i) => (
+              <div key={k} style={{ display: 'grid', gridTemplateColumns: '22px 1fr auto', gap: 10, alignItems: 'center', padding: '10px 0', borderBottom: i < 2 ? `1px solid ${C.border}` : 'none' }}>
+                <Skeleton height={22} width={22} borderRadius={50} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  <Skeleton height={12} width="65%" />
+                  <Skeleton height={10} width="45%" />
+                </div>
+                <Skeleton height={13} width={56} />
+              </div>
+            ))}
           </div>
         ) : !employees?.length ? (
           <div style={{ padding: 20, textAlign: 'center', fontSize: 12, color: C.textDim }}>No sales this period</div>
@@ -359,7 +385,22 @@ function EmployeeLeaderboard({ employees, loading, onViewAll }) {
 
 // ── Payment Methods ───────────────────────────────────────────────────────────
 function PaymentBreakdown({ methods, loading }) {
-  if (loading) return <Card><CardHeader title="Payment Methods" subtitle="By revenue" /><div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>{[1,2,3].map((k) => <Skeleton key={k} height={32} />)}</div></Card>;
+  if (loading) return (
+    <Card>
+      <CardHeader title="Payment Methods" subtitle="By revenue" />
+      <div style={{ padding: '8px 16px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {[1,2,3].map((k) => (
+          <div key={k}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+              <Skeleton height={11} width="38%" />
+              <Skeleton height={11} width="22%" />
+            </div>
+            <Skeleton height={5} borderRadius={3} />
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
 
   const total = methods?.reduce((sum, m) => sum + m.total, 0) ?? 0;
   const colors = ['#3E2723', '#D4A373', '#0277BD', '#2E7D4F', '#B26A00'];
@@ -406,7 +447,14 @@ function InventoryHealth({ inventory, loading, onView }) {
     <Card>
       <CardHeader title="Inventory Health" subtitle="Stock alerts" action="View All" onAction={onView} />
       {loading ? (
-        <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>{[1,2,3].map((k) => <Skeleton key={k} height={28} />)}</div>
+        <div style={{ padding: '8px 16px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {[1,2,3].map((k) => (
+            <div key={k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '3px 0' }}>
+              <Skeleton height={11} width="55%" />
+              <Skeleton height={11} width="18%" />
+            </div>
+          ))}
+        </div>
       ) : !hasAlerts ? (
         <div style={{ padding: 20, textAlign: 'center' }}>
           <p style={{ fontSize: 12, color: C.success, fontWeight: 600 }}>All products in stock</p>
@@ -457,8 +505,22 @@ function ActiveShifts({ shifts, loading }) {
   return (
     <div>
       {loading ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {[1,2].map((k) => <Skeleton key={k} height={44} />)}
+        <div>
+          {[1,2].map((k, i) => (
+            <div key={k} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 0', borderBottom: i < 1 ? `1px solid ${C.border}` : 'none' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Skeleton height={30} width={30} borderRadius={8} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  <Skeleton height={12} width={88} />
+                  <Skeleton height={10} width={130} />
+                </div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'flex-end' }}>
+                <Skeleton height={12} width={58} />
+                <Skeleton height={10} width={38} />
+              </div>
+            </div>
+          ))}
         </div>
       ) : !shifts?.length ? (
         <p style={{ fontSize: 12, color: C.textDim, margin: 0, padding: '4px 0' }}>No active shifts right now</p>
@@ -499,8 +561,16 @@ function RecentOverrides({ overrides, loading, onViewAll }) {
     <Card>
       <CardHeader title="Recent Overrides" subtitle="Manager authorisations" action="View All" onAction={onViewAll} />
       {loading ? (
-        <div style={{ padding: '8px 16px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {[1,2,3,4].map((k) => <Skeleton key={k} height={34} />)}
+        <div>
+          {[1,2,3,4].map((k, i) => (
+            <div key={k} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'center', padding: '10px 16px', borderBottom: i < 3 ? `1px solid ${C.border}` : 'none' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                <Skeleton height={12} width="58%" />
+                <Skeleton height={10} width="72%" />
+              </div>
+              <Skeleton height={20} width={62} borderRadius={20} />
+            </div>
+          ))}
         </div>
       ) : !overrides?.length ? (
         <div style={{ padding: 20, textAlign: 'center', fontSize: 12, color: C.textDim }}>No overrides yet</div>
@@ -535,7 +605,20 @@ function TopProducts({ products, loading, onView }) {
       <CardHeader title="Top Products" subtitle="By revenue this period" action="Inventory" onAction={onView} />
       <div style={{ padding: '4px 0 8px' }}>
         {loading ? (
-          <div style={{ padding: '8px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>{[1,2,3].map((k) => <Skeleton key={k} height={28} />)}</div>
+          <div>
+            {[1,2,3].map((k, i) => (
+              <div key={k} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 16px', borderBottom: i < 2 ? `1px solid ${C.border}` : 'none' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Skeleton height={18} width={18} borderRadius={4} />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <Skeleton height={11} width={100} />
+                    <Skeleton height={10} width={48} />
+                  </div>
+                </div>
+                <Skeleton height={12} width={54} />
+              </div>
+            ))}
+          </div>
         ) : !products?.length ? (
           <p style={{ padding: '12px 16px', fontSize: 12, color: C.textDim }}>No sales this period</p>
         ) : products.map((p, i) => (
@@ -776,16 +859,18 @@ export default function ManagerDashboardPage() {
 
         {/* ── KPI Row 1 ────────────────────────────────────────────────────── */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 12 }}>
-          {KPI_ROW1.map((m) => (
-            <KpiCard key={m.label} {...m} />
-          ))}
+          {loading
+            ? [1,2,3,4,5].map((k) => <KpiCardSkeleton key={k} />)
+            : KPI_ROW1.map((m) => <KpiCard key={m.label} {...m} />)
+          }
         </div>
 
         {/* ── KPI Row 2 ────────────────────────────────────────────────────── */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 20 }}>
-          {KPI_ROW2.map((m) => (
-            <KpiCard key={m.label} {...m} />
-          ))}
+          {loading
+            ? [1,2,3,4,5].map((k) => <KpiCardSkeleton key={k} />)
+            : KPI_ROW2.map((m) => <KpiCard key={m.label} {...m} />)
+          }
         </div>
 
         {/* ── Main body: chart + ops ────────────────────────────────────────── */}
@@ -875,9 +960,14 @@ export default function ManagerDashboardPage() {
   /* ══════════════════════════════════════════════════════
      MOBILE
   ══════════════════════════════════════════════════════ */
+  const outOfStockCount = data?.inventory?.outOfStock?.length ?? 0;
+
   return (
     <div style={{ padding: '16px 14px 32px', maxWidth: 640, margin: '0 auto', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-      <style>{`@keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }`}</style>
+      <style>{`
+        @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+        .kpi-hscroll::-webkit-scrollbar { display: none; }
+      `}</style>
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
@@ -897,56 +987,65 @@ export default function ManagerDashboardPage() {
         </button>
       </div>
 
-      {/* Period filter */}
-      <div style={{ marginBottom: 14 }}>
+      {/* Period filter — horizontally scrollable on narrow screens */}
+      <div style={{ overflowX: 'auto', scrollbarWidth: 'none', marginBottom: 14 }}>
         <PeriodFilter period={period} onChange={setPeriod} />
       </div>
 
-      {/* Pending override alert */}
-      {kpi.pendingOverrides > 0 && (
-        <div
-          onClick={() => navigate('/manager/overrides')}
-          style={{
-            background: 'rgba(183,28,28,0.07)', border: `1px solid rgba(183,28,28,0.25)`,
-            borderRadius: 10, padding: '11px 14px', marginBottom: 12,
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <PendingActionsOutlinedIcon sx={{ fontSize: 18, color: C.error }} />
-            <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: C.error }}>
-              {kpi.pendingOverrides} Pending Override{kpi.pendingOverrides > 1 ? 's' : ''} — Tap to review
-            </p>
-          </div>
-          <ChevronRightOutlinedIcon sx={{ fontSize: 16, color: C.error }} />
+      {/* ── KPI cards: 2-row × 5-col horizontal scroll ──────────────────────── */}
+      {/* Exactly 2 columns (4 cards) visible; scroll left to reveal the rest   */}
+      <div
+        className="kpi-hscroll"
+        style={{
+          overflowX: 'auto',
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+          WebkitOverflowScrolling: 'touch',
+          scrollSnapType: 'x mandatory',
+          marginBottom: 14,
+        }}
+      >
+        <div style={{
+          display: 'flex',
+          flexDirection: 'row',
+          gap: 8,
+          width: 'max-content',
+        }}>
+          {(() => {
+            const all = loading
+              ? [1,2,3,4,5,6,7,8,9,10].map((k) => ({ _k: k }))
+              : [...KPI_ROW1, ...KPI_ROW2];
+            // Group into columns: pair KPI_ROW1[i] with KPI_ROW2[i]
+            const cols = [];
+            for (let i = 0; i < Math.ceil(all.length / 2); i++) {
+              cols.push([all[i * 2], all[i * 2 + 1]].filter(Boolean));
+            }
+            /* card width: 2 cards + 1 gap must fill the content area exactly
+               content area = 100vw - 28px (14px padding each side)
+               card_width = (100vw - 28px - 8px) / 2 = (100vw - 36px) / 2      */
+            const colW = 'calc((100vw - 36px) / 2)';
+            return cols.map((pair, ci) => (
+              <div
+                key={ci}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 8,
+                  width: colW,
+                  minWidth: colW,
+                  flexShrink: 0,
+                  scrollSnapAlign: 'start',
+                }}
+              >
+                {pair.map((item, ri) =>
+                  loading
+                    ? <KpiCardSkeleton key={ri} />
+                    : <KpiCard key={item.label} {...item} />
+                )}
+              </div>
+            ));
+          })()}
         </div>
-      )}
-
-      {/* Inventory warning */}
-      {((data?.inventory?.outOfStock?.length ?? 0) > 0) && (
-        <div
-          onClick={() => navigate('/manager/inventory')}
-          style={{
-            background: 'rgba(183,28,28,0.06)', border: `1px solid rgba(183,28,28,0.20)`,
-            borderRadius: 10, padding: '10px 14px', marginBottom: 12,
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <WarningAmberOutlinedIcon sx={{ fontSize: 16, color: C.error }} />
-            <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: C.error }}>
-              {data.inventory.outOfStock.length} product{data.inventory.outOfStock.length > 1 ? 's' : ''} out of stock
-            </p>
-          </div>
-          <ChevronRightOutlinedIcon sx={{ fontSize: 16, color: C.error }} />
-        </div>
-      )}
-
-      {/* KPI grid — 2×5 */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, marginBottom: 14 }}>
-        {[...KPI_ROW1, ...KPI_ROW2].map((m) => (
-          <KpiCard key={m.label} {...m} />
-        ))}
       </div>
 
       {/* Revenue chart */}
@@ -1012,6 +1111,48 @@ export default function ManagerDashboardPage() {
       {/* Quick actions */}
       <SectionHeader title="Quick Actions" />
       <QuickActionsMobile navigate={navigate} />
+
+      {/* ── Alert banners — at the very bottom ───────────────────────────────── */}
+      {(kpi.pendingOverrides > 0 || outOfStockCount > 0) && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 14 }}>
+          {kpi.pendingOverrides > 0 && (
+            <div
+              onClick={() => navigate('/manager/overrides')}
+              style={{
+                background: 'rgba(183,28,28,0.07)', border: '1px solid rgba(183,28,28,0.25)',
+                borderRadius: 10, padding: '11px 14px',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <PendingActionsOutlinedIcon sx={{ fontSize: 18, color: C.error }} />
+                <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: C.error }}>
+                  {kpi.pendingOverrides} Pending Override{kpi.pendingOverrides > 1 ? 's' : ''} — Tap to review
+                </p>
+              </div>
+              <ChevronRightOutlinedIcon sx={{ fontSize: 16, color: C.error }} />
+            </div>
+          )}
+          {outOfStockCount > 0 && (
+            <div
+              onClick={() => navigate('/manager/inventory')}
+              style={{
+                background: 'rgba(183,28,28,0.06)', border: '1px solid rgba(183,28,28,0.20)',
+                borderRadius: 10, padding: '10px 14px',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <WarningAmberOutlinedIcon sx={{ fontSize: 16, color: C.error }} />
+                <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: C.error }}>
+                  {outOfStockCount} product{outOfStockCount > 1 ? 's' : ''} out of stock
+                </p>
+              </div>
+              <ChevronRightOutlinedIcon sx={{ fontSize: 16, color: C.error }} />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

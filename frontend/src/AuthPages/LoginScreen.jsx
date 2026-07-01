@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { TextField, InputAdornment } from '@mui/material';
+import { TextField, InputAdornment, useMediaQuery } from '@mui/material';
+import PointOfSaleIcon from '@mui/icons-material/PointOfSale';
 import EmailOutlinedIcon from '@mui/icons-material/EmailOutlined';
 import BackspaceOutlinedIcon from '@mui/icons-material/BackspaceOutlined';
 import LoginIcon from '@mui/icons-material/Login';
@@ -100,6 +101,8 @@ const LoginScreen = () => {
   const { lastEmail, setLastEmail, setUser, setToken, hasBiometric } = useAuthStore();
   const { supported, authenticating, loginWithBiometric } = useWebAuthn();
   const { startLoading } = useLoading();
+  const isDesktop = useMediaQuery('(min-width:1024px)');
+  const [storeLogo] = useState(() => localStorage.getItem('pos-store-logo-url'));
 
   // If arriving from email verification, the verified email takes priority over lastEmail
   const incomingEmail = location.state?.verifiedEmail || '';
@@ -130,6 +133,13 @@ const LoginScreen = () => {
 
   // Forgot PIN overlay
   const [showForgotPin, setShowForgotPin] = useState(false);
+
+  // Keyboard press highlight
+  const [pressedKey, setPressedKey] = useState(null);
+  const flashKey = (key) => {
+    setPressedKey(key);
+    setTimeout(() => setPressedKey(null), 140);
+  };
 
   const isLocked = lockoutSeconds > 0;
 
@@ -166,10 +176,12 @@ const LoginScreen = () => {
   useEffect(() => {
     const onKeyDown = (e) => {
       if (isLocked || loading) return;
-      if (e.key >= '0' && e.key <= '9') handleNumber(e.key);
-      else if (e.key === 'Backspace') handleBackspace();
-      else if (e.key === 'Escape' || e.key === 'Delete') handleClear();
-      else if (e.key === 'Enter') handleClockIn();
+      const tag = document.activeElement?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      if (e.key >= '0' && e.key <= '9') { handleNumber(e.key); flashKey(e.key); }
+      else if (e.key === 'Backspace') { handleBackspace(); flashKey('backspace'); }
+      else if (e.key === 'Escape' || e.key === 'Delete') { handleClear(); flashKey('clr'); }
+      else if (e.key === 'Enter') { handleClockIn(); flashKey('login'); }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
@@ -295,44 +307,58 @@ const LoginScreen = () => {
   const disabledKey = 'opacity-40 pointer-events-none';
 
   /* ── Numpad grid ── */
-  const NumGrid = ({ keyH }) => (
-    <div className="grid grid-cols-3 gap-4 w-full pb-1">
-      {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => (
+  const NumGrid = ({ keyH }) => {
+    const digitPressed = (k) => pressedKey === k ? { transform: 'translateY(4px)', boxShadow: '0 0px 0 #c4b8b2, 0 2px 4px rgba(0,0,0,0.04)', background: '#F5F0EC' } : {};
+    return (
+      <div className="grid grid-cols-3 gap-4 w-full pb-1">
+        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => (
+          <button
+            key={n}
+            onClick={() => handleNumber(n.toString())}
+            className={`${numKey} ${isLocked || loading ? disabledKey : 'cursor-pointer'}`}
+            style={{ height: keyH, fontSize: 32, fontWeight: 700, color: '#2B1D1A', lineHeight: '36px', ...digitPressed(n.toString()) }}
+          >
+            {n}
+          </button>
+        ))}
+
         <button
-          key={n}
-          onClick={() => handleNumber(n.toString())}
-          className={`${numKey} ${isLocked || loading ? disabledKey : 'cursor-pointer'}`}
-          style={{ height: keyH, fontSize: 32, fontWeight: 700, color: '#2B1D1A', lineHeight: '36px' }}
+          onClick={handleClear}
+          className={`flex items-center justify-center rounded-2xl select-none transition-all duration-150 active:translate-y-[4px] ${isLocked || loading ? disabledKey : 'cursor-pointer'}`}
+          style={{
+            height: keyH, fontSize: 13, fontWeight: 700, lineHeight: '16px', letterSpacing: '0.1em',
+            background: '#B71C1C', color: '#fff', border: '1px solid #991717',
+            ...(pressedKey === 'clr'
+              ? { transform: 'translateY(4px)', boxShadow: '0 0px 0 #7a1111, 0 2px 4px rgba(183,28,28,0.12)', background: '#9a1515' }
+              : { boxShadow: '0 4px 0 #7a1111, 0 6px 12px rgba(183,28,28,0.22)' }),
+          }}
         >
-          {n}
+          CLR
         </button>
-      ))}
 
-      <button
-        onClick={handleClear}
-        className={`flex items-center justify-center rounded-2xl select-none transition-all duration-150 active:translate-y-[4px] ${isLocked || loading ? disabledKey : 'cursor-pointer'}`}
-        style={{ height: keyH, fontSize: 13, fontWeight: 700, lineHeight: '16px', letterSpacing: '0.1em', background: '#B71C1C', color: '#fff', border: '1px solid #991717', boxShadow: '0 4px 0 #7a1111, 0 6px 12px rgba(183,28,28,0.22)' }}
-      >
-        CLR
-      </button>
+        <button
+          onClick={() => handleNumber('0')}
+          className={`${numKey} ${isLocked || loading ? disabledKey : 'cursor-pointer'}`}
+          style={{ height: keyH, fontSize: 32, fontWeight: 700, color: '#2B1D1A', lineHeight: '36px', ...digitPressed('0') }}
+        >
+          0
+        </button>
 
-      <button
-        onClick={() => handleNumber('0')}
-        className={`${numKey} ${isLocked || loading ? disabledKey : 'cursor-pointer'}`}
-        style={{ height: keyH, fontSize: 32, fontWeight: 700, color: '#2B1D1A', lineHeight: '36px' }}
-      >
-        0
-      </button>
-
-      <button
-        onClick={handleBackspace}
-        className={`flex items-center justify-center rounded-2xl select-none transition-all duration-150 active:translate-y-[4px] ${isLocked || loading ? disabledKey : 'cursor-pointer'}`}
-        style={{ height: keyH, background: '#F5F0EC', color: '#3E2723', border: '1px solid #DDD2CC', boxShadow: '0 4px 0 #c4b8b2, 0 6px 12px rgba(0,0,0,0.06)' }}
-      >
-        <BackspaceOutlinedIcon sx={{ fontSize: 20 }} />
-      </button>
-    </div>
-  );
+        <button
+          onClick={handleBackspace}
+          className={`flex items-center justify-center rounded-2xl select-none transition-all duration-150 active:translate-y-[4px] ${isLocked || loading ? disabledKey : 'cursor-pointer'}`}
+          style={{
+            height: keyH, background: '#F5F0EC', color: '#3E2723', border: '1px solid #DDD2CC',
+            ...(pressedKey === 'backspace'
+              ? { transform: 'translateY(4px)', boxShadow: '0 0px 0 #c4b8b2, 0 2px 4px rgba(0,0,0,0.04)', background: '#EDE6DF' }
+              : { boxShadow: '0 4px 0 #c4b8b2, 0 6px 12px rgba(0,0,0,0.06)' }),
+          }}
+        >
+          <BackspaceOutlinedIcon sx={{ fontSize: 20 }} />
+        </button>
+      </div>
+    );
+  };
 
   /* ── Action buttons ── */
   const ActionButtons = () => (
@@ -354,6 +380,7 @@ const LoginScreen = () => {
             letterSpacing: '0.25px',
             opacity: (isLocked || loading || pin.length < 4 || !email.trim()) ? 0.5 : 1,
             cursor: (isLocked || loading || pin.length < 4 || !email.trim()) ? 'not-allowed' : 'pointer',
+            ...(pressedKey === 'login' && { transform: 'translateY(2px)', opacity: 0.85 }),
           }}
         >
           <LoginIcon sx={{ fontSize: 17 }} />
@@ -461,6 +488,205 @@ const LoginScreen = () => {
             toast.success('PIN updated — please log in', { style: { fontSize: 12 } });
           }}
         />
+      </div>
+    );
+  }
+
+  /* ── Desktop two-column layout ── */
+  if (isDesktop) {
+    const FONT = "'Plus Jakarta Sans', sans-serif";
+    const formContent = (
+      <div style={{ width: '100%', maxWidth: 500, display: 'flex', flexDirection: 'column', gap: 20 }}>
+        {/* Email field */}
+        <div style={{
+          background: 'linear-gradient(145deg, #ffffff 0%, #f5f0ec 100%)',
+          border: '1px solid #DDD2CC',
+          borderRadius: 12,
+          padding: '20px 20px 16px',
+          boxShadow: '0 4px 0 #c8bdb8, 0 6px 16px rgba(62,39,35,0.10), inset 0 1px 0 rgba(255,255,255,0.9)',
+        }}>
+          <TextField
+            fullWidth
+            label="Email Address"
+            type="email"
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            variant="outlined"
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <EmailOutlinedIcon sx={{ fontSize: 20, color: email ? '#3E2723' : '#A09490' }} />
+                  </InputAdornment>
+                ),
+              },
+            }}
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                backgroundColor: '#FFFFFF', borderRadius: '8px', fontSize: 16, fontWeight: 500,
+                boxShadow: 'inset 0 2px 4px rgba(62,39,35,0.06)',
+                '& fieldset': { borderColor: '#DDD2CC', borderWidth: '1.5px' },
+                '&:hover fieldset': { borderColor: '#6D4C41' },
+                '&.Mui-focused fieldset': { borderColor: '#3E2723', borderWidth: '2px' },
+              },
+              '& .MuiInputLabel-root': { fontSize: 16, fontWeight: 500, color: '#6B5B57', '&.Mui-focused': { color: '#3E2723' } },
+              '& .MuiInputLabel-shrink': { fontWeight: 600, fontSize: 13 },
+            }}
+          />
+        </div>
+
+        {/* Keypad card */}
+        <div className="bg-surface border border-divider-tone rounded-xl p-8 flex flex-col items-center gap-6">
+          <PinDots />
+          <NumGrid keyH={76} />
+          <ActionButtons />
+        </div>
+      </div>
+    );
+
+    return (
+      <div style={{ display: 'flex', height: '100dvh', overflow: 'hidden', fontFamily: FONT }}>
+        <Toaster position="top-center" toastOptions={{ style: { marginTop: 36 } }} />
+
+        {/* ── Left brand panel ── */}
+        <div style={{
+          width: '42%', minWidth: 340, maxWidth: 520,
+          background: '#EDE6DF',
+          borderRight: '1px solid #DDD2CC',
+          display: 'flex', flexDirection: 'column',
+          padding: '44px 40px 36px',
+          position: 'relative', overflow: 'hidden',
+          flexShrink: 0,
+        }}>
+          {/* Decorative background orbs */}
+          <div style={{
+            position: 'absolute', top: -100, right: -100,
+            width: 320, height: 320, borderRadius: '50%',
+            background: 'rgba(62,39,35,0.05)', pointerEvents: 'none',
+          }} />
+          <div style={{
+            position: 'absolute', bottom: 40, left: -80,
+            width: 260, height: 260, borderRadius: '50%',
+            background: 'rgba(62,39,35,0.04)', pointerEvents: 'none',
+          }} />
+
+          {/* Top badge */}
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 7,
+            padding: '5px 13px', borderRadius: 20, width: 'fit-content',
+            background: 'rgba(62,39,35,0.08)', border: '1px solid rgba(62,39,35,0.14)',
+          }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#3E2723', flexShrink: 0 }} />
+            <span style={{ fontSize: 10, fontWeight: 700, color: '#3E2723', letterSpacing: '0.16em', textTransform: 'uppercase', fontFamily: FONT }}>
+              Login Page
+            </span>
+          </div>
+
+          {/* Center content */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 0 }}>
+            {/* Logo */}
+            <div style={{
+              width: 90, height: 90, borderRadius: 24, marginBottom: 22,
+              background: storeLogo ? 'transparent' : 'rgba(62,39,35,0.08)',
+              border: '2px solid rgba(62,39,35,0.15)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              overflow: 'hidden',
+              boxShadow: '0 4px 16px rgba(62,39,35,0.12)',
+            }}>
+              {storeLogo
+                ? <img src={storeLogo} alt="Store" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : <PointOfSaleIcon sx={{ fontSize: 44, color: '#3E2723' }} />
+              }
+            </div>
+
+            {/* App name */}
+            <h1 style={{ margin: 0, fontSize: 30, fontWeight: 800, color: '#2B1D1A', letterSpacing: '-0.6px', lineHeight: '36px', textAlign: 'center', fontFamily: FONT }}>
+              Point of Sale
+            </h1>
+            <p style={{ margin: '8px 0 0', fontSize: 13, fontWeight: 500, color: '#8A7B77', letterSpacing: '0.08em', textAlign: 'center', fontFamily: FONT }}>
+              SECURE · FAST · RELIABLE
+            </p>
+
+            {/* Accent divider */}
+            <div style={{ width: 48, height: 2, borderRadius: 1, background: 'rgba(62,39,35,0.20)', margin: '24px 0' }} />
+
+            {/* Feature rows */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', maxWidth: 290 }}>
+              {[
+                {
+                  label: 'Shift Management',
+                  desc: 'Clock in/out and track hours',
+                  svg: (
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+                      <circle cx="12" cy="12" r="9" stroke="#3E2723" strokeWidth="1.8"/>
+                      <path d="M12 7v5l3 3" stroke="#3E2723" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  ),
+                },
+                {
+                  label: 'Sales Terminal',
+                  desc: 'Process sales and refunds instantly',
+                  svg: (
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+                      <rect x="2" y="5" width="20" height="14" rx="2" stroke="#3E2723" strokeWidth="1.8"/>
+                      <path d="M2 10h20" stroke="#3E2723" strokeWidth="1.8"/>
+                      <path d="M6 15h4" stroke="#3E2723" strokeWidth="1.8" strokeLinecap="round"/>
+                    </svg>
+                  ),
+                },
+                {
+                  label: 'Reports & Analytics',
+                  desc: 'Real-time performance insights',
+                  svg: (
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+                      <path d="M4 20V14" stroke="#3E2723" strokeWidth="1.8" strokeLinecap="round"/>
+                      <path d="M9 20V8"  stroke="#3E2723" strokeWidth="1.8" strokeLinecap="round"/>
+                      <path d="M14 20v-5" stroke="#3E2723" strokeWidth="1.8" strokeLinecap="round"/>
+                      <path d="M19 20V4"  stroke="#3E2723" strokeWidth="1.8" strokeLinecap="round"/>
+                    </svg>
+                  ),
+                },
+              ].map(({ label, desc, svg }) => (
+                <div key={label} style={{
+                  display: 'flex', alignItems: 'center', gap: 13,
+                  padding: '11px 15px', borderRadius: 11,
+                  background: 'rgba(255,255,255,0.55)',
+                  border: '1px solid rgba(62,39,35,0.10)',
+                }}>
+                  <div style={{
+                    width: 34, height: 34, borderRadius: 9, flexShrink: 0,
+                    background: 'rgba(62,39,35,0.08)',
+                    border: '1px solid rgba(62,39,35,0.12)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    {svg}
+                  </div>
+                  <div>
+                    <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#2B1D1A', lineHeight: '17px', fontFamily: FONT }}>{label}</p>
+                    <p style={{ margin: 0, fontSize: 11, color: '#8A7B77', lineHeight: '15px', fontFamily: FONT }}>{desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Bottom copyright */}
+          <p style={{ margin: 0, textAlign: 'center', fontSize: 11, color: '#A09490', letterSpacing: '0.04em', fontFamily: FONT }}>
+            © {new Date().getFullYear()} POS System · All rights reserved
+          </p>
+        </div>
+
+        {/* ── Right login panel ── */}
+        <div style={{
+          flex: 1, minWidth: 0,
+          background: '#F5F3F1',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          overflowY: 'auto',
+          padding: '40px 32px',
+        }}>
+          {formContent}
+        </div>
       </div>
     );
   }

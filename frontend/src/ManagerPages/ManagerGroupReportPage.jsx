@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useMediaQuery } from '@mui/material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ResponsiveContainer, AreaChart, Area, BarChart, Bar,
@@ -96,18 +97,23 @@ function Sk({ h = 16, w = '100%', r = 6 }) {
   return <div style={{ height: h, width: w, borderRadius: r, background: C.elevated }} />;
 }
 
-function KpiCard({ label, value, sub, icon: Icon, color, iconBg, skeleton }) {
+function KpiCard({ label, value, sub, icon: Icon, color, iconBg, skeleton, isMobile }) {
+  const pad    = isMobile ? '10px 12px' : '16px 18px';
+  const iconSz = isMobile ? 28 : 40;
+  const iconFs = isMobile ? 14 : 20;
+  const valFs  = isMobile ? 14 : 20;
+  const gap    = isMobile ? 10 : 14;
   return (
-    <div style={{ position: 'relative', background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '16px 18px', display: 'flex', alignItems: 'flex-start', gap: 14, fontFamily: FONT }}>
-      <div style={{ position: 'absolute', top: 0, left: 0, width: 20, height: 20, borderTop: `1.5px solid ${color}`, borderLeft: `1.5px solid ${color}`, borderTopLeftRadius: 10, pointerEvents: 'none' }} />
-      <div style={{ position: 'absolute', bottom: 0, right: 0, width: 20, height: 20, borderBottom: `1.5px solid ${color}`, borderRight: `1.5px solid ${color}`, borderBottomRightRadius: 10, pointerEvents: 'none' }} />
-      <div style={{ width: 40, height: 40, borderRadius: 10, background: iconBg, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Icon sx={{ fontSize: 20, color }} />
+    <div style={{ position:'relative', background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:pad, display:'flex', alignItems:'flex-start', gap, fontFamily:FONT }}>
+      <div style={{ position:'absolute', top:0, left:0, width:20, height:20, borderTop:`1.5px solid ${color}`, borderLeft:`1.5px solid ${color}`, borderTopLeftRadius:10, pointerEvents:'none' }} />
+      <div style={{ position:'absolute', bottom:0, right:0, width:20, height:20, borderBottom:`1.5px solid ${color}`, borderRight:`1.5px solid ${color}`, borderBottomRightRadius:10, pointerEvents:'none' }} />
+      <div style={{ width:iconSz, height:iconSz, borderRadius:8, background:iconBg, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
+        <Icon sx={{ fontSize:iconFs, color }} />
       </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        {skeleton ? <Sk h={24} w={80} r={4} /> : <p style={{ margin: 0, fontSize: 20, fontWeight: 800, color: C.textPri, letterSpacing: '-0.5px', lineHeight: '26px' }}>{value}</p>}
-        {sub && !skeleton && <p style={{ margin: '1px 0 0', fontSize: 10, color: C.textDim, fontWeight: 600 }}>{sub}</p>}
-        <p style={{ margin: '4px 0 0', fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</p>
+      <div style={{ flex:1, minWidth:0 }}>
+        {skeleton ? <Sk h={isMobile?18:24} w={80} r={4} /> : <p style={{ margin:0, fontSize:valFs, fontWeight:800, color:C.textPri, letterSpacing:'-0.4px', lineHeight:`${valFs+6}px`, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{value}</p>}
+        {sub && !skeleton && <p style={{ margin:'1px 0 0', fontSize:9, color:C.textDim, fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{sub}</p>}
+        <p style={{ margin:'3px 0 0', fontSize:9, fontWeight:700, color:C.textDim, textTransform:'uppercase', letterSpacing:'0.08em', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{label}</p>
       </div>
     </div>
   );
@@ -124,72 +130,132 @@ function SectionHeader({ title, right }) {
 
 // ─── Leaderboard ─────────────────────────────────────────────────────────────
 
-function Leaderboard({ data, loading, rankBy, onRankChange, onGroupClick }) {
+function Leaderboard({ data, loading, rankBy, onRankChange, onGroupClick, isMobile }) {
   const medals = ['🥇', '🥈', '🥉'];
+
+  const rankLabel = RANK_OPTIONS.find(o => o.id === rankBy)?.label ?? 'Revenue';
+  const rankValue = (g) => {
+    if (rankBy === 'txnCount')       return fmtNum(g.stats.txnCount);
+    if (rankBy === 'revenuePerHour') return `${fmt$(g.stats.revenuePerHour)}/hr`;
+    return fmt$(g.stats.revenue);
+  };
+
   return (
     <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden', fontFamily: FONT }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: `1px solid ${C.elevated}` }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <EmojiEventsOutlinedIcon sx={{ fontSize: 18, color: C.accent }} />
-          <span style={{ fontSize: 13, fontWeight: 700, color: C.textPri }}>Group Leaderboard</span>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderBottom: `1px solid ${C.elevated}`, gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <EmojiEventsOutlinedIcon sx={{ fontSize: 17, color: C.accent }} />
+          <span style={{ fontSize: 13, fontWeight: 700, color: C.textPri }}>Leaderboard</span>
         </div>
-        <div style={{ display: 'flex', gap: 4 }}>
-          {RANK_OPTIONS.map(o => (
-            <button key={o.id} onClick={() => onRankChange(o.id)} style={{
-              padding: '4px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: FONT,
-              background: rankBy === o.id ? C.primary : C.elevated,
-              color:      rankBy === o.id ? '#fff'     : C.textSec,
-            }}>{o.label}</button>
+        {/* Rank filter — always scrollable */}
+        <div style={{ overflowX: 'auto', scrollbarWidth: 'none', flexShrink: 1 }}>
+          <div style={{ display: 'flex', gap: 4, width: 'max-content' }}>
+            {RANK_OPTIONS.map(o => (
+              <button key={o.id} onClick={() => onRankChange(o.id)} style={{
+                padding: '4px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: FONT, whiteSpace: 'nowrap',
+                background: rankBy === o.id ? C.primary : C.elevated,
+                color:      rankBy === o.id ? '#fff'    : C.textSec,
+              }}>{o.label}</button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile: card list */}
+      {isMobile ? (
+        <div>
+          {loading && [0,1,2].map(i => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', borderBottom: `1px solid ${C.elevated}` }}>
+              <Sk h={20} w={20} r={4} />
+              <Sk h={28} w={28} r={8} />
+              <div style={{ flex: 1 }}><Sk h={11} w="55%" r={4} /><div style={{ marginTop: 4 }}><Sk h={9} w="35%" r={3} /></div></div>
+              <div style={{ textAlign: 'right' }}><Sk h={13} w={60} r={4} /><div style={{ marginTop: 4 }}><Sk h={9} w={40} r={3} /></div></div>
+            </div>
           ))}
+          {!loading && (data ?? []).map((g, i) => {
+            const color = GROUP_COLORS[i % GROUP_COLORS.length];
+            return (
+              <button key={g.groupId} onClick={() => onGroupClick(g.groupId)}
+                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', borderBottom: `1px solid ${C.elevated}`, background: 'transparent', border: 'none', borderBottom: `1px solid ${C.elevated}`, cursor: 'pointer', textAlign: 'left' }}>
+                {/* Rank badge */}
+                <div style={{ width: 26, flexShrink: 0, textAlign: 'center' }}>
+                  {i < 3
+                    ? <span style={{ fontSize: 16 }}>{medals[i]}</span>
+                    : <span style={{ fontSize: 11, fontWeight: 800, color: C.textDim }}>#{i+1}</span>}
+                </div>
+                {/* Group icon */}
+                <div style={{ width: 30, height: 30, borderRadius: 8, background: `${color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <GroupsOutlinedIcon sx={{ fontSize: 14, color }} />
+                </div>
+                {/* Name + sub */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: C.textPri, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.groupName}</p>
+                  <p style={{ margin: '2px 0 0', fontSize: 10, color: C.textDim }}>{g.stats.memberCount} members · {fmtNum(g.stats.txnCount)} txns</p>
+                </div>
+                {/* Active rank metric */}
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                  <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: C.textPri }}>{rankValue(g)}</p>
+                  <p style={{ margin: '2px 0 0', fontSize: 9, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{rankLabel}</p>
+                </div>
+                <OpenInNewOutlinedIcon sx={{ fontSize: 13, color: C.textDim, flexShrink: 0 }} />
+              </button>
+            );
+          })}
+          {!loading && (!data || data.length === 0) && (
+            <p style={{ textAlign: 'center', padding: '28px 14px', fontSize: 12, color: C.textDim }}>No data for this period</p>
+          )}
         </div>
-      </div>
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ background: C.tableHdr }}>
-              {['Rank','Group','Members','Revenue','Transactions','Avg Ticket','Rev / Hour'].map((h, i) => (
-                <th key={h} style={{ padding: '8px 14px', fontSize: 10, fontWeight: 700, color: C.textDim, textAlign: i <= 1 || i === 2 || i === 4 ? 'center' : 'right', textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap' }}>{h}</th>
+      ) : (
+        /* Desktop: scrollable table */
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: C.tableHdr }}>
+                {['Rank','Group','Members','Revenue','Transactions','Avg Ticket','Rev / Hour'].map((h, i) => (
+                  <th key={h} style={{ padding: '8px 14px', fontSize: 10, fontWeight: 700, color: C.textDim, textAlign: i <= 1 || i === 2 || i === 4 ? 'center' : 'right', textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap' }}>{h}</th>
+                ))}
+                <th style={{ width: 24 }} />
+              </tr>
+            </thead>
+            <tbody>
+              {loading && [0,1,2].map(i => (
+                <tr key={i} style={{ borderBottom: `1px solid ${C.elevated}` }}>
+                  {[...Array(8)].map((_,j) => <td key={j} style={{ padding: '12px 14px' }}><Sk h={12} w={j===1?120:60} r={4} /></td>)}
+                </tr>
               ))}
-              <th style={{ width: 24 }} />
-            </tr>
-          </thead>
-          <tbody>
-            {loading && [0,1,2].map(i => (
-              <tr key={i} style={{ borderBottom: `1px solid ${C.elevated}` }}>
-                {[...Array(8)].map((_,j) => <td key={j} style={{ padding: '12px 14px' }}><Sk h={12} w={j===1?120:60} r={4} /></td>)}
-              </tr>
-            ))}
-            {!loading && (data ?? []).map((g, i) => (
-              <tr key={g.groupId} onClick={() => onGroupClick(g.groupId)}
-                style={{ borderBottom: `1px solid ${C.elevated}`, cursor: 'pointer', background: i%2===0 ? C.surface : C.bg }}
-                onMouseEnter={e => e.currentTarget.style.background = C.tableHover}
-                onMouseLeave={e => e.currentTarget.style.background = i%2===0 ? C.surface : C.bg}
-              >
-                <td style={{ padding: '10px 14px', textAlign: 'center' }}>
-                  <span style={{ fontSize: i<3?16:12, fontWeight:800, color: i<3?'inherit':C.textDim }}>{i<3?medals[i]:`#${i+1}`}</span>
-                </td>
-                <td style={{ padding: '10px 14px' }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                    <div style={{ width:28,height:28,borderRadius:8,background:`${GROUP_COLORS[i%GROUP_COLORS.length]}18`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0 }}>
-                      <GroupsOutlinedIcon sx={{ fontSize:14, color:GROUP_COLORS[i%GROUP_COLORS.length] }} />
+              {!loading && (data ?? []).map((g, i) => (
+                <tr key={g.groupId} onClick={() => onGroupClick(g.groupId)}
+                  style={{ borderBottom: `1px solid ${C.elevated}`, cursor: 'pointer', background: i%2===0 ? C.surface : C.bg }}
+                  onMouseEnter={e => e.currentTarget.style.background = C.tableHover}
+                  onMouseLeave={e => e.currentTarget.style.background = i%2===0 ? C.surface : C.bg}
+                >
+                  <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                    <span style={{ fontSize: i<3?16:12, fontWeight:800, color: i<3?'inherit':C.textDim }}>{i<3?medals[i]:`#${i+1}`}</span>
+                  </td>
+                  <td style={{ padding: '10px 14px' }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                      <div style={{ width:28,height:28,borderRadius:8,background:`${GROUP_COLORS[i%GROUP_COLORS.length]}18`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0 }}>
+                        <GroupsOutlinedIcon sx={{ fontSize:14, color:GROUP_COLORS[i%GROUP_COLORS.length] }} />
+                      </div>
+                      <span style={{ fontSize:13,fontWeight:600,color:C.textPri }}>{g.groupName}</span>
                     </div>
-                    <span style={{ fontSize:13,fontWeight:600,color:C.textPri }}>{g.groupName}</span>
-                  </div>
-                </td>
-                <td style={{ padding:'10px 14px',textAlign:'center',fontSize:13,color:C.textSec }}>{g.stats.memberCount}</td>
-                <td style={{ padding:'10px 14px',textAlign:'right',fontSize:13,fontWeight:700,color:C.textPri }}>{fmt$(g.stats.revenue)}</td>
-                <td style={{ padding:'10px 14px',textAlign:'center',fontSize:13,color:C.textSec }}>{fmtNum(g.stats.txnCount)}</td>
-                <td style={{ padding:'10px 14px',textAlign:'right',fontSize:13,color:C.textSec }}>{fmt$(g.stats.avgTicket)}</td>
-                <td style={{ padding:'10px 14px',textAlign:'right',fontSize:13,color:C.textSec }}>{fmt$(g.stats.revenuePerHour)}/hr</td>
-                <td style={{ padding:'10px 14px' }}><OpenInNewOutlinedIcon sx={{ fontSize:14,color:C.textDim }} /></td>
-              </tr>
-            ))}
-            {!loading && (!data||data.length===0) && (
-              <tr><td colSpan={8} style={{ padding:'32px 14px',textAlign:'center',color:C.textDim,fontSize:13 }}>No data for this period</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+                  </td>
+                  <td style={{ padding:'10px 14px',textAlign:'center',fontSize:13,color:C.textSec }}>{g.stats.memberCount}</td>
+                  <td style={{ padding:'10px 14px',textAlign:'right',fontSize:13,fontWeight:700,color:C.textPri }}>{fmt$(g.stats.revenue)}</td>
+                  <td style={{ padding:'10px 14px',textAlign:'center',fontSize:13,color:C.textSec }}>{fmtNum(g.stats.txnCount)}</td>
+                  <td style={{ padding:'10px 14px',textAlign:'right',fontSize:13,color:C.textSec }}>{fmt$(g.stats.avgTicket)}</td>
+                  <td style={{ padding:'10px 14px',textAlign:'right',fontSize:13,color:C.textSec }}>{fmt$(g.stats.revenuePerHour)}/hr</td>
+                  <td style={{ padding:'10px 14px' }}><OpenInNewOutlinedIcon sx={{ fontSize:14,color:C.textDim }} /></td>
+                </tr>
+              ))}
+              {!loading && (!data||data.length===0) && (
+                <tr><td colSpan={8} style={{ padding:'32px 14px',textAlign:'center',color:C.textDim,fontSize:13 }}>No data for this period</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
@@ -514,7 +580,7 @@ function buildPDF(summary, dateLabel) {
 
 // ─── Group Detail Screen ──────────────────────────────────────────────────────
 
-function GroupDetailScreen({ groupId, groupStats, detailData, detailLoading, trendData, trendLoading, dateLabel, presetLabel, onBack, onDrillMember }) {
+function GroupDetailScreen({ groupId, groupStats, detailData, detailLoading, trendData, trendLoading, dateLabel, presetLabel, onBack, onDrillMember, isMobile }) {
   const [trendMetric, setTrendMetric] = useState('revenue');
   const s = groupStats?.stats;
   const members = detailData?.members ?? [];
@@ -529,7 +595,7 @@ function GroupDetailScreen({ groupId, groupStats, detailData, detailLoading, tre
   ] : [];
 
   return (
-    <div style={{ fontFamily:FONT, background:C.bg, minHeight:'100vh', padding:'24px 24px 56px' }}>
+    <div style={{ fontFamily:FONT, background:C.bg, minHeight:'100vh', padding: isMobile ? '14px 14px 40px' : '24px 24px 56px', width:'100%', boxSizing:'border-box', overflowX:'hidden' }}>
 
       {/* ── Back bar ── */}
       <div style={{ display:'flex',alignItems:'center',gap:12,marginBottom:24,flexWrap:'wrap' }}>
@@ -548,13 +614,15 @@ function GroupDetailScreen({ groupId, groupStats, detailData, detailLoading, tre
       </div>
 
       {/* ── Group header ── */}
-      <div style={{ display:'flex',alignItems:'center',gap:16,marginBottom:24,background:C.surface,border:`1px solid ${C.border}`,borderRadius:14,padding:'18px 22px' }}>
-        <div style={{ width:52,height:52,borderRadius:14,background:C.accentLt,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0 }}>
-          <GroupsOutlinedIcon sx={{ fontSize:26,color:C.accent }}/>
-        </div>
-        <div style={{ flex:1 }}>
-          <h1 style={{ margin:0,fontSize:20,fontWeight:800,color:C.textPri,letterSpacing:'-0.3px' }}>{groupStats?.groupName ?? '—'}</h1>
-          <p style={{ margin:'3px 0 0',fontSize:12,color:C.textDim }}>{s?.memberCount ?? 0} members · {dateLabel}</p>
+      <div style={{ display:'flex',alignItems:isMobile?'flex-start':'center',flexDirection:isMobile?'column':'row',gap:isMobile?12:16,marginBottom:24,background:C.surface,border:`1px solid ${C.border}`,borderRadius:14,padding:'18px 22px' }}>
+        <div style={{ display:'flex',alignItems:'center',gap:12,width:'100%' }}>
+          <div style={{ width:52,height:52,borderRadius:14,background:C.primary,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0 }}>
+            <GroupsOutlinedIcon sx={{ fontSize:26,color:C.accent }}/>
+          </div>
+          <div style={{ flex:1 }}>
+            <h1 style={{ margin:0,fontSize:isMobile?16:20,fontWeight:800,color:C.textPri,letterSpacing:'-0.3px' }}>{groupStats?.groupName ?? '—'}</h1>
+            <p style={{ margin:'3px 0 0',fontSize:12,color:C.textDim }}>{s?.memberCount ?? 0} members · {dateLabel}</p>
+          </div>
         </div>
         <div style={{ display:'flex',gap:24,flexShrink:0 }}>
           {[
@@ -570,12 +638,37 @@ function GroupDetailScreen({ groupId, groupStats, detailData, detailLoading, tre
       </div>
 
       {/* ── KPI cards ── */}
-      <div style={{ display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(170px,1fr))',gap:14,marginBottom:24 }}>
-        {!s && [0,1,2,3,4,5].map(i=>(
-          <div key={i} style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:'16px 18px' }}><Sk h={24} w={80} r={4}/></div>
-        ))}
-        {kpis.map(k => <KpiCard key={k.label} {...k} skeleton={false}/>)}
-      </div>
+      {isMobile ? (
+        <div style={{ overflowX:'auto', scrollbarWidth:'none', msOverflowStyle:'none', WebkitOverflowScrolling:'touch', scrollSnapType:'x mandatory', marginBottom:20 }}>
+          <div style={{ display:'flex', gap:8, width:'max-content' }}>
+            {(() => {
+              const colW = 'calc((100vw - 36px) / 2)';
+              const items = !s
+                ? [0,1,2,3,4,5].map(i => ({ _sk: i }))
+                : kpis;
+              const cols = [];
+              for (let i = 0; i < Math.ceil(items.length / 2); i++) {
+                cols.push([items[i*2], items[i*2+1]].filter(Boolean));
+              }
+              return cols.map((pair, ci) => (
+                <div key={ci} style={{ display:'flex', flexDirection:'column', gap:8, width:colW, minWidth:colW, flexShrink:0, scrollSnapAlign:'start' }}>
+                  {pair.map((k, ri) => k._sk != null
+                    ? <div key={ri} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:'10px 12px' }}><Sk h={18} w={80} r={4}/></div>
+                    : <KpiCard key={k.label} {...k} skeleton={false} isMobile={true} />
+                  )}
+                </div>
+              ));
+            })()}
+          </div>
+        </div>
+      ) : (
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(170px,1fr))', gap:14, marginBottom:24 }}>
+          {!s && [0,1,2,3,4,5].map(i=>(
+            <div key={i} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:'16px 18px' }}><Sk h={24} w={80} r={4}/></div>
+          ))}
+          {kpis.map(k => <KpiCard key={k.label} {...k} skeleton={false} isMobile={false}/>)}
+        </div>
+      )}
 
       {/* ── Trend ── */}
       <div style={{ marginBottom:24 }}>
@@ -685,7 +778,7 @@ function GroupDetailScreen({ groupId, groupStats, detailData, detailLoading, tre
 
       {/* ── Group stat summary cards ── */}
       {s && (
-        <div style={{ display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:1,background:C.elevated,borderRadius:14,overflow:'hidden',border:`1px solid ${C.border}` }}>
+        <div style={{ display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':'repeat(3,1fr)',gap:1,background:C.elevated,borderRadius:14,overflow:'hidden',border:`1px solid ${C.border}` }}>
           {[
             { label:'Total Revenue',    value:fmt$(s.revenue)                    },
             { label:'Refunded Amount',  value:fmt$(s.refundedAmount)             },
@@ -709,9 +802,17 @@ function GroupDetailScreen({ groupId, groupStats, detailData, detailLoading, tre
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
+const REPORT_TABS = [
+  { id: 'overall',    label: 'Overall',    path: '/manager/reports/overall'    },
+  { id: 'individual', label: 'Individual', path: '/manager/reports/individual' },
+  { id: 'group',      label: 'Group',      path: '/manager/reports/group'      },
+];
+
 export default function ManagerGroupReportPage() {
   const token       = useAuthStore(s => s.token);
   const navigate    = useNavigate();
+  const location    = useLocation();
+  const isMobile    = !useMediaQuery('(min-width:1024px)');
   const queryClient = useQueryClient();
 
   const [preset,       setPreset]       = useState('today');
@@ -870,48 +971,83 @@ export default function ManagerGroupReportPage() {
         presetLabel={presetLabel}
         onBack={handleBackToList}
         onDrillMember={handleDrillMember}
+        isMobile={isMobile}
       />
     );
   }
 
   return (
-    <div style={{ fontFamily:FONT, background:C.bg, minHeight:'100vh', padding:'24px 24px 56px' }}>
+    <div style={{ fontFamily:FONT, background:C.bg, minHeight:'100vh', padding: isMobile ? '14px 14px 40px' : '24px 24px 56px', width:'100%', boxSizing:'border-box', overflowX:'hidden' }}>
 
       {/* ── Header ── */}
-      <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20,flexWrap:'wrap',gap:12 }}>
-        <div style={{ display:'flex',alignItems:'center',gap:12 }}>
-          <div style={{ width:42,height:42,borderRadius:12,background:'#F3E0C7',display:'flex',alignItems:'center',justifyContent:'center' }}>
-            <GroupsOutlinedIcon sx={{ fontSize:22,color:'#D4A373' }}/>
-          </div>
-          <div>
-            <h1 style={{ margin:0,fontSize:20,fontWeight:800,color:C.textPri,letterSpacing:'-0.3px' }}>Group Reports</h1>
-            <p style={{ margin:'2px 0 0',fontSize:12,color:C.textDim }}>{syncEnabled ? 'EMS group analytics' : 'POS group analytics'} · {dateLabel}</p>
+      {isMobile ? (
+        <div style={{ marginBottom: 10 }}>
+          {/* Row 1: icon+title left, icon-only action buttons right */}
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+              <div style={{ width:34, height:34, borderRadius:9, background:C.primary, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                <GroupsOutlinedIcon sx={{ fontSize:17, color:C.accent }}/>
+              </div>
+              <h1 style={{ margin:0, fontSize:16, fontWeight:800, color:C.textPri, letterSpacing:'-0.3px' }}>Group Reports</h1>
+            </div>
+            <div style={{ display:'flex', gap:6 }}>
+              {syncEnabled ? (
+                <button onClick={() => syncMutation.mutate()} disabled={syncMutation.isPending}
+                  title="Sync Groups"
+                  style={{ width:34, height:34, borderRadius:8, border:`1px solid ${C.border}`, background:C.surface, display:'flex', alignItems:'center', justifyContent:'center', cursor:syncMutation.isPending?'wait':'pointer', flexShrink:0 }}>
+                  <SyncOutlinedIcon sx={{ fontSize:17, color:C.textSec, animation:syncMutation.isPending?'spin 1s linear infinite':'none' }}/>
+                </button>
+              ) : (
+                <button onClick={() => queryClient.invalidateQueries({ queryKey: ['pos-grp-summary'] })} disabled={posSummaryLoading}
+                  title="Refresh"
+                  style={{ width:34, height:34, borderRadius:8, border:`1px solid ${C.border}`, background:C.surface, display:'flex', alignItems:'center', justifyContent:'center', cursor:posSummaryLoading?'wait':'pointer', flexShrink:0 }}>
+                  <SyncOutlinedIcon sx={{ fontSize:17, color:C.textSec, animation:posSummaryLoading?'spin 1s linear infinite':'none' }}/>
+                </button>
+              )}
+              <button onClick={() => setConfirmExport('pdf')} disabled={!!exporting || summaryLoading}
+                title="Export PDF"
+                style={{ width:34, height:34, borderRadius:8, border:'none', background:C.primary, display:'flex', alignItems:'center', justifyContent:'center', cursor:(exporting||summaryLoading)?'wait':'pointer', flexShrink:0 }}>
+                <PictureAsPdfOutlinedIcon sx={{ fontSize:17, color:'#fff' }}/>
+              </button>
+            </div>
           </div>
         </div>
-        <div style={{ display:'flex',gap:8,flexWrap:'wrap' }}>
-          {syncEnabled && (
-            <button onClick={() => syncMutation.mutate()} disabled={syncMutation.isPending}
-              style={{ height:34,padding:'0 14px',display:'flex',alignItems:'center',gap:6,borderRadius:8,border:`1px solid ${C.border}`,background:C.surface,cursor:syncMutation.isPending?'wait':'pointer',fontFamily:FONT }}>
-              <SyncOutlinedIcon sx={{ fontSize:15,color:C.textSec,animation:syncMutation.isPending?'spin 1s linear infinite':'none' }}/>
-              <span style={{ fontSize:12,fontWeight:600,color:C.textSec }}>Sync Groups</span>
-            </button>
-          )}
-          {!syncEnabled && (
-            <button onClick={() => queryClient.invalidateQueries({ queryKey: ['pos-grp-summary'] })} disabled={posSummaryLoading}
-              style={{ height:34,padding:'0 14px',display:'flex',alignItems:'center',gap:6,borderRadius:8,border:`1px solid ${C.border}`,background:C.surface,cursor:posSummaryLoading?'wait':'pointer',fontFamily:FONT }}>
-              <SyncOutlinedIcon sx={{ fontSize:15,color:C.textSec,animation:posSummaryLoading?'spin 1s linear infinite':'none' }}/>
-              <span style={{ fontSize:12,fontWeight:600,color:C.textSec }}>Refresh</span>
-            </button>
-          )}
-          {[{key:'csv',icon:TableChartOutlinedIcon,label:'Export CSV'},{key:'pdf',icon:PictureAsPdfOutlinedIcon,label:'Export PDF'}].map(({key,icon:Icon,label})=>(
-            <button key={key} onClick={()=>setConfirmExport(key)} disabled={!!exporting || summaryLoading}
-              style={{ height:34,padding:'0 14px',display:'flex',alignItems:'center',gap:6,borderRadius:8,border:`1px solid ${C.border}`,background:C.surface,cursor:(exporting||summaryLoading)?'wait':'pointer',fontFamily:FONT }}>
-              <Icon sx={{ fontSize:15,color:C.textSec }}/>
-              <span style={{ fontSize:12,fontWeight:600,color:C.textSec }}>{label}</span>
-            </button>
-          ))}
+      ) : (
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20, flexWrap:'wrap', gap:12 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+            <div style={{ width:42, height:42, borderRadius:12, background:C.primary, display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <GroupsOutlinedIcon sx={{ fontSize:22, color:C.accent }}/>
+            </div>
+            <div>
+              <h1 style={{ margin:0, fontSize:20, fontWeight:800, color:C.textPri, letterSpacing:'-0.3px' }}>Group Reports</h1>
+              <p style={{ margin:'2px 0 0', fontSize:12, color:C.textDim }}>{syncEnabled ? 'EMS group analytics' : 'POS group analytics'} · {dateLabel}</p>
+            </div>
+          </div>
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+            {syncEnabled && (
+              <button onClick={() => syncMutation.mutate()} disabled={syncMutation.isPending}
+                style={{ height:34, padding:'0 14px', display:'flex', alignItems:'center', gap:6, borderRadius:8, border:`1px solid ${C.border}`, background:C.surface, cursor:syncMutation.isPending?'wait':'pointer', fontFamily:FONT }}>
+                <SyncOutlinedIcon sx={{ fontSize:15, color:C.textSec, animation:syncMutation.isPending?'spin 1s linear infinite':'none' }}/>
+                <span style={{ fontSize:12, fontWeight:600, color:C.textSec }}>Sync Groups</span>
+              </button>
+            )}
+            {!syncEnabled && (
+              <button onClick={() => queryClient.invalidateQueries({ queryKey: ['pos-grp-summary'] })} disabled={posSummaryLoading}
+                style={{ height:34, padding:'0 14px', display:'flex', alignItems:'center', gap:6, borderRadius:8, border:`1px solid ${C.border}`, background:C.surface, cursor:posSummaryLoading?'wait':'pointer', fontFamily:FONT }}>
+                <SyncOutlinedIcon sx={{ fontSize:15, color:C.textSec, animation:posSummaryLoading?'spin 1s linear infinite':'none' }}/>
+                <span style={{ fontSize:12, fontWeight:600, color:C.textSec }}>Refresh</span>
+              </button>
+            )}
+            {[{key:'csv',icon:TableChartOutlinedIcon,label:'Export CSV'},{key:'pdf',icon:PictureAsPdfOutlinedIcon,label:'Export PDF'}].map(({key,icon:Icon,label})=>(
+              <button key={key} onClick={()=>setConfirmExport(key)} disabled={!!exporting || summaryLoading}
+                style={{ height:34, padding:'0 14px', display:'flex', alignItems:'center', gap:6, borderRadius:8, border:`1px solid ${C.border}`, background:C.surface, cursor:(exporting||summaryLoading)?'wait':'pointer', fontFamily:FONT }}>
+                <Icon sx={{ fontSize:15, color:C.textSec }}/>
+                <span style={{ fontSize:12, fontWeight:600, color:C.textSec }}>{label}</span>
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ── Sync feedback ── */}
       {syncMsg && (
@@ -934,41 +1070,109 @@ export default function ManagerGroupReportPage() {
         </div>
       )}
 
+      {/* ── Report sub-nav — desktop only ── */}
+      {!isMobile && (
+        <div style={{ overflowX:'auto', scrollbarWidth:'none', marginBottom:20 }}>
+          <div style={{ display:'flex', gap:4, width:'max-content' }}>
+            {REPORT_TABS.map(({ id, label, path }) => {
+              const active = location.pathname === path;
+              return (
+                <button key={id} onClick={() => navigate(path)} style={{ padding:'7px 18px', borderRadius:20, border:'none', background:active?C.primary:'transparent', color:active?'#fff':C.textDim, fontSize:13, fontWeight:active?700:500, cursor:'pointer', whiteSpace:'nowrap', transition:'all 0.15s' }}>
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {!syncLoading && (
         <>
           {/* ── Date filter ── */}
-          <div style={{ display:'flex',gap:6,marginBottom:24,flexWrap:'wrap',alignItems:'center' }}>
-            <FilterListOutlinedIcon sx={{ fontSize:17,color:C.textDim }}/>
-            {PRESETS.map(p=>(
-              <button key={p.id} onClick={()=>{ setPreset(p.id); setSelectedGroup(null); }} style={{
-                padding:'6px 14px',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:FONT,
-                border:`1px solid ${preset===p.id?C.primary:C.border}`,
-                background:preset===p.id?C.primary:C.surface,
-                color:preset===p.id?'#fff':C.textSec,
-              }}>{p.label}</button>
-            ))}
-            {preset==='custom' && (
-              <>
-                <input type="date" value={customStart} onChange={e=>setCustomStart(e.target.value)}
-                  style={{ height:34,padding:'0 10px',borderRadius:8,border:`1px solid ${C.border}`,fontSize:12,fontFamily:FONT,color:C.textPri }}/>
-                <span style={{ color:C.textDim,fontSize:12 }}>–</span>
-                <input type="date" value={customEnd} onChange={e=>setCustomEnd(e.target.value)}
-                  style={{ height:34,padding:'0 10px',borderRadius:8,border:`1px solid ${C.border}`,fontSize:12,fontFamily:FONT,color:C.textPri }}/>
-              </>
-            )}
-          </div>
+          {isMobile ? (
+            <div style={{ marginBottom:20 }}>
+              <div style={{ overflowX:'auto', scrollbarWidth:'none' }}>
+                <div style={{ display:'flex', gap:4, width:'max-content' }}>
+                  {PRESETS.map(p=>(
+                    <button key={p.id} onClick={()=>{ setPreset(p.id); setSelectedGroup(null); }} style={{
+                      padding:'7px 18px',borderRadius:20,border:'none',fontFamily:FONT,cursor:'pointer',whiteSpace:'nowrap',transition:'all 0.15s',
+                      background:preset===p.id?C.primary:'transparent',
+                      color:preset===p.id?'#fff':C.textDim,
+                      fontSize:13,fontWeight:preset===p.id?700:500,
+                    }}>{p.label}</button>
+                  ))}
+                </div>
+              </div>
+              {preset==='custom' && (
+                <div style={{ display:'flex',gap:8,alignItems:'center',marginTop:10,flexWrap:'wrap' }}>
+                  <input type="date" value={customStart} onChange={e=>setCustomStart(e.target.value)}
+                    style={{ flex:1,minWidth:0,height:34,padding:'0 10px',borderRadius:8,border:`1px solid ${C.border}`,fontSize:12,fontFamily:FONT,color:C.textPri }}/>
+                  <span style={{ color:C.textDim,fontSize:12,flexShrink:0 }}>–</span>
+                  <input type="date" value={customEnd} onChange={e=>setCustomEnd(e.target.value)}
+                    style={{ flex:1,minWidth:0,height:34,padding:'0 10px',borderRadius:8,border:`1px solid ${C.border}`,fontSize:12,fontFamily:FONT,color:C.textPri }}/>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div style={{ display:'flex',gap:6,marginBottom:24,flexWrap:'wrap',alignItems:'center' }}>
+              <FilterListOutlinedIcon sx={{ fontSize:17,color:C.textDim }}/>
+              {PRESETS.map(p=>(
+                <button key={p.id} onClick={()=>{ setPreset(p.id); setSelectedGroup(null); }} style={{
+                  padding:'6px 14px',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:FONT,
+                  border:`1px solid ${preset===p.id?C.primary:C.border}`,
+                  background:preset===p.id?C.primary:C.surface,
+                  color:preset===p.id?'#fff':C.textSec,
+                }}>{p.label}</button>
+              ))}
+              {preset==='custom' && (
+                <>
+                  <input type="date" value={customStart} onChange={e=>setCustomStart(e.target.value)}
+                    style={{ height:34,padding:'0 10px',borderRadius:8,border:`1px solid ${C.border}`,fontSize:12,fontFamily:FONT,color:C.textPri }}/>
+                  <span style={{ color:C.textDim,fontSize:12 }}>–</span>
+                  <input type="date" value={customEnd} onChange={e=>setCustomEnd(e.target.value)}
+                    style={{ height:34,padding:'0 10px',borderRadius:8,border:`1px solid ${C.border}`,fontSize:12,fontFamily:FONT,color:C.textPri }}/>
+                </>
+              )}
+            </div>
+          )}
 
           {/* ── KPI cards ── */}
-          <div style={{ display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(175px,1fr))',gap:14,marginBottom:24 }}>
-            <KpiCard label="Total Revenue"   value={fmt$(totals?.revenue)}      icon={AttachMoneyOutlinedIcon}      color={C.accent}   iconBg={C.accentLt}          skeleton={anyLoading}/>
-            <KpiCard label="Transactions"    value={fmtNum(totals?.txnCount)}   icon={ReceiptLongOutlinedIcon}      color={C.info}     iconBg={C.infoLt}            skeleton={anyLoading}/>
-            <KpiCard label="Avg Ticket"      value={fmt$(totals?.avgTicket)}    icon={TrendingUpOutlinedIcon}       color={C.success}  iconBg={C.successLt}         skeleton={anyLoading}/>
-            <KpiCard label="Rev / Hour"      value={totals?`${fmt$(totals.revenuePerHour)}/hr`:'—'} icon={SpeedOutlinedIcon} color={C.primaryLt} iconBg={C.elevated} skeleton={anyLoading}/>
-            <KpiCard label="Active Groups"   value={fmtNum(totals?.totalGroups)} icon={GroupsOutlinedIcon}          color={C.dataBlue} iconBg={`${C.dataBlue}18`}   skeleton={anyLoading}/>
-            <KpiCard label="Avg Refund"
-              value={groups.length?`${fmtNum(groups.reduce((s,g)=>s+g.stats.refundRate,0)/groups.length,1)}%`:'—'}
-              icon={AssignmentReturnOutlinedIcon} color={C.warning} iconBg={C.warningLt} skeleton={anyLoading}/>
-          </div>
+          {(() => {
+            const avgRefund = groups.length
+              ? `${fmtNum(groups.reduce((s,g)=>s+g.stats.refundRate,0)/groups.length,1)}%`
+              : '—';
+            const kpiCards = [
+              { label:'Total Revenue', value:fmt$(totals?.revenue),                        icon:AttachMoneyOutlinedIcon,      color:C.accent,    iconBg:C.accentLt        },
+              { label:'Transactions',  value:fmtNum(totals?.txnCount),                    icon:ReceiptLongOutlinedIcon,      color:C.info,      iconBg:C.infoLt          },
+              { label:'Avg Ticket',    value:fmt$(totals?.avgTicket),                     icon:TrendingUpOutlinedIcon,       color:C.success,   iconBg:C.successLt       },
+              { label:'Rev / Hour',    value:totals?`${fmt$(totals.revenuePerHour)}/hr`:'—', icon:SpeedOutlinedIcon,         color:C.primaryLt, iconBg:C.elevated        },
+              { label:'Active Groups', value:fmtNum(totals?.totalGroups),                 icon:GroupsOutlinedIcon,           color:C.dataBlue,  iconBg:`${C.dataBlue}18` },
+              { label:'Avg Refund',    value:avgRefund,                                   icon:AssignmentReturnOutlinedIcon, color:C.warning,   iconBg:C.warningLt       },
+            ];
+            if (isMobile) {
+              const colW = 'calc((100vw - 36px) / 2)';
+              const cols = [];
+              for (let i = 0; i < Math.ceil(kpiCards.length / 2); i++) {
+                cols.push([kpiCards[i*2], kpiCards[i*2+1]].filter(Boolean));
+              }
+              return (
+                <div style={{ overflowX:'auto', scrollbarWidth:'none', msOverflowStyle:'none', WebkitOverflowScrolling:'touch', scrollSnapType:'x mandatory', marginBottom:20 }}>
+                  <div style={{ display:'flex', gap:8, width:'max-content' }}>
+                    {cols.map((pair, ci) => (
+                      <div key={ci} style={{ display:'flex', flexDirection:'column', gap:8, width:colW, minWidth:colW, flexShrink:0, scrollSnapAlign:'start' }}>
+                        {pair.map(k => <KpiCard key={k.label} {...k} skeleton={anyLoading} isMobile={true} />)}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            }
+            return (
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(175px,1fr))', gap:14, marginBottom:24 }}>
+                {kpiCards.map(k => <KpiCard key={k.label} {...k} skeleton={anyLoading} isMobile={false} />)}
+              </div>
+            );
+          })()}
 
           {/* ── Leaderboard ── */}
           <div style={{ marginBottom:24 }}>
@@ -979,6 +1183,7 @@ export default function ManagerGroupReportPage() {
               rankBy={rankBy}
               onRankChange={setRankBy}
               onGroupClick={handleLeaderboardClick}
+              isMobile={isMobile}
             />
           </div>
 
@@ -993,7 +1198,7 @@ export default function ManagerGroupReportPage() {
           }/>
 
           {summaryLoading && (
-            <div style={{ display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(300px,1fr))',gap:16 }}>
+            <div style={{ display:'grid',gridTemplateColumns:isMobile?'1fr':'repeat(auto-fill,minmax(300px,1fr))',gap:16 }}>
               {[0,1,2,3].map(i=>(
                 <div key={i} style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:14,padding:16 }}>
                   <div style={{ display:'flex',gap:10,marginBottom:14 }}>
@@ -1031,7 +1236,7 @@ export default function ManagerGroupReportPage() {
           )}
 
           {!summaryLoading && groups.length>0 && (
-            <div style={{ display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(300px,1fr))',gap:16,marginBottom:32 }}>
+            <div style={{ display:'grid',gridTemplateColumns:isMobile?'1fr':'repeat(auto-fill,minmax(300px,1fr))',gap:16,marginBottom:32 }}>
               {groups.map((g,i)=>(
                 <GroupCard key={g.groupId} group={g} color={GROUP_COLORS[i%GROUP_COLORS.length]}
                   isSelected={selectedGroup===g.groupId} onSelect={handleGroupSelect}

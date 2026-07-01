@@ -13,6 +13,8 @@ import PersonOutlineOutlinedIcon     from '@mui/icons-material/PersonOutlineOutl
 import PeopleOutlinedIcon            from '@mui/icons-material/PeopleOutlined';
 import QrCodeScannerOutlinedIcon     from '@mui/icons-material/QrCodeScannerOutlined';
 import LogoutOutlinedIcon            from '@mui/icons-material/LogoutOutlined';
+import LoginOutlinedIcon             from '@mui/icons-material/LoginOutlined';
+import WarningAmberOutlinedIcon      from '@mui/icons-material/WarningAmberOutlined';
 import MenuIcon                      from '@mui/icons-material/Menu';
 import CloseIcon                     from '@mui/icons-material/Close';
 import useAuthStore from '../store/useAuthStore';
@@ -139,6 +141,127 @@ export default function EmployeeLayout() {
     navigate(path);
   };
 
+  // ── Header shift badge ────────────────────────────────────────────────────────
+  const todayYMD     = new Date().toISOString().slice(0, 10);
+  const yesterdayYMD = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+
+  const { data: _activeShiftData } = useQuery({
+    queryKey: ['emp-layout-active-shift'],
+    queryFn: () => fetch(`${API}/api/shifts/active`, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.ok ? r.json() : null),
+    staleTime: 30_000,
+    refetchInterval: 30_000,
+    enabled: !!token,
+  });
+
+  // Fetch yesterday + today so overnight shifts spanning midnight are detectable
+  const { data: _todaySchedData } = useQuery({
+    queryKey: ['emp-layout-today-sched', todayYMD],
+    queryFn: () => fetch(`${API}/api/staffing/my-schedule?startDate=${yesterdayYMD}&endDate=${todayYMD}`, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.ok ? r.json() : null),
+    staleTime: 5 * 60_000,
+    refetchInterval: 60_000,
+    enabled: !!token,
+  });
+
+  const _hdrShift          = _activeShiftData?.data ?? null;
+  const _hdrSchedulesToday = (_todaySchedData?.data ?? []).filter(s => s.date === todayYMD);
+  const _hdrSchedulesYest  = (_todaySchedData?.data ?? []).filter(s => s.date === yesterdayYMD);
+
+  const _isStale = (() => {
+    if (!_hdrShift?.clockInTime) return false;
+    const clockInDate = new Date(_hdrShift.clockInTime);
+    const now = new Date();
+    const clockedInToday = (
+      clockInDate.getFullYear() === now.getFullYear() &&
+      clockInDate.getMonth()    === now.getMonth()    &&
+      clockInDate.getDate()     === now.getDate()
+    );
+    if (clockedInToday) return false;
+    // Check if we are still within an overnight scheduled window
+    if (_hdrShift.scheduledEnd) {
+      const [h, m] = _hdrShift.scheduledEnd.split(':').map(Number);
+      const endDT = new Date(clockInDate.getFullYear(), clockInDate.getMonth(), clockInDate.getDate(), h, m, 0, 0);
+      const clockInHHmm = clockInDate.getHours() * 60 + clockInDate.getMinutes();
+      if (h * 60 + m <= clockInHHmm) endDT.setDate(endDT.getDate() + 1); // overnight
+      if (now <= endDT) return false;
+    }
+    return true;
+  })();
+
+  const _schedState = (() => {
+    const now = new Date();
+    // Check yesterday's overnight shifts extending into today
+    for (const s of _hdrSchedulesYest) {
+      const [sy, sm, sd] = s.date.split('-').map(Number);
+      const [startH, startM] = s.startTime.split(':').map(Number);
+      const [endH, endM] = s.endTime.split(':').map(Number);
+      const startDT = new Date(sy, sm - 1, sd, startH, startM, 0, 0);
+      let endDT = new Date(sy, sm - 1, sd, endH, endM, 0, 0);
+      if (endDT <= startDT) {
+        endDT.setDate(endDT.getDate() + 1);
+        if (now <= endDT) return 'IN_WINDOW';
+      }
+    }
+    if (!_hdrSchedulesToday.length) return 'NO_SHIFT';
+    const s = _hdrSchedulesToday[0];
+    const [sy, sm, sd] = s.date.split('-').map(Number);
+    const [startH, startM] = s.startTime.split(':').map(Number);
+    const [endH, endM] = s.endTime.split(':').map(Number);
+    const startDT = new Date(sy, sm - 1, sd, startH, startM, 0, 0);
+    let endDT = new Date(sy, sm - 1, sd, endH, endM, 0, 0);
+    if (endDT <= startDT) endDT.setDate(endDT.getDate() + 1); // overnight
+    if (now < startDT) return 'UPCOMING';
+    if (now <= endDT)  return 'IN_WINDOW';
+    return 'PAST';
+  })();
+
+  const _fmt12 = (t) => {
+    const [h, m] = (t || '00:00').split(':').map(Number);
+    return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
+  };
+
+  const hdrBadge = (() => {
+    const pillStyle = (extra) => ({ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', borderRadius: 7, fontSize: 11, fontWeight: 700, letterSpacing: '0.03em', whiteSpace: 'nowrap', border: 'none', fontFamily: "'Plus Jakarta Sans', sans-serif", ...extra });
+
+    if (_isStale) return (
+      <button onClick={() => navigate('/employee/shift')} style={pillStyle({ background: 'rgba(178,106,0,0.25)', color: '#FFB74D', border: '1px solid rgba(178,106,0,0.45)', cursor: 'pointer' })}>
+        <WarningAmberOutlinedIcon sx={{ fontSize: 12 }} />
+        Recover
+      </button>
+    );
+
+    if (_hdrShift) return (
+      <div style={pillStyle({ background: 'rgba(46,125,79,0.22)', color: '#81C784', border: '1px solid rgba(46,125,79,0.38)', cursor: 'default' })}>
+        <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#66BB6A', flexShrink: 0 }} />
+        Clocked In
+      </div>
+    );
+
+    if (_schedState === 'IN_WINDOW') return (
+      <button onClick={() => navigate('/employee/shift')} style={pillStyle({ background: 'rgba(46,125,79,0.22)', color: '#81C784', border: '1px solid rgba(46,125,79,0.40)', cursor: 'pointer' })}>
+        <LoginOutlinedIcon sx={{ fontSize: 12 }} />
+        Clock In
+      </button>
+    );
+
+    if (_schedState === 'UPCOMING') return (
+      <div style={pillStyle({ background: 'rgba(255,255,255,0.10)', color: 'rgba(255,255,255,0.60)', border: '1px solid rgba(255,255,255,0.15)', cursor: 'default' })}>
+        {_fmt12(_hdrSchedulesToday[0]?.startTime)}
+      </div>
+    );
+
+    if (_schedState === 'PAST') return (
+      <div style={pillStyle({ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.38)', border: '1px solid rgba(255,255,255,0.12)', cursor: 'default' })}>
+        Shift Ended
+      </div>
+    );
+
+    return (
+      <div style={pillStyle({ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.38)', border: '1px solid rgba(255,255,255,0.12)', cursor: 'default' })}>
+        No Shift
+      </div>
+    );
+  })();
+
   // ── Helpers shared between both layouts ──────────────────────────────────────
   const isActive = (path) => pathname === path || pathname.startsWith(path + '/');
 
@@ -147,12 +270,80 @@ export default function EmployeeLayout() {
   const activeIndex   = NAV_ITEMS.findIndex(({ path }) => path === activeNavPath);
   const totalSlots    = NAV_ITEMS.length + 1;
 
+  // ── Shared across both layouts ───────────────────────────────────────────────
+  const FONT = "'Plus Jakarta Sans', sans-serif";
+
+  const renderLogoutModal = () => {
+    if (!logoutModalOpen) return null;
+    return (
+      <div
+        onClick={() => setLogoutModalOpen(false)}
+        style={{
+          position: 'fixed', inset: 0, zIndex: 1200,
+          background: 'rgba(30,18,14,0.45)',
+          backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: '24px 20px', fontFamily: FONT,
+        }}>
+        <div onClick={(e) => e.stopPropagation()} style={{
+          background: '#fff', borderRadius: 18, padding: '28px 24px 24px',
+          maxWidth: 320, width: '100%', textAlign: 'center',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+        }}>
+          <div style={{
+            width: 52, height: 52, borderRadius: 14,
+            background: 'rgba(178,0,0,0.08)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            margin: '0 auto 16px',
+          }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+              <path d="M16 17l5-5-5-5M21 12H9" stroke="#C0392B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" stroke="#C0392B" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
+          </div>
+          <h3 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 800, color: '#2B1D1A', letterSpacing: '-0.2px' }}>
+            Log Out?
+          </h3>
+          <p style={{ margin: '0 0 24px', fontSize: 13, color: '#6B5B57', lineHeight: 1.55 }}>
+            Are you sure you want to log out of your session?
+          </p>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button
+              onClick={() => setLogoutModalOpen(false)}
+              style={{
+                flex: 1, minHeight: 44, borderRadius: 10,
+                border: '1.5px solid #DDD2CC', background: '#F5F3F1',
+                color: '#6B5B57', fontSize: 14, fontWeight: 600,
+                cursor: 'pointer', fontFamily: FONT,
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleLogout}
+              style={{
+                flex: 1, minHeight: 44, borderRadius: 10,
+                border: 'none', background: '#C0392B',
+                color: '#fff', fontSize: 14, fontWeight: 700,
+                cursor: 'pointer', fontFamily: FONT,
+                boxShadow: '0 3px 0 #7b1f14',
+              }}
+            >
+              Log Out
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // ── Desktop: sidebar layout ──────────────────────────────────────────────────
   if (isDesktop) {
     return (
       <>
       <SessionMonitor />
       <BiometricPromptModal />
+      {renderLogoutModal()}
       <div style={{
         display: 'flex',
         minHeight: '100dvh',
@@ -323,72 +514,6 @@ export default function EmployeeLayout() {
   }
 
   // ── Mobile layout ────────────────────────────────────────────────────────────
-  const FONT = "'Plus Jakarta Sans', sans-serif";
-
-  const renderLogoutModal = () => {
-    if (!logoutModalOpen) return null;
-    return (
-      <div
-        onClick={() => setLogoutModalOpen(false)}
-        style={{
-          position: 'fixed', inset: 0, zIndex: 1200,
-          background: 'rgba(30,18,14,0.45)',
-          backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          padding: '24px 20px', fontFamily: FONT,
-        }}>
-        <div onClick={(e) => e.stopPropagation()} style={{
-          background: '#fff', borderRadius: 18, padding: '28px 24px 24px',
-          maxWidth: 320, width: '100%', textAlign: 'center',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
-        }}>
-          <div style={{
-            width: 52, height: 52, borderRadius: 14,
-            background: 'rgba(178,0,0,0.08)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 16px',
-          }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-              <path d="M16 17l5-5-5-5M21 12H9" stroke="#C0392B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" stroke="#C0392B" strokeWidth="2" strokeLinecap="round"/>
-            </svg>
-          </div>
-          <h3 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 800, color: '#2B1D1A', letterSpacing: '-0.2px' }}>
-            Log Out?
-          </h3>
-          <p style={{ margin: '0 0 24px', fontSize: 13, color: '#6B5B57', lineHeight: 1.55 }}>
-            Are you sure you want to log out of your session?
-          </p>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button
-              onClick={() => setLogoutModalOpen(false)}
-              style={{
-                flex: 1, minHeight: 44, borderRadius: 10,
-                border: '1.5px solid #DDD2CC', background: '#F5F3F1',
-                color: '#6B5B57', fontSize: 14, fontWeight: 600,
-                cursor: 'pointer', fontFamily: FONT,
-              }}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleLogout}
-              style={{
-                flex: 1, minHeight: 44, borderRadius: 10,
-                border: 'none', background: '#C0392B',
-                color: '#fff', fontSize: 14, fontWeight: 700,
-                cursor: 'pointer', fontFamily: FONT,
-                boxShadow: '0 3px 0 #7b1f14',
-              }}
-            >
-              Log Out
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   return (
     <>
     <SessionMonitor />
@@ -444,20 +569,7 @@ export default function EmployeeLayout() {
           </div>
         </div>
 
-        <button
-          onClick={() => setLogoutModalOpen(true)}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 5,
-            padding: '5px 11px', borderRadius: 7,
-            background: 'rgba(255,255,255,0.09)',
-            border: '1px solid rgba(255,255,255,0.16)',
-            color: 'rgba(255,255,255,0.85)',
-            fontSize: 12, fontWeight: 600, cursor: 'pointer', letterSpacing: '0.04em',
-          }}
-        >
-          <LogoutOutlinedIcon sx={{ fontSize: 14 }} />
-          LOG OUT
-        </button>
+        {hdrBadge}
       </header>
 
       {/* ── Page content ── */}
@@ -597,6 +709,27 @@ export default function EmployeeLayout() {
             }}
           >
             <CloseIcon sx={{ fontSize: 18 }} />
+          </button>
+        </div>
+
+        {/* User card + logout */}
+        <div style={{ padding: '12px 14px', borderBottom: '1px solid #DDD2CC' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 10px', borderRadius: 10, background: '#F9F6F3', marginBottom: 10 }}>
+            {user?.imageUrl ? (
+              <img src={user.imageUrl} alt={user.name} style={{ width: 30, height: 30, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
+            ) : (
+              <div style={{ width: 30, height: 30, borderRadius: 8, background: '#3E2723', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 12, fontWeight: 700, color: '#D4A373' }}>
+                {(user?.name || 'E').charAt(0).toUpperCase()}
+              </div>
+            )}
+            <div style={{ overflow: 'hidden', flex: 1 }}>
+              <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: '#2B1D1A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.name || 'Employee'}</p>
+              <p style={{ margin: 0, fontSize: 10, fontWeight: 500, color: '#A09490', letterSpacing: '0.03em' }}>{user?.employeeCode}</p>
+            </div>
+          </div>
+          <button onClick={() => { setMenuOpen(false); setLogoutModalOpen(true); }} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '10px 12px', borderRadius: 9, background: 'rgba(183,28,28,0.06)', border: '1px solid rgba(183,28,28,0.22)', color: '#B71C1C', fontSize: 13, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.02em' }}>
+            <LogoutOutlinedIcon sx={{ fontSize: 16, color: '#B71C1C' }} />
+            Sign Out
           </button>
         </div>
 

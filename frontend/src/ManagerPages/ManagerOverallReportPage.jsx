@@ -1,4 +1,6 @@
 import React, { useState, useCallback } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useMediaQuery } from '@mui/material';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   ResponsiveContainer, AreaChart, Area,
@@ -88,19 +90,24 @@ function DeltaBadge({ value }) {
   );
 }
 
-function KpiCard({ label, value, sub, icon: Icon, color, iconBg, delta }) {
+function KpiCard({ label, value, sub, icon: Icon, color, iconBg, delta, isMobile }) {
+  const pad      = isMobile ? '11px 10px' : '16px 18px';
+  const iconBox  = isMobile ? 30 : 40;
+  const iconFs   = isMobile ? 15 : 20;
+  const valFs    = isMobile ? 16 : 21;
+  const cornerSz = isMobile ? 22 : 32;
   return (
-    <div style={{ position: 'relative', background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '16px 18px', display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-      <div style={{ position: 'absolute', top: 0, left: 0, width: 32, height: 32, borderTop: `1.5px solid ${color}`, borderLeft: `1.5px solid ${color}`, borderTopLeftRadius: 10, pointerEvents: 'none' }} />
-      <div style={{ position: 'absolute', bottom: 0, right: 0, width: 32, height: 32, borderBottom: `1.5px solid ${color}`, borderRight: `1.5px solid ${color}`, borderBottomRightRadius: 10, pointerEvents: 'none' }} />
-      <div style={{ width: 40, height: 40, borderRadius: 10, background: iconBg, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Icon sx={{ fontSize: 20, color }} />
+    <div style={{ position: 'relative', background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: pad, display: 'flex', alignItems: 'flex-start', gap: isMobile ? 8 : 14 }}>
+      <div style={{ position: 'absolute', top: 0, left: 0, width: cornerSz, height: cornerSz, borderTop: `1.5px solid ${color}`, borderLeft: `1.5px solid ${color}`, borderTopLeftRadius: 10, pointerEvents: 'none' }} />
+      <div style={{ position: 'absolute', bottom: 0, right: 0, width: cornerSz, height: cornerSz, borderBottom: `1.5px solid ${color}`, borderRight: `1.5px solid ${color}`, borderBottomRightRadius: 10, pointerEvents: 'none' }} />
+      <div style={{ width: iconBox, height: iconBox, borderRadius: isMobile ? 8 : 10, background: iconBg, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Icon sx={{ fontSize: iconFs, color }} />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ margin: 0, fontSize: 21, fontWeight: 800, color: C.textPri, letterSpacing: '-0.5px', lineHeight: '26px' }}>{value}</p>
-        {sub && <p style={{ margin: '1px 0 0', fontSize: 11, fontWeight: 600, color: C.textDim }}>{sub}</p>}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
-          <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</p>
+        <p style={{ margin: 0, fontSize: valFs, fontWeight: 800, color: C.textPri, letterSpacing: '-0.5px', lineHeight: isMobile ? '22px' : '26px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</p>
+        {sub && <p style={{ margin: '1px 0 0', fontSize: isMobile ? 10 : 11, fontWeight: 600, color: C.textDim, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub}</p>}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: isMobile ? 3 : 4 }}>
+          <p style={{ margin: 0, fontSize: 9, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.07em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{label}</p>
           <DeltaBadge value={delta} />
         </div>
       </div>
@@ -176,7 +183,7 @@ function DonutLabel({ cx, cy, total }) {
   );
 }
 
-function TodayTrendChart({ data, summaryData }) {
+function TodayTrendChart({ data, summaryData, isMobile }) {
   const total      = data.reduce((s, d) => s + (d.Revenue || 0), 0);
   const firstVal   = summaryData?.firstSaleAmount  ?? 0;
   const midDayVal  = summaryData?.midDaySaleAmount ?? 0;
@@ -205,6 +212,68 @@ function TodayTrendChart({ data, summaryData }) {
   ];
 
   const noData = total === 0;
+
+  if (isMobile) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '0 8px 8px' }}>
+        {/* Bar chart */}
+        <div>
+          <div style={{ display: 'flex', gap: 10, paddingLeft: 8, paddingBottom: 10, flexWrap: 'wrap' }}>
+            {barData.map((b) => (
+              <div key={b.name} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ width: 10, height: 10, borderRadius: 3, background: b.fill }} />
+                <span style={{ fontSize: 11, fontWeight: 600, color: C.textSec }}>{b.name}</span>
+              </div>
+            ))}
+          </div>
+          {noData ? (
+            <div style={{ height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <p style={{ fontSize: 12, color: C.textDim }}>No sales recorded yet today</p>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={180}>
+              <BarChart data={barData} margin={{ top: 4, right: 12, left: 0, bottom: 0 }} barCategoryGap="35%">
+                <CartesianGrid vertical={false} stroke="#EDE5E0" />
+                <XAxis dataKey="name" tick={axisStyle()} axisLine={false} tickLine={false} dy={8} />
+                <YAxis tickFormatter={fmtY} tick={axisStyle()} axisLine={false} tickLine={false} width={50} dx={-4} />
+                <Tooltip content={<TodayBarTooltip />} cursor={{ fill: 'rgba(237,229,224,0.35)' }} />
+                <Bar dataKey="value" radius={[6, 6, 0, 0]} maxBarSize={60}>
+                  {barData.map((entry, index) => (
+                    <Cell key={`bc-${index}`} fill={entry.fill} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+        {/* Donut (centered, max 200px on mobile) */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+          {noData ? (
+            <div style={{ width: 160, height: 160, borderRadius: '50%', border: `2px dashed ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <p style={{ fontSize: 10, color: C.textDim, textAlign: 'center', margin: 0, padding: '0 12px' }}>Awaiting sales</p>
+            </div>
+          ) : (
+            <PieChart width={190} height={190}>
+              <Pie data={pieData} cx={95} cy={95} innerRadius={54} outerRadius={82} paddingAngle={3} dataKey="value" startAngle={90} endAngle={-270}>
+                {pieData.map((entry, index) => (<Cell key={`pie-${index}`} fill={entry.color} stroke="none" />))}
+              </Pie>
+              <Tooltip content={<TodayPieTooltip />} />
+              <DonutLabel cx={95} cy={95} total={total} />
+            </PieChart>
+          )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5, width: '100%', maxWidth: 200, padding: '0 12px' }}>
+            {pieData.map(p => (
+              <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 8, height: 8, borderRadius: 2, background: p.color, flexShrink: 0 }} />
+                <span style={{ flex: 1, fontSize: 10, fontWeight: 600, color: C.textSec }}>{p.name}</span>
+                <span style={{ fontSize: 11, fontWeight: 800, color: C.textPri }}>{p.share}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 220px', gap: 0, alignItems: 'center', padding: '0 8px 8px' }}>
@@ -288,7 +357,7 @@ function TodayTrendChart({ data, summaryData }) {
   );
 }
 
-function AllTimeTrendChart({ data }) {
+function AllTimeTrendChart({ data, isMobile }) {
   // Group monthly periods by year for the donut
   const yearMap = {};
   for (const d of data) {
@@ -321,75 +390,78 @@ function AllTimeTrendChart({ data }) {
 
   const noData = total === 0;
 
+  const barSection = (
+    <div>
+      <div style={{ display: 'flex', gap: 10, paddingLeft: 8, paddingBottom: 10, flexWrap: 'wrap' }}>
+        {pieData.map(p => (
+          <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            <span style={{ width: 10, height: 10, borderRadius: 3, background: p.color }} />
+            <span style={{ fontSize: 11, fontWeight: 600, color: C.textSec }}>{p.name}</span>
+          </div>
+        ))}
+      </div>
+      {noData ? (
+        <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <p style={{ fontSize: 12, color: C.textDim }}>No sales data available</p>
+        </div>
+      ) : (
+        <ResponsiveContainer width="100%" height={200}>
+          <BarChart data={barData} margin={{ top: 4, right: 12, left: 0, bottom: 0 }} barCategoryGap="18%">
+            <CartesianGrid vertical={false} stroke="#EDE5E0" />
+            <XAxis dataKey="name" tickFormatter={formatPeriod} tick={axisStyle()} axisLine={false} tickLine={false} dy={8} interval="preserveStartEnd" />
+            <YAxis tickFormatter={fmtY} tick={axisStyle()} axisLine={false} tickLine={false} width={50} dx={-4} />
+            <Tooltip content={<TodayBarTooltip />} cursor={{ fill: 'rgba(237,229,224,0.35)' }} />
+            <Bar dataKey="value" radius={[4, 4, 0, 0]} maxBarSize={28}>
+              {barData.map((entry, index) => (
+                <Cell key={`atbc-${index}`} fill={entry.fill} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      )}
+    </div>
+  );
+
+  const donutSection = (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+      {noData ? (
+        <div style={{ width: 160, height: 160, borderRadius: '50%', border: `2px dashed ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <p style={{ fontSize: 10, color: C.textDim, textAlign: 'center', margin: 0, padding: '0 12px' }}>No data</p>
+        </div>
+      ) : (
+        <PieChart width={190} height={190}>
+          <Pie data={pieData} cx={95} cy={95} innerRadius={54} outerRadius={82} paddingAngle={3} dataKey="value" startAngle={90} endAngle={-270}>
+            {pieData.map((entry, index) => (<Cell key={`atpie-${index}`} fill={entry.color} stroke="none" />))}
+          </Pie>
+          <Tooltip content={<TodayPieTooltip />} />
+          <DonutLabel cx={95} cy={95} total={total} />
+        </PieChart>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 5, width: '100%', maxWidth: isMobile ? 200 : '100%', padding: '0 12px' }}>
+        {pieData.map(p => (
+          <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ width: 8, height: 8, borderRadius: 2, background: p.color, flexShrink: 0 }} />
+            <span style={{ flex: 1, fontSize: 10, fontWeight: 600, color: C.textSec }}>{p.name}</span>
+            <span style={{ fontSize: 11, fontWeight: 800, color: C.textPri }}>{p.share}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  if (isMobile) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '0 8px 8px' }}>
+        {barSection}
+        {donutSection}
+      </div>
+    );
+  }
+
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 220px', gap: 0, alignItems: 'center', padding: '0 8px 8px' }}>
-
-      {/* Monthly bar chart */}
-      <div>
-        <div style={{ display: 'flex', gap: 10, paddingLeft: 8, paddingBottom: 10, flexWrap: 'wrap' }}>
-          {pieData.map(p => (
-            <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              <span style={{ width: 10, height: 10, borderRadius: 3, background: p.color }} />
-              <span style={{ fontSize: 11, fontWeight: 600, color: C.textSec }}>{p.name}</span>
-            </div>
-          ))}
-        </div>
-        {noData ? (
-          <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <p style={{ fontSize: 12, color: C.textDim }}>No sales data available</p>
-          </div>
-        ) : (
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={barData} margin={{ top: 4, right: 12, left: 0, bottom: 0 }} barCategoryGap="18%">
-              <CartesianGrid vertical={false} stroke="#EDE5E0" />
-              <XAxis dataKey="name" tickFormatter={formatPeriod} tick={axisStyle()} axisLine={false} tickLine={false} dy={8} interval="preserveStartEnd" />
-              <YAxis tickFormatter={fmtY} tick={axisStyle()} axisLine={false} tickLine={false} width={50} dx={-4} />
-              <Tooltip content={<TodayBarTooltip />} cursor={{ fill: 'rgba(237,229,224,0.35)' }} />
-              <Bar dataKey="value" radius={[4, 4, 0, 0]} maxBarSize={28}>
-                {barData.map((entry, index) => (
-                  <Cell key={`atbc-${index}`} fill={entry.fill} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        )}
-      </div>
-
-      {/* Yearly donut */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-        {noData ? (
-          <div style={{ width: 160, height: 160, borderRadius: '50%', border: `2px dashed ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <p style={{ fontSize: 10, color: C.textDim, textAlign: 'center', margin: 0, padding: '0 12px' }}>No data</p>
-          </div>
-        ) : (
-          <PieChart width={190} height={190}>
-            <Pie
-              data={pieData}
-              cx={95} cy={95}
-              innerRadius={54} outerRadius={82}
-              paddingAngle={3}
-              dataKey="value"
-              startAngle={90} endAngle={-270}
-            >
-              {pieData.map((entry, index) => (
-                <Cell key={`atpie-${index}`} fill={entry.color} stroke="none" />
-              ))}
-            </Pie>
-            <Tooltip content={<TodayPieTooltip />} />
-            <DonutLabel cx={95} cy={95} total={total} />
-          </PieChart>
-        )}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 5, width: '100%', padding: '0 12px' }}>
-          {pieData.map(p => (
-            <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ width: 8, height: 8, borderRadius: 2, background: p.color, flexShrink: 0 }} />
-              <span style={{ flex: 1, fontSize: 10, fontWeight: 600, color: C.textSec }}>{p.name}</span>
-              <span style={{ fontSize: 11, fontWeight: 800, color: C.textPri }}>{p.share}%</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
+      {barSection}
+      {donutSection}
     </div>
   );
 }
@@ -398,15 +470,15 @@ function SkeletonBlock({ h = 20, w = '100%', radius = 6 }) {
   return <div style={{ height: h, width: w, borderRadius: radius, background: C.elevated, animation: 'pulse 1.4s ease infinite alternate' }} />;
 }
 
-function LoadingKpis() {
+function LoadingKpis({ isMobile }) {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: isMobile ? 8 : 14 }}>
       {[1, 2, 3, 4].map(i => (
-        <div key={i} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '16px 18px', display: 'flex', gap: 14 }}>
-          <SkeletonBlock h={40} w={40} radius={10} />
+        <div key={i} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: isMobile ? '11px 10px' : '16px 18px', display: 'flex', gap: isMobile ? 8 : 14 }}>
+          <SkeletonBlock h={isMobile ? 30 : 40} w={isMobile ? 30 : 40} radius={isMobile ? 8 : 10} />
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <SkeletonBlock h={22} w="70%" />
-            <SkeletonBlock h={12} w="50%" />
+            <SkeletonBlock h={isMobile ? 16 : 22} w="70%" />
+            <SkeletonBlock h={10} w="50%" />
           </div>
         </div>
       ))}
@@ -467,7 +539,17 @@ function InsightsPanel({ insights }) {
   );
 }
 
+const REPORT_TABS = [
+  { id: 'overall',    label: 'Overall',    path: '/manager/reports/overall'    },
+  { id: 'individual', label: 'Individual', path: '/manager/reports/individual' },
+  { id: 'group',      label: 'Group',      path: '/manager/reports/group'      },
+];
+
 export default function ManagerOverallReportPage() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const isMobile = !useMediaQuery('(min-width:1024px)');
+
   const [range, setRange] = useState('today');
   const dr = buildDateRange(range);
   const { start, end, compareStart, compareEnd, groupBy } = dr;
@@ -515,56 +597,133 @@ export default function ManagerOverallReportPage() {
   const isOverall = range === 'overall';
 
   return (
-    <div style={{ padding: '28px 32px 40px', background: C.bg, minHeight: '100dvh', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+    <div style={{ padding: isMobile ? '14px 14px 32px' : '28px 32px 40px', background: C.bg, minHeight: '100dvh', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
 
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 9, background: C.primary, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <AssessmentOutlinedIcon sx={{ fontSize: 18, color: C.accent }} />
+      {isMobile ? (
+        <>
+          {/* Mobile: title + icon-only action buttons in one row */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 34, height: 34, borderRadius: 9, background: C.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <AssessmentOutlinedIcon sx={{ fontSize: 17, color: C.accent }} />
+              </div>
+              <div>
+                <p style={{ margin: 0, fontSize: 10, fontWeight: 600, color: C.textDim, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Reports</p>
+                <h1 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: C.textPri, letterSpacing: '-0.3px' }}>Overall</h1>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button onClick={handleRefresh} disabled={refreshing} title="Refresh" style={{ width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, cursor: refreshing ? 'not-allowed' : 'pointer', opacity: refreshing ? 0.6 : 1 }}>
+                <RefreshOutlinedIcon sx={{ fontSize: 17, color: C.textSec, animation: refreshing ? 'spin 0.8s linear infinite' : 'none' }} />
+              </button>
+              <button onClick={handleExport} title="Export CSV" style={{ width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 8, border: 'none', background: C.primary, cursor: 'pointer' }}>
+                <DownloadOutlinedIcon sx={{ fontSize: 17, color: '#fff' }} />
+              </button>
+            </div>
           </div>
-          <div>
-            <p style={{ margin: 0, fontSize: 10, fontWeight: 600, color: C.textDim, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Reports</p>
-            <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: C.textPri, letterSpacing: '-0.3px' }}>Overall Reports</h1>
+          {/* Mobile: range filter — pill/chip style */}
+          <div style={{ overflowX: 'auto', scrollbarWidth: 'none', marginBottom: 12 }}>
+            <div style={{ display: 'flex', gap: 4, width: 'max-content' }}>
+              {RANGES.map(({ id, label }) => {
+                const active = range === id;
+                return (
+                  <button key={id} onClick={() => setRange(id)} style={{ padding: '7px 18px', borderRadius: 20, border: 'none', background: active ? C.primary : 'transparent', color: active ? '#fff' : C.textDim, fontSize: 13, fontWeight: active ? 700 : 500, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.15s' }}>
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 9, background: C.primary, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <AssessmentOutlinedIcon sx={{ fontSize: 18, color: C.accent }} />
+            </div>
+            <div>
+              <p style={{ margin: 0, fontSize: 10, fontWeight: 600, color: C.textDim, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Reports</p>
+              <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: C.textPri, letterSpacing: '-0.3px' }}>Overall Reports</h1>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ overflowX: 'auto', scrollbarWidth: 'none' }}>
+              <div style={{ display: 'flex', gap: 3, background: C.elevated, borderRadius: 10, padding: 3, width: 'max-content' }}>
+                {RANGES.map(({ id, label }) => {
+                  const active = range === id;
+                  return (
+                    <button key={id} onClick={() => setRange(id)} style={{ padding: '6px 16px', borderRadius: 7, border: 'none', background: active ? C.surface : 'transparent', cursor: 'pointer', boxShadow: active ? '0 1px 4px rgba(62,39,35,0.12)' : 'none', fontSize: 12, fontWeight: active ? 700 : 500, color: active ? C.primary : C.textDim, transition: 'all 0.15s', whiteSpace: 'nowrap' }}>
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={handleRefresh} disabled={refreshing} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 12px', borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, fontSize: 12, fontWeight: 600, color: refreshing ? C.textDim : C.textSec, cursor: refreshing ? 'not-allowed' : 'pointer', opacity: refreshing ? 0.7 : 1 }}>
+                <RefreshOutlinedIcon sx={{ fontSize: 15, animation: refreshing ? 'spin 0.8s linear infinite' : 'none' }} />
+                {refreshing ? 'Refreshing…' : 'Refresh'}
+              </button>
+              <button onClick={handleExport} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 14px', borderRadius: 8, border: 'none', background: C.primary, fontSize: 12, fontWeight: 700, color: '#fff', cursor: 'pointer' }}>
+                <DownloadOutlinedIcon sx={{ fontSize: 15 }} /> Export CSV
+              </button>
+            </div>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {/* Range */}
-          <div style={{ display: 'flex', gap: 3, background: C.elevated, borderRadius: 10, padding: 3 }}>
-            {RANGES.map(({ id, label }) => {
-              const active = range === id;
+      )}
+
+      {/* Report sub-nav — desktop only */}
+      {!isMobile && (
+        <div style={{ overflowX: 'auto', scrollbarWidth: 'none', marginBottom: 20 }}>
+          <div style={{ display: 'flex', gap: 4, width: 'max-content' }}>
+            {REPORT_TABS.map(({ id, label, path }) => {
+              const active = location.pathname === path;
               return (
-                <button key={id} onClick={() => setRange(id)} style={{ padding: '6px 16px', borderRadius: 7, border: 'none', background: active ? C.surface : 'transparent', cursor: 'pointer', boxShadow: active ? '0 1px 4px rgba(62,39,35,0.12)' : 'none', fontSize: 12, fontWeight: active ? 700 : 500, color: active ? C.primary : C.textDim, transition: 'all 0.15s' }}>
+                <button key={id} onClick={() => navigate(path)} style={{ padding: '7px 18px', borderRadius: 20, border: 'none', background: active ? C.primary : 'transparent', color: active ? '#fff' : C.textDim, fontSize: 13, fontWeight: active ? 700 : 500, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.15s' }}>
                   {label}
                 </button>
               );
             })}
           </div>
-          <button onClick={handleRefresh} disabled={refreshing} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 12px', borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, fontSize: 12, fontWeight: 600, color: refreshing ? C.textDim : C.textSec, cursor: refreshing ? 'not-allowed' : 'pointer', opacity: refreshing ? 0.7 : 1 }}>
-            <RefreshOutlinedIcon sx={{ fontSize: 15, animation: refreshing ? 'spin 0.8s linear infinite' : 'none' }} />
-            {refreshing ? 'Refreshing…' : 'Refresh'}
-          </button>
-          <button onClick={handleExport} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 14px', borderRadius: 8, border: 'none', background: C.primary, fontSize: 12, fontWeight: 700, color: '#fff', cursor: 'pointer' }}>
-            <DownloadOutlinedIcon sx={{ fontSize: 15 }} /> Export CSV
-          </button>
         </div>
-      </div>
+      )}
 
       {/* Alerts */}
       {anomalies.data?.length > 0 && <AlertBanner alerts={anomalies.data} />}
 
       {/* KPI Cards */}
-      {summary.isLoading ? <LoadingKpis /> : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 20 }}>
-          <KpiCard label="Net Revenue"    value={fmt$(cur?.netRevenue)}     sub={`Gross ${fmt$(cur?.grossRevenue)}`}             icon={AttachMoneyOutlinedIcon} color={C.success} iconBg="rgba(46,125,79,0.10)"  delta={deltas?.netRevenue} />
-          <KpiCard label="Transactions"   value={cur?.txnCount ?? '—'}      sub={`Avg ticket ${fmt$(cur?.avgTicket)}`}            icon={ReceiptLongOutlinedIcon} color={C.info}    iconBg="rgba(2,119,189,0.10)"  delta={deltas?.txnCount} />
-          <KpiCard label="Refund Rate"    value={`${cur?.refundRate ?? 0}%`} sub={`${cur?.refundCount ?? 0} refunds · ${fmt$(cur?.refundedAmount)}`} icon={PaymentsOutlinedIcon}    color={C.error}   iconBg="rgba(183,28,28,0.09)"  delta={deltas?.refundedAmount != null ? -deltas.refundedAmount : null} />
-          <KpiCard label="Tax Collected"  value={fmt$(cur?.taxTotal)}       sub={`Discounts ${fmt$(cur?.discountTotal)}`}         icon={ReceiptOutlinedIcon}    color={C.warning} iconBg="rgba(178,106,0,0.10)"  delta={deltas?.taxTotal} />
+      {summary.isLoading ? <LoadingKpis isMobile={isMobile} /> : (
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: isMobile ? 8 : 14, marginBottom: 20 }}>
+          <KpiCard
+            label={isMobile ? 'Net Rev' : 'Net Revenue'}
+            value={fmt$(cur?.netRevenue)}
+            sub={isMobile ? `Gross ${fmt$(cur?.grossRevenue)}` : `Gross ${fmt$(cur?.grossRevenue)}`}
+            icon={AttachMoneyOutlinedIcon} color={C.success} iconBg="rgba(46,125,79,0.10)" delta={deltas?.netRevenue} isMobile={isMobile}
+          />
+          <KpiCard
+            label={isMobile ? 'Txns' : 'Transactions'}
+            value={cur?.txnCount ?? '—'}
+            sub={isMobile ? `Avg ${fmt$(cur?.avgTicket)}` : `Avg ticket ${fmt$(cur?.avgTicket)}`}
+            icon={ReceiptLongOutlinedIcon} color={C.info} iconBg="rgba(2,119,189,0.10)" delta={deltas?.txnCount} isMobile={isMobile}
+          />
+          <KpiCard
+            label={isMobile ? 'Refund %' : 'Refund Rate'}
+            value={`${cur?.refundRate ?? 0}%`}
+            sub={isMobile ? `${cur?.refundCount ?? 0} refunds` : `${cur?.refundCount ?? 0} refunds · ${fmt$(cur?.refundedAmount)}`}
+            icon={PaymentsOutlinedIcon} color={C.error} iconBg="rgba(183,28,28,0.09)" delta={deltas?.refundedAmount != null ? -deltas.refundedAmount : null} isMobile={isMobile}
+          />
+          <KpiCard
+            label={isMobile ? 'Tax' : 'Tax Collected'}
+            value={fmt$(cur?.taxTotal)}
+            sub={isMobile ? `Disc ${fmt$(cur?.discountTotal)}` : `Discounts ${fmt$(cur?.discountTotal)}`}
+            icon={ReceiptOutlinedIcon} color={C.warning} iconBg="rgba(178,106,0,0.10)" delta={deltas?.taxTotal} isMobile={isMobile}
+          />
         </div>
       )}
 
       {/* Charts row */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 16, marginBottom: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 340px', gap: 16, marginBottom: 16 }}>
 
         {/* Revenue Trend */}
         <ChartShell
@@ -576,9 +735,9 @@ export default function ManagerOverallReportPage() {
             : `Net revenue over the selected period${compareStart ? ' vs. prior period' : ''}`}
         >
           {trend.isLoading ? <SkeletonBlock h={248} radius={0} /> : isToday ? (
-            <TodayTrendChart data={trendData} summaryData={cur} />
+            <TodayTrendChart data={trendData} summaryData={cur} isMobile={isMobile} />
           ) : isOverall ? (
-            <AllTimeTrendChart data={trendData} />
+            <AllTimeTrendChart data={trendData} isMobile={isMobile} />
           ) : (
             <ResponsiveContainer width="100%" height={230}>
               <AreaChart data={trendData} margin={{ top: 4, right: 24, left: 0, bottom: 0 }}>
@@ -651,28 +810,32 @@ export default function ManagerOverallReportPage() {
           </div>
         ) : (
           <>
-            <div style={{ display: 'grid', gridTemplateColumns: '32px 1fr 80px 90px 90px 90px 80px', gap: 8, padding: '8px 20px', background: C.tableHdr, borderBottom: `1px solid ${C.border}` }}>
-              {['#', 'Product', 'SKU', 'Qty Sold', 'Revenue', 'Refunds', 'Refund Rate'].map(h => (
-                <span key={h} style={{ fontSize: 10, fontWeight: 700, color: C.primary, textTransform: 'uppercase', letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>{h}</span>
-              ))}
-            </div>
-            {products.data?.length ? products.data.map((p, i) => (
-              <div key={String(p.productId)} style={{ display: 'grid', gridTemplateColumns: '32px 1fr 80px 90px 90px 90px 80px', gap: 8, alignItems: 'center', padding: '12px 20px', borderBottom: i < products.data.length - 1 ? `1px solid ${C.border}` : 'none', background: i % 2 ? '#FDFCFB' : C.surface }}>
-                <span style={{ width: 22, height: 22, borderRadius: 6, background: i === 0 ? C.primary : C.elevated, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, color: i === 0 ? C.accent : C.textDim }}>
-                  {i + 1}
-                </span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: C.textPri }}>{p.productName}</span>
-                <span style={{ fontSize: 11, fontWeight: 600, color: C.textDim, fontFamily: 'monospace' }}>{p.sku}</span>
-                <span style={{ fontSize: 13, fontWeight: 600, color: C.textSec }}>{p.qtySold}</span>
-                <span style={{ fontSize: 13, fontWeight: 800, color: C.success }}>{fmt$(p.netRevenue)}</span>
-                <span style={{ fontSize: 13, fontWeight: 600, color: p.refundedAmt > 0 ? C.error : C.textDim }}>{fmt$(p.refundedAmt)}</span>
-                <span style={{ fontSize: 12, fontWeight: 700, color: p.refundRate > 5 ? C.error : p.refundRate > 2 ? C.warning : C.success }}>
-                  {p.refundRate.toFixed(1)}%
-                </span>
+            <div style={{ overflowX: 'auto' }}>
+              <div style={{ minWidth: 560 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '32px 1fr 80px 90px 90px 90px 80px', gap: 8, padding: '8px 20px', background: C.tableHdr, borderBottom: `1px solid ${C.border}` }}>
+                  {['#', 'Product', 'SKU', 'Qty Sold', 'Revenue', 'Refunds', 'Refund Rate'].map(h => (
+                    <span key={h} style={{ fontSize: 10, fontWeight: 700, color: C.primary, textTransform: 'uppercase', letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>{h}</span>
+                  ))}
+                </div>
+                {products.data?.length ? products.data.map((p, i) => (
+                  <div key={String(p.productId)} style={{ display: 'grid', gridTemplateColumns: '32px 1fr 80px 90px 90px 90px 80px', gap: 8, alignItems: 'center', padding: '12px 20px', borderBottom: i < products.data.length - 1 ? `1px solid ${C.border}` : 'none', background: i % 2 ? '#FDFCFB' : C.surface }}>
+                    <span style={{ width: 22, height: 22, borderRadius: 6, background: i === 0 ? C.primary : C.elevated, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, color: i === 0 ? C.accent : C.textDim }}>
+                      {i + 1}
+                    </span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: C.textPri }}>{p.productName}</span>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: C.textDim, fontFamily: 'monospace' }}>{p.sku}</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: C.textSec }}>{p.qtySold}</span>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: C.success }}>{fmt$(p.netRevenue)}</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: p.refundedAmt > 0 ? C.error : C.textDim }}>{fmt$(p.refundedAmt)}</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: p.refundRate > 5 ? C.error : p.refundRate > 2 ? C.warning : C.success }}>
+                      {p.refundRate.toFixed(1)}%
+                    </span>
+                  </div>
+                )) : (
+                  <p style={{ textAlign: 'center', padding: '32px 0', fontSize: 12, color: C.textDim }}>No sales data for this period</p>
+                )}
               </div>
-            )) : (
-              <p style={{ textAlign: 'center', padding: '32px 0', fontSize: 12, color: C.textDim }}>No sales data for this period</p>
-            )}
+            </div>
           </>
         )}
       </div>

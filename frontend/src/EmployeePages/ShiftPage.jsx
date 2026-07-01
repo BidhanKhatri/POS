@@ -80,14 +80,32 @@ const MONTHS    = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','
 // Schedule state: NO_SHIFT | UPCOMING | IN_WINDOW | PAST
 // Clock state   : NOT_CLOCKED_IN | CLOCKED_IN
 
-function computeScheduleState(todayShifts) {
+function computeScheduleState(todayShifts, yesterdayShifts = []) {
+  const now = new Date();
+
+  // Check yesterday's overnight shifts that extend past midnight into today
+  for (const s of yesterdayShifts) {
+    const [sy, sm, sd] = s.date.split('-').map(Number);
+    const [startH, startM] = s.startTime.split(':').map(Number);
+    const [endH, endM] = s.endTime.split(':').map(Number);
+    const startDT = new Date(sy, sm - 1, sd, startH, startM, 0, 0);
+    let endDT = new Date(sy, sm - 1, sd, endH, endM, 0, 0);
+    if (endDT <= startDT) { // overnight
+      endDT.setDate(endDT.getDate() + 1);
+      if (now <= endDT) return 'IN_WINDOW';
+    }
+  }
+
   if (!todayShifts || todayShifts.length === 0) return 'NO_SHIFT';
   const s = todayShifts[0];
-  const nm = nowMin();
-  const start = parseHHmm(s.startTime);
-  const end   = parseHHmm(s.endTime);
-  if (nm < start) return 'UPCOMING';
-  if (nm <= end)  return 'IN_WINDOW';
+  const [sy, sm, sd] = s.date.split('-').map(Number);
+  const [startH, startM] = s.startTime.split(':').map(Number);
+  const [endH, endM] = s.endTime.split(':').map(Number);
+  const startDT = new Date(sy, sm - 1, sd, startH, startM, 0, 0);
+  let endDT = new Date(sy, sm - 1, sd, endH, endM, 0, 0);
+  if (endDT <= startDT) endDT.setDate(endDT.getDate() + 1); // overnight
+  if (now < startDT) return 'UPCOMING';
+  if (now <= endDT)  return 'IN_WINDOW';
   return 'PAST';
 }
 
@@ -183,7 +201,10 @@ export default function ShiftPage() {
   const loadSchedule = useCallback(() => {
     setSchedLoad(true);
     setSchedError('');
-    fetch(`${API}/api/staffing/my-schedule?startDate=${startDate}&endDate=${endDate}`, { headers })
+    // Fetch 1 extra day before week start so overnight shifts from the previous
+    // day are available for schedule state computation on the first day of the week
+    const fetchStart = toYMD(addDays(weekStart, -1));
+    fetch(`${API}/api/staffing/my-schedule?startDate=${fetchStart}&endDate=${endDate}`, { headers })
       .then((r) => r.json())
       .then((d) => {
         if (d.success) { setSynced(d.synced ?? false); setSchedData(d.data ?? []); }
@@ -225,15 +246,25 @@ export default function ShiftPage() {
   const workDays    = new Set(weekShifts.map((s) => s.date)).size;
   const todayShifts = shiftsForDay(todayYMD);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const scheduleState = React.useMemo(() => computeScheduleState(todayShifts), [todayShifts, tick]);
+  // Yesterday's shifts are needed to detect overnight windows that extend into today.
+  // They are available because loadSchedule fetches 1 day before weekStart.
+  const yesterdayYMD    = toYMD(addDays(new Date(), -1));
+  const yesterdayShifts = isCurrentWeek ? shiftsForDay(yesterdayYMD) : [];
 
-  // Countdown to start time
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const scheduleState = React.useMemo(
+    () => computeScheduleState(todayShifts, yesterdayShifts),
+    [todayShifts, yesterdayShifts, tick], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+
+  // Countdown to start time — use full datetime for accuracy
   const countdownLabel = (() => {
     if (scheduleState !== 'UPCOMING' || todayShifts.length === 0) return null;
-    const startMs = parseHHmm(todayShifts[0].startTime) * 60_000;
-    const nowMs   = (nowMin()) * 60_000;
-    return fmtDuration(startMs - nowMs);
+    const s = todayShifts[0];
+    const [sy, sm, sd] = s.date.split('-').map(Number);
+    const [startH, startM] = s.startTime.split(':').map(Number);
+    const startDT = new Date(sy, sm - 1, sd, startH, startM, 0, 0);
+    return fmtDuration(startDT.getTime() - Date.now());
   })();
 
   // Duration since clock-in
@@ -251,20 +282,30 @@ export default function ShiftPage() {
   })();
 
   // ── Stale shift detection ─────────────────────────────────────────────────
-  // A shift is stale if it was opened on a different calendar day than today.
-  // Midnight-spanning shifts (e.g. 10 PM – 2 AM) are handled correctly because
-  // if the employee clocked in yesterday at 10 PM and it is now 1 AM, the
-  // elapsed time is only 3 h — well under any "stale" threshold. The only
-  // case we catch is when they genuinely forgot to clock out.
+  // A shift is stale if it was opened on a previous calendar day AND we are now
+  // past the scheduled end of that shift. Active overnight shifts (e.g. 10 PM –
+  // 2 AM) that crossed midnight are NOT stale: we check scheduledEnd against the
+  // clock-in date to determine the true window end before flagging.
   const isStaleShift = (() => {
     if (!activeShift?.clockInTime) return false;
     const clockInDate = new Date(activeShift.clockInTime);
     const today = new Date();
-    return (
-      clockInDate.getFullYear() !== today.getFullYear() ||
-      clockInDate.getMonth()    !== today.getMonth()    ||
-      clockInDate.getDate()     !== today.getDate()
+    const clockedInToday = (
+      clockInDate.getFullYear() === today.getFullYear() &&
+      clockInDate.getMonth()    === today.getMonth()    &&
+      clockInDate.getDate()     === today.getDate()
     );
+    if (clockedInToday) return false;
+    // Clocked in on a different calendar day — check if we are still within an
+    // overnight scheduled window before declaring this shift stale.
+    if (activeShift.scheduledEnd) {
+      const [h, m] = activeShift.scheduledEnd.split(':').map(Number);
+      const endDT = new Date(clockInDate.getFullYear(), clockInDate.getMonth(), clockInDate.getDate(), h, m, 0, 0);
+      const clockInHHmm = clockInDate.getHours() * 60 + clockInDate.getMinutes();
+      if (h * 60 + m <= clockInHHmm) endDT.setDate(endDT.getDate() + 1); // overnight
+      if (today <= endDT) return false; // still within the overnight window
+    }
+    return true;
   })();
 
   // Build ISO datetime from the stale clock-in date + chosen HH:MM.
@@ -283,9 +324,22 @@ export default function ShiftPage() {
   const recoveryDT  = buildRecoveryISO(activeShift?.clockInTime, recoverTime);
   const recoveryInFuture = recoveryDT ? recoveryDT > new Date() : false;
 
+  // Scheduled end for the stale shift — clock-out cannot exceed this
+  const scheduledEndDT = (activeShift?.clockInTime && activeShift?.scheduledEnd)
+    ? buildRecoveryISO(activeShift.clockInTime, activeShift.scheduledEnd)
+    : null;
+  const recoveryExceedsSchedule = !!(recoveryDT && scheduledEndDT && recoveryDT > scheduledEndDT);
+
   const handleRecoverClockOut = async () => {
     if (!recoverTime) { setRecoverError('Please select a clock-out time.'); return; }
     if (recoveryInFuture) { setRecoverError('Clock-out time cannot be in the future.'); return; }
+    if (recoveryExceedsSchedule) {
+      const endLabel = scheduledEndDT
+        ? scheduledEndDT.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        : activeShift.scheduledEnd;
+      setRecoverError(`Clock-out cannot exceed your scheduled end time (${endLabel}). Contact your manager if you worked beyond that.`);
+      return;
+    }
     setRecoverBusy(true); setRecoverError('');
     try {
       const r = await fetch(`${API}/api/shifts/recover-clockout`, {
@@ -385,10 +439,19 @@ export default function ShiftPage() {
   const shiftStatusPanel = (() => {
     if (isLoading) {
       return (
-        <div style={{ background: C.surface, border: `1px solid ${C.divider}`, borderRadius: 12, padding: '18px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <Skeleton h={14} w="60%" />
-          <Skeleton h={40} />
-          <Skeleton h={46} />
+        <div style={{ background: C.surface, border: `1px solid ${C.divider}`, borderRadius: 12, overflow: 'hidden', marginBottom: 16 }}>
+          {/* Header — matches the 14px 18px padding + 36px icon row used by all real states */}
+          <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.divider}`, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Skeleton h={36} w={36} r={10} />
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <Skeleton h={13} w="52%" />
+              <Skeleton h={10} w="36%" />
+            </div>
+          </div>
+          {/* Action area — matches the 14px 18px padding + 46px button height */}
+          <div style={{ padding: '14px 18px' }}>
+            <Skeleton h={46} r={10} />
+          </div>
         </div>
       );
     }
@@ -459,8 +522,12 @@ export default function ShiftPage() {
     if (activeShift && isStaleShift) {
       const clockInDay  = new Date(activeShift.clockInTime).toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
       const clockInFmt  = fmtClockTime(activeShift.clockInTime);
-      const hasError    = recoverError || recoveryInFuture;
-      const errorMsg    = recoveryInFuture ? 'This time is in the future. Choose a past time.' : recoverError;
+      const hasError    = recoverError || recoveryInFuture || recoveryExceedsSchedule;
+      const errorMsg    = recoveryInFuture
+        ? 'This time is in the future. Choose a past time.'
+        : recoveryExceedsSchedule
+          ? `Cannot exceed your scheduled end time (${scheduledEndDT ? scheduledEndDT.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : activeShift.scheduledEnd}). Contact your manager if you worked beyond that.`
+          : recoverError;
 
       return (
         <div style={{
@@ -507,9 +574,14 @@ export default function ShiftPage() {
                   transition: 'border-color 0.15s',
                 }}
               />
-              {recoverTime && !recoveryInFuture && (
+              {recoverTime && !recoveryInFuture && !recoveryExceedsSchedule && (
                 <p style={{ margin: '4px 0 0', fontSize: 11, color: C.success, fontWeight: 600 }}>
                   Will record clock-out: {new Date(recoveryDT).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                </p>
+              )}
+              {scheduledEndDT && !recoverTime && (
+                <p style={{ margin: '4px 0 0', fontSize: 11, color: C.textMute, fontWeight: 500 }}>
+                  Max allowed: {scheduledEndDT.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} (scheduled end)
                 </p>
               )}
             </div>
@@ -543,7 +615,7 @@ export default function ShiftPage() {
             <ActionButton
               onClick={handleRecoverClockOut}
               loading={recoverBusy}
-              disabled={!recoverTime || recoveryInFuture}
+              disabled={!recoverTime || recoveryInFuture || recoveryExceedsSchedule}
               color={C.warning}
               icon={LogoutOutlinedIcon}
             >
@@ -615,7 +687,7 @@ export default function ShiftPage() {
               display: 'flex', gap: 20,
             }}>
               {[
-                { label: 'Scheduled', value: `${fmt12(s.startTime)} – ${fmt12(s.endTime)}` },
+                { label: 'Scheduled', value: `${fmt12(s.startTime)} – ${fmt12(s.endTime)}${s.isOvernight ? ' (+1)' : ''}` },
                 { label: 'Hours',     value: `${s.scheduledHours}h` },
                 { label: 'Source',    value: activeShift.scheduleSource || 'POS' },
               ].map(({ label, value }) => (
@@ -779,6 +851,9 @@ export default function ShiftPage() {
                   <div key={s.scheduleId} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 6, background: `${s.color}18`, border: `1px solid ${s.color}40` }}>
                     <span style={{ width: 6, height: 6, borderRadius: '50%', background: s.color, flexShrink: 0 }} />
                     <span style={{ fontSize: 12, fontWeight: 700, color: C.textPri }}>{fmt12(s.startTime)} – {fmt12(s.endTime)}</span>
+                    {s.isOvernight && (
+                      <span style={{ fontSize: 9, fontWeight: 800, color: s.color, background: `${s.color}20`, borderRadius: 4, padding: '1px 4px', letterSpacing: '0.02em' }}>+1</span>
+                    )}
                     <span style={{ fontSize: 11, color: C.textSec }}>{s.scheduledHours}h</span>
                     {s.title && s.title !== 'Regular Shift' && <span style={{ fontSize: 10, color: C.textSec }}>· {s.title}</span>}
                   </div>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import { useMediaQuery } from '@mui/material';
 import ChevronLeftOutlinedIcon    from '@mui/icons-material/ChevronLeftOutlined';
 import ChevronRightOutlinedIcon   from '@mui/icons-material/ChevronRightOutlined';
 import AccessTimeOutlinedIcon     from '@mui/icons-material/AccessTimeOutlined';
@@ -270,6 +271,24 @@ function ShiftModal({ open, onClose, employees, mode, empId, date, startTime, en
               />
             </div>
           </div>
+          {/* Overnight notice — shown when end time is earlier than start time */}
+          {startTime && endTime && (() => {
+            const [sh, sm] = startTime.split(':').map(Number);
+            const [eh, em] = endTime.split(':').map(Number);
+            if ((eh * 60 + em) < (sh * 60 + sm)) {
+              const [sy, smo, sd] = (date || '').split('-').map(Number);
+              const nextDay = date
+                ? (() => { const d = new Date(sy, smo - 1, sd); d.setDate(d.getDate() + 1); return `${d.getDate()} ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()]}`; })()
+                : 'next day';
+              return (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 12px', borderRadius: 8, background: 'rgba(2,119,189,0.07)', border: '1px solid rgba(2,119,189,0.20)' }}>
+                  <InfoOutlinedIcon sx={{ fontSize: 14, color: C.info, flexShrink: 0 }} />
+                  <span style={{ fontSize: 11, fontWeight: 600, color: C.info }}>Overnight shift — ends {nextDay}</span>
+                </div>
+              );
+            }
+            return null;
+          })()}
 
           {/* Title */}
           <div>
@@ -582,6 +601,7 @@ function DayRow({ plan, weekDay, dayIndex, onChange, onCopyToAll, error }) {
   const [sh, sm] = (plan.startTime || '09:00').split(':').map(Number);
   const [eh, em] = (plan.endTime   || '17:00').split(':').map(Number);
   let mins = (eh * 60 + em) - (sh * 60 + sm);
+  const isOvernightDay = plan.enabled && (eh * 60 + em) < (sh * 60 + sm);
   if (mins <= 0 && plan.enabled) mins += 24 * 60;
   const dur = mins > 0
     ? `${Math.floor(mins / 60)}h${mins % 60 ? ` ${mins % 60}m` : ''}`
@@ -664,6 +684,9 @@ function DayRow({ plan, weekDay, dayIndex, onChange, onCopyToAll, error }) {
                 background: C.bg, fontSize: 12, fontWeight: 700, color: C.textPri, outline: 'none',
               }}
             />
+            {isOvernightDay && (
+              <span style={{ fontSize: 8, fontWeight: 900, color: C.info, background: 'rgba(2,119,189,0.12)', borderRadius: 4, padding: '2px 5px', flexShrink: 0, letterSpacing: '0.03em' }}>+1</span>
+            )}
             <button
               type="button"
               onClick={() => onCopyToAll(dayIndex)}
@@ -995,6 +1018,7 @@ function WeeklyScheduleModal({
 /* ─── Main page ─────────────────────────────────────────────────────────── */
 export default function ManagerStaffingPage() {
   const { token } = useAuthStore();
+  const isDesktop = useMediaQuery('(min-width:1024px)');
   const authHeaders = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -1285,6 +1309,303 @@ export default function ManagerStaffingPage() {
     }
   }
 
+  const sharedOverlays = (
+    <>
+      {/* ── Weekly schedule modal (create flow) ── */}
+      <WeeklyScheduleModal
+        open={weeklyOpen}
+        onClose={() => setWeeklyOpen(false)}
+        employee={weeklyEmployee}
+        employees={localEmployees}
+        initialWeekStart={weeklyWeekStart}
+        token={token}
+        onSave={handleBatchSave}
+        saving={weeklySaving}
+      />
+
+      {/* ── Shift modal (edit existing shift) ── */}
+      <ShiftModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        employees={localEmployees}
+        mode={modalMode}
+        empId={modalEmpId}
+        date={modalDate}
+        startTime={modalStart}
+        endTime={modalEnd}
+        title={modalTitle}
+        color={modalColor}
+        onEmpChange={setModalEmpId}
+        onDateChange={setModalDate}
+        onStartChange={setModalStart}
+        onEndChange={setModalEnd}
+        onTitleChange={setModalTitle}
+        onColorChange={setModalColor}
+        onSave={handleSave}
+        onDelete={handleDelete}
+        saving={modalSaving}
+      />
+
+      <BulkOpsModal
+        open={bulkOpen}
+        onClose={() => setBulkOpen(false)}
+        employees={localEmployees}
+        weekStart={weekStart}
+        bulkTab={bulkTab}
+        setBulkTab={setBulkTab}
+        bulkEmpId={bulkEmpId}
+        setBulkEmpId={setBulkEmpId}
+        bulkWeeks={bulkWeeks}
+        setBulkWeeks={setBulkWeeks}
+        bulkSyncDate={bulkSyncDate}
+        setBulkSyncDate={setBulkSyncDate}
+        bulkDeleteStart={bulkDeleteStart}
+        setBulkDeleteStart={setBulkDeleteStart}
+        bulkDeleteEnd={bulkDeleteEnd}
+        setBulkDeleteEnd={setBulkDeleteEnd}
+        onCopy={handleBulkCopy}
+        onSyncDay={handleBulkSync}
+        onDelete={handleBulkDelete}
+        working={bulkWorking}
+      />
+
+      {/* Animations */}
+      <style>{`
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .staffing-table::-webkit-scrollbar { height: 5px; width: 5px; }
+        .staffing-table::-webkit-scrollbar-track { background: ${C.bg}; }
+        .staffing-table::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 10px; }
+        .staffing-table::-webkit-scrollbar-thumb:hover { background: ${C.textDim}; }
+        .staffing-mobile-hscroll::-webkit-scrollbar { display: none; }
+
+        /* Desktop: center modals instead of anchoring to bottom */
+        @media (min-width: 640px) {
+          .staffing-modal-overlay { align-items: center !important; }
+          .staffing-modal-panel   { border-radius: 18px !important; max-height: 85dvh; }
+          .staffing-weekly-panel  { border-radius: 20px !important; max-height: 88dvh; }
+        }
+      `}</style>
+    </>
+  );
+
+  if (!isDesktop) {
+    return (
+      <div style={{
+        minHeight: '100dvh',
+        background: C.bg,
+        padding: '16px 14px 32px',
+        fontFamily: "'Plus Jakarta Sans', sans-serif",
+        boxSizing: 'border-box',
+        width: '100%',
+        overflowX: 'hidden',
+      }}>
+        {/* Mobile header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
+          <div style={{ minWidth: 0 }}>
+            <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: C.textDim, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+              Manager Portal
+            </p>
+            <h1 style={{ margin: '1px 0 0', fontSize: 16, fontWeight: 800, color: C.textPri }}>
+              Schedule
+            </h1>
+          </div>
+          <button
+            onClick={syncEnabled ? fetchEmsWeek : fetchLocalWeek}
+            disabled={displayLoading}
+            aria-label="Refresh schedule"
+            title="Refresh"
+            style={{
+              width: 48, height: 48, borderRadius: 8, border: `1px solid ${C.border}`,
+              background: C.surface, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: displayLoading ? 'wait' : 'pointer', opacity: displayLoading ? 0.65 : 1,
+              flexShrink: 0, touchAction: 'manipulation',
+            }}
+          >
+            <RefreshOutlinedIcon sx={{ fontSize: 17, color: C.textSec, animation: displayLoading ? 'spin 0.8s linear infinite' : 'none' }} />
+          </button>
+        </div>
+
+        {/* Week controls */}
+        <div style={{
+          background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10,
+          padding: 10, marginBottom: 14, display: 'grid', gridTemplateColumns: '48px minmax(0, 1fr) 48px', gap: 8, alignItems: 'center',
+        }}>
+          <button onClick={() => setCurrentDate(d => addDays(d, -7))}
+            style={{ width: 48, height: 48, borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: C.textSec, touchAction: 'manipulation' }}
+            aria-label="Previous week">
+            <ChevronLeftOutlinedIcon sx={{ fontSize: 18 }} />
+          </button>
+          <div style={{ minWidth: 0, textAlign: 'center' }}>
+            <p style={{ margin: 0, fontSize: 12, fontWeight: 800, color: C.textPri, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {weekLabel(weekStart)}
+            </p>
+            <p style={{ margin: '2px 0 0', fontSize: 10, fontWeight: 700, color: syncEnabled ? C.info : C.primaryLt, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              {syncEnabled ? 'EMS Read-Only' : 'Local Scheduling'}
+            </p>
+          </div>
+          <button onClick={() => setCurrentDate(d => addDays(d, 7))}
+            style={{ width: 48, height: 48, borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: C.textSec, touchAction: 'manipulation' }}
+            aria-label="Next week">
+            <ChevronRightOutlinedIcon sx={{ fontSize: 18 }} />
+          </button>
+          <button onClick={() => setCurrentDate(new Date())}
+            style={{ height: 48, gridColumn: !syncEnabled ? '1 / span 1' : '1 / -1', borderRadius: 8, border: `1px solid ${C.primary}30`, background: C.primary, color: '#fff', fontSize: 12, fontWeight: 800, cursor: 'pointer', touchAction: 'manipulation' }}>
+            Today
+          </button>
+          {!syncEnabled && (
+            <button
+              onClick={() => { setBulkTab('copy'); setBulkSyncDate(toYMD(weekStart)); setBulkOpen(true); }}
+              style={{ height: 48, gridColumn: '2 / -1', borderRadius: 8, border: `1px solid ${C.primary}30`, background: `${C.primary}10`, color: C.primary, fontSize: 12, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, touchAction: 'manipulation' }}>
+              <ContentCopyOutlinedIcon sx={{ fontSize: 15 }} />
+              Bulk Ops
+            </button>
+          )}
+        </div>
+
+        {/* KPI cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8, marginBottom: 14 }}>
+          <StatCard label="Schedules"   value={displaySchedules.length}     icon={CalendarMonthOutlinedIcon} color={C.info}    iconBg="rgba(2,119,189,0.09)" />
+          <StatCard label="Employees"   value={displayEmployees.length}     icon={PeopleOutlinedIcon}        color={C.primary} iconBg="rgba(62,39,35,0.09)" />
+          <div style={{ gridColumn: '1 / -1' }}>
+            <StatCard label="Total Hours" value={`${totalHours.toFixed(1)}h`} icon={AccessTimeOutlinedIcon}   color={C.success} iconBg="rgba(46,125,79,0.09)" />
+          </div>
+        </div>
+
+        {/* Context banner */}
+        {syncEnabled && (
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, background: 'rgba(2,119,189,0.06)', border: '1px solid rgba(2,119,189,0.18)', borderRadius: 10, padding: '10px 12px', marginBottom: 14 }}>
+            <InfoOutlinedIcon sx={{ fontSize: 16, color: C.info, flexShrink: 0, marginTop: 1 }} />
+            <p style={{ margin: 0, fontSize: 12, color: '#01579B', fontWeight: 600, lineHeight: '18px' }}>
+              Read-only schedules are sourced from Staffing Betit.
+            </p>
+          </div>
+        )}
+
+        {displayError && !displayLoading && (
+          <div style={{ background: '#FFF5F5', border: '1px solid #FECACA', borderRadius: 10, padding: '12px 14px', marginBottom: 14, display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+            <ErrorOutlineOutlinedIcon sx={{ fontSize: 18, color: C.error, flexShrink: 0 }} />
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.error, lineHeight: '18px' }}>{displayError}</p>
+          </div>
+        )}
+
+        {/* Mobile roster */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, position: 'relative' }}>
+          {displayLoading && (
+            <div style={{ position: 'absolute', inset: 0, zIndex: 5, minHeight: 220, background: 'rgba(245,243,241,0.72)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 12 }}>
+              <div style={{ width: 34, height: 34, borderRadius: '50%', border: `3px solid ${C.elevated}`, borderTop: `3px solid ${C.primary}`, animation: 'spin 0.8s linear infinite' }} />
+            </div>
+          )}
+
+          {!displayLoading && displayEmployees.length === 0 && (
+            <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '36px 18px', textAlign: 'center' }}>
+              <EventBusyOutlinedIcon sx={{ fontSize: 30, color: C.primary }} />
+              <p style={{ margin: '8px 0 4px', fontSize: 14, fontWeight: 800, color: C.textPri }}>
+                {syncEnabled ? 'No schedules this week' : 'No active employees found'}
+              </p>
+              <p style={{ margin: 0, fontSize: 12, color: C.textSec, lineHeight: '18px' }}>
+                {syncEnabled ? 'No shifts are published in EMS for this week.' : 'Add employees before creating schedules.'}
+              </p>
+            </div>
+          )}
+
+          {displayEmployees.map((emp) => (
+            <div key={emp._id} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden' }}>
+              <div style={{ padding: '12px 12px 10px', display: 'flex', alignItems: 'center', gap: 10, borderBottom: `1px solid ${C.border}` }}>
+                <div style={{ width: 38, height: 38, borderRadius: 10, background: C.elevated, border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 13, fontWeight: 900, color: C.primary, textTransform: 'uppercase' }}>
+                  {(emp.name ?? '?').charAt(0)}
+                </div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: C.textPri, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {emp.name ?? '—'}
+                  </p>
+                  <p style={{ margin: '2px 0 0', fontSize: 11, color: C.textSec, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {emp.email ?? ''}
+                  </p>
+                </div>
+                <span style={{ fontSize: 11, fontWeight: 800, color: C.primary, background: `${C.primary}12`, border: `1px solid ${C.primary}25`, borderRadius: 6, padding: '4px 7px', whiteSpace: 'nowrap' }}>
+                  {weeklyHours(emp._id)}
+                </span>
+              </div>
+
+              <div className="staffing-mobile-hscroll" style={{ display: 'flex', gap: 8, overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch', padding: '12px 16px 14px', scrollPaddingInline: 16, scrollSnapType: 'x mandatory' }}>
+                {weekDays.map((day, idx) => {
+                  const ymd = toYMD(day);
+                  const dayShifts = shiftsFor(emp._id, ymd);
+                  const clickable = !syncEnabled;
+                  const todayCell = isToday(day);
+
+                  return (
+                    <div key={idx} style={{ minWidth: 146, width: 146, flexShrink: 0, scrollSnapAlign: 'start' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                        <span style={{ fontSize: 10, fontWeight: 900, color: todayCell ? C.primary : C.textDim, letterSpacing: '0.1em' }}>{DAYS[day.getDay()]}</span>
+                        <span style={{ fontSize: 12, fontWeight: 900, color: todayCell ? C.primary : C.textPri }}>{day.getDate()}</span>
+                      </div>
+                      {dayShifts.length > 0 ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {dayShifts.map((shift) => {
+                            const accent = shift.color ?? C.primary;
+                            return (
+                              <button
+                                key={shift.scheduleId}
+                                type="button"
+                                onClick={clickable ? () => openEditModal(shift) : undefined}
+                                disabled={!clickable}
+                                style={{
+                                  minHeight: 74, width: '100%', textAlign: 'left', borderRadius: 8,
+                                  border: `1px solid ${accent}35`, borderLeft: `4px solid ${accent}`,
+                                  background: `${accent}12`, padding: '8px 9px', cursor: clickable ? 'pointer' : 'default',
+                                  touchAction: 'manipulation', opacity: 1,
+                                }}
+                              >
+                                <span style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+                                  <AccessTimeOutlinedIcon sx={{ fontSize: 13, color: accent, flexShrink: 0 }} />
+                                  <span style={{ fontSize: 11, fontWeight: 900, color: accent, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {fmt12(shift.startTime)} – {fmt12(shift.endTime)}
+                                  </span>
+                                </span>
+                                <span style={{ display: 'block', marginTop: 5, fontSize: 11, fontWeight: 700, color: accent, opacity: 0.86, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  {shift.title ?? 'Regular Shift'}{shift.isOvernight ? ' (+1)' : ''}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={clickable ? () => openCreateModal(ymd, emp._id) : undefined}
+                          disabled={!clickable}
+                          style={{
+                            minHeight: 74, width: '100%', borderRadius: 8,
+                            border: `1.5px dashed ${clickable ? `${C.primary}35` : C.border}`,
+                            background: todayCell ? `${C.primary}05` : C.bg, color: clickable ? C.primary : C.textDim,
+                            cursor: clickable ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: 10, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase',
+                            touchAction: 'manipulation', opacity: 1,
+                          }}
+                        >
+                          {clickable ? <AddOutlinedIcon sx={{ fontSize: 20, color: `${C.primary}70` }} /> : 'No Schedule'}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {!displayLoading && displaySchedules.length > 0 && (
+          <p style={{ margin: '12px 0 0', fontSize: 10, fontWeight: 700, color: C.textDim, textAlign: 'right', letterSpacing: '0.04em' }}>
+            {displaySchedules.length} schedule{displaySchedules.length !== 1 ? 's' : ''} · {totalHours.toFixed(1)}h total
+          </p>
+        )}
+
+        {sharedOverlays}
+      </div>
+    );
+  }
+
   /* ── Render ── */
   return (
     <div style={{
@@ -1549,6 +1870,9 @@ export default function ManagerStaffingPage() {
                                     <span style={{ fontSize: 11, fontWeight: 800, color: accent, letterSpacing: '0.01em', lineHeight: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                       {fmt12(shift.startTime)} – {fmt12(shift.endTime)}
                                     </span>
+                                    {shift.isOvernight && (
+                                      <span style={{ fontSize: 8, fontWeight: 900, color: accent, background: `${accent}25`, borderRadius: 3, padding: '1px 3px', flexShrink: 0, letterSpacing: '0.02em' }}>+1</span>
+                                    )}
                                   </div>
                                   <p style={{ margin: 0, fontSize: 11, fontWeight: 600, color: accent, opacity: 0.85, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                     {shift.title ?? 'Regular Shift'}
@@ -1605,79 +1929,7 @@ export default function ManagerStaffingPage() {
         </p>
       )}
 
-      {/* ── Weekly schedule modal (create flow) ── */}
-      <WeeklyScheduleModal
-        open={weeklyOpen}
-        onClose={() => setWeeklyOpen(false)}
-        employee={weeklyEmployee}
-        employees={localEmployees}
-        initialWeekStart={weeklyWeekStart}
-        token={token}
-        onSave={handleBatchSave}
-        saving={weeklySaving}
-      />
-
-      {/* ── Shift modal (edit existing shift) ── */}
-      <ShiftModal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        employees={localEmployees}
-        mode={modalMode}
-        empId={modalEmpId}
-        date={modalDate}
-        startTime={modalStart}
-        endTime={modalEnd}
-        title={modalTitle}
-        color={modalColor}
-        onEmpChange={setModalEmpId}
-        onDateChange={setModalDate}
-        onStartChange={setModalStart}
-        onEndChange={setModalEnd}
-        onTitleChange={setModalTitle}
-        onColorChange={setModalColor}
-        onSave={handleSave}
-        onDelete={handleDelete}
-        saving={modalSaving}
-      />
-
-      <BulkOpsModal
-        open={bulkOpen}
-        onClose={() => setBulkOpen(false)}
-        employees={localEmployees}
-        weekStart={weekStart}
-        bulkTab={bulkTab}
-        setBulkTab={setBulkTab}
-        bulkEmpId={bulkEmpId}
-        setBulkEmpId={setBulkEmpId}
-        bulkWeeks={bulkWeeks}
-        setBulkWeeks={setBulkWeeks}
-        bulkSyncDate={bulkSyncDate}
-        setBulkSyncDate={setBulkSyncDate}
-        bulkDeleteStart={bulkDeleteStart}
-        setBulkDeleteStart={setBulkDeleteStart}
-        bulkDeleteEnd={bulkDeleteEnd}
-        setBulkDeleteEnd={setBulkDeleteEnd}
-        onCopy={handleBulkCopy}
-        onSyncDay={handleBulkSync}
-        onDelete={handleBulkDelete}
-        working={bulkWorking}
-      />
-
-      {/* Animations */}
-      <style>{`
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        .staffing-table::-webkit-scrollbar { height: 5px; width: 5px; }
-        .staffing-table::-webkit-scrollbar-track { background: ${C.bg}; }
-        .staffing-table::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 10px; }
-        .staffing-table::-webkit-scrollbar-thumb:hover { background: ${C.textDim}; }
-
-        /* Desktop: center modals instead of anchoring to bottom */
-        @media (min-width: 640px) {
-          .staffing-modal-overlay { align-items: center !important; }
-          .staffing-modal-panel   { border-radius: 18px !important; max-height: 85dvh; }
-          .staffing-weekly-panel  { border-radius: 20px !important; max-height: 88dvh; }
-        }
-      `}</style>
+      {sharedOverlays}
     </div>
   );
 }

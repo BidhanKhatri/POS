@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { useMediaQuery } from '@mui/material';
 import {
   ResponsiveContainer, AreaChart, Area, BarChart, Bar, XAxis, YAxis,
   CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend,
@@ -22,11 +23,12 @@ import TrendingUpOutlinedIcon   from '@mui/icons-material/TrendingUpOutlined';
 import WorkHistoryOutlinedIcon  from '@mui/icons-material/WorkHistoryOutlined';
 import HistoryOutlinedIcon      from '@mui/icons-material/HistoryOutlined';
 import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
+import RefreshOutlinedIcon      from '@mui/icons-material/RefreshOutlined';
 import PictureAsPdfOutlinedIcon from '@mui/icons-material/PictureAsPdfOutlined';
 import TableChartOutlinedIcon   from '@mui/icons-material/TableChartOutlined';
 import useAuthStore from '../store/useAuthStore';
 import { useReportCashiers, useEmployeeReport, buildDateRange } from '../hooks/useReportQuery';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { API_URL as API } from '../config/api';
 
@@ -99,17 +101,23 @@ function SectionHeader({ title, sub }) {
   );
 }
 
-function KpiCard({ label, value, sub, color = C.textPri, icon: Icon, iconBg, alert }) {
+function KpiCard({ label, value, sub, color = C.textPri, icon: Icon, iconBg, alert, isMobile }) {
+  const pad     = isMobile ? '8px 10px' : '9px 13px';
+  const iconSz  = isMobile ? 24 : 28;
+  const iconFs  = isMobile ? 12 : 14;
+  const valFs   = isMobile ? 14 : 17;
+  const subFs   = isMobile ? 9  : 9.5;
+  const gap     = isMobile ? 8  : 10;
   return (
     <CornerCard borderColor={alert ? `${C.error}40` : C.border} style={{ background: alert ? `${C.error}04` : C.surface }}>
-      <div style={{ padding: '9px 13px', display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={{ width: 28, height: 28, borderRadius: 7, background: iconBg || `${color}14`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          <Icon sx={{ fontSize: 14, color }} />
+      <div style={{ padding: pad, display: 'flex', alignItems: 'center', gap }}>
+        <div style={{ width: iconSz, height: iconSz, borderRadius: 7, background: iconBg || `${color}14`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <Icon sx={{ fontSize: iconFs, color }} />
         </div>
-        <div style={{ minWidth: 0 }}>
-          <p style={{ margin: 0, fontSize: 9, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.1em', lineHeight: '11px' }}>{label}</p>
-          <p style={{ margin: '3px 0 0', fontSize: 17, fontWeight: 800, color, letterSpacing: '-0.4px', lineHeight: '20px' }}>{value}</p>
-          {sub && <p style={{ margin: '1px 0 0', fontSize: 9.5, color: C.textDim, lineHeight: '13px' }}>{sub}</p>}
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <p style={{ margin: 0, fontSize: 9, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em', lineHeight: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</p>
+          <p style={{ margin: '2px 0 0', fontSize: valFs, fontWeight: 800, color, letterSpacing: '-0.3px', lineHeight: `${valFs + 4}px`, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</p>
+          {sub && <p style={{ margin: '1px 0 0', fontSize: subFs, color: C.textDim, lineHeight: '13px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub}</p>}
         </div>
       </div>
     </CornerCard>
@@ -161,14 +169,14 @@ function radarData(kpis) {
 }
 
 /* ── Overview Tab ─────────────────────────────────────────────────────────── */
-function OverviewTab({ data, loading }) {
+function OverviewTab({ data, loading, isMobile }) {
   const k = data?.kpis;
   const trend = data?.trend || [];
 
   if (loading) return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>{[1,2,3,4].map(i => <Skeleton key={i} h={58} r={10} />)}</div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>{[1,2,3].map(i => <Skeleton key={i} h={58} r={10} />)}</div>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 10 }}>{[1,2,3,4].map(i => <Skeleton key={i} h={58} r={10} />)}</div>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 10 }}>{[1,2,3,4].map(i => <Skeleton key={i} h={58} r={10} />)}</div>
       <Skeleton h={220} r={12} />
     </div>
   );
@@ -177,22 +185,22 @@ function OverviewTab({ data, loading }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       {/* KPI row 1 */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
-        <KpiCard label="Net Revenue"    value={fmt$(k.netRevenue)}    sub={`Gross ${fmt$(k.revenue)}`}         icon={AttachMoneyOutlinedIcon} color={C.success} />
-        <KpiCard label="Transactions"   value={k.txnCount ?? 0}       sub={`Avg ticket ${fmt$(k.avgTicket)}`}  icon={ReceiptLongOutlinedIcon}  color={C.info} />
-        <KpiCard label="Items Sold"     value={k.itemsSold ?? 0}       sub={`${k.txnCount} transactions`}       icon={Inventory2OutlinedIcon}  color={C.primaryLt} />
-        <KpiCard label="Refunded"       value={fmt$(k.refundedAmount)} sub={`${k.refundCount} approved`}        icon={ReplayOutlinedIcon}      color={k.refundRate > 10 ? C.error : C.warning} alert={k.refundRate > 10} />
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 10 }}>
+        <KpiCard label="Net Revenue"    value={fmt$(k.netRevenue)}    sub={`Gross ${fmt$(k.revenue)}`}         icon={AttachMoneyOutlinedIcon} color={C.success}  isMobile={isMobile} />
+        <KpiCard label="Transactions"   value={k.txnCount ?? 0}       sub={`Avg ${fmt$(k.avgTicket)}`}         icon={ReceiptLongOutlinedIcon}  color={C.info}     isMobile={isMobile} />
+        <KpiCard label="Items Sold"     value={k.itemsSold ?? 0}       sub={`${k.txnCount} txns`}               icon={Inventory2OutlinedIcon}  color={C.primaryLt} isMobile={isMobile} />
+        <KpiCard label="Refunded"       value={fmt$(k.refundedAmount)} sub={`${k.refundCount} approved`}        icon={ReplayOutlinedIcon}      color={k.refundRate > 10 ? C.error : C.warning} alert={k.refundRate > 10} isMobile={isMobile} />
       </div>
       {/* KPI row 2 */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
-        <KpiCard label="Voids"          value={k.voidCount ?? 0}       sub={`${(k.voidRate ?? 0).toFixed(1)}% rate`}    icon={BlockOutlinedIcon}      color={k.voidRate > 3 ? C.error : C.textDim} alert={k.voidRate > 3} />
-        <KpiCard label="Overrides"      value={k.overrideCount ?? 0}   sub="Total requests"                              icon={AdminPanelSettingsOutlinedIcon} color={C.warning} />
-        <KpiCard label="Hours Worked"   value={fmtH(k.hoursWorked)}    sub={`${k.shiftCount} shift(s)`}                 icon={AccessTimeOutlinedIcon} color={C.textSec} />
-        <KpiCard label="Rev / Hour"     value={fmt$(k.revenuePerHour)} sub={`${k.txnPerHour ?? 0} txns/hr`}            icon={SpeedOutlinedIcon}      color={C.accent} />
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 10 }}>
+        <KpiCard label="Voids"          value={k.voidCount ?? 0}       sub={`${(k.voidRate ?? 0).toFixed(1)}% rate`}  icon={BlockOutlinedIcon}      color={k.voidRate > 3 ? C.error : C.textDim} alert={k.voidRate > 3} isMobile={isMobile} />
+        <KpiCard label="Overrides"      value={k.overrideCount ?? 0}   sub="Total requests"                           icon={AdminPanelSettingsOutlinedIcon} color={C.warning} isMobile={isMobile} />
+        <KpiCard label="Hours Worked"   value={fmtH(k.hoursWorked)}    sub={`${k.shiftCount} shift(s)`}               icon={AccessTimeOutlinedIcon} color={C.textSec} isMobile={isMobile} />
+        <KpiCard label="Rev / Hour"     value={fmt$(k.revenuePerHour)} sub={`${k.txnPerHour ?? 0} txns/hr`}          icon={SpeedOutlinedIcon}      color={C.accent}  isMobile={isMobile} />
       </div>
 
       {/* Sales trend + radar */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 260px', gap: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 260px', gap: 14 }}>
         <CornerCard borderColor={C.border} style={{ background: C.surface }}>
           <SectionHeader title="Sales Trend" sub="Daily revenue" />
           <div style={{ padding: '10px 4px 8px 0' }}>
@@ -261,7 +269,7 @@ function OverviewTab({ data, loading }) {
 const PAGE_SIZE = 10;
 
 /* ── Transactions Tab ─────────────────────────────────────────────────────── */
-function TransactionsTab({ data, loading }) {
+function TransactionsTab({ data, loading, isMobile }) {
   const [txnSearch, setTxnSearch] = useState('');
   const [txnFilter, setTxnFilter] = useState('ALL');
   const [page, setPage]           = useState(1);
@@ -301,14 +309,26 @@ function TransactionsTab({ data, loading }) {
   return (
     <CornerCard borderColor={C.border} style={{ background: C.surface }}>
       <SectionHeader title="Transaction History" sub={`${filtered.length} transaction${filtered.length !== 1 ? 's' : ''} · page ${safePage} of ${totalPages}`} />
-      <div style={{ padding: '10px 14px', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <div style={{ position: 'relative', flex: 1, minWidth: 160 }}>
+      <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ position: 'relative' }}>
           <SearchOutlinedIcon sx={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', fontSize: 14, color: C.textDim }} />
           <input value={txnSearch} onChange={e => handleSearch(e.target.value)} placeholder="Search invoice…" style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px 7px 28px', borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, fontSize: 12, color: C.textPri, outline: 'none', fontFamily: "'Plus Jakarta Sans', sans-serif" }} />
         </div>
-        {['ALL','PAID','REFUNDED','VOIDED'].map(s => (
-          <button key={s} onClick={() => handleFilter(s)} style={{ padding: '6px 12px', borderRadius: 8, border: `1px solid ${txnFilter === s ? C.primary : C.border}`, background: txnFilter === s ? C.primary : 'transparent', color: txnFilter === s ? '#fff' : C.textDim, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{s}</button>
-        ))}
+        {isMobile ? (
+          <div style={{ overflowX: 'auto', scrollbarWidth: 'none' }}>
+            <div style={{ display: 'flex', gap: 6, width: 'max-content' }}>
+              {['ALL','PAID','REFUNDED','VOIDED'].map(s => (
+                <button key={s} onClick={() => handleFilter(s)} style={{ padding: '6px 12px', borderRadius: 8, border: `1px solid ${txnFilter === s ? C.primary : C.border}`, background: txnFilter === s ? C.primary : 'transparent', color: txnFilter === s ? '#fff' : C.textDim, fontSize: 11, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>{s}</button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {['ALL','PAID','REFUNDED','VOIDED'].map(s => (
+              <button key={s} onClick={() => handleFilter(s)} style={{ padding: '6px 12px', borderRadius: 8, border: `1px solid ${txnFilter === s ? C.primary : C.border}`, background: txnFilter === s ? C.primary : 'transparent', color: txnFilter === s ? '#fff' : C.textDim, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{s}</button>
+            ))}
+          </div>
+        )}
       </div>
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
@@ -434,14 +454,14 @@ function ProductsTab({ data, loading }) {
 }
 
 /* ── Payments Tab ─────────────────────────────────────────────────────────── */
-function PaymentsTab({ data, loading }) {
+function PaymentsTab({ data, loading, isMobile }) {
   const payments = data?.payments || [];
   const total    = payments.reduce((a, p) => a + p.amount, 0);
 
   if (loading) return <Skeleton h={300} r={12} />;
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 14 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 300px', gap: 14 }}>
       <CornerCard borderColor={C.border} style={{ background: C.surface }}>
         <SectionHeader title="Payment Method Breakdown" sub="By collected amount" />
         {payments.length === 0 ? (
@@ -500,7 +520,7 @@ function PaymentsTab({ data, loading }) {
 }
 
 /* ── Shifts Tab ───────────────────────────────────────────────────────────── */
-function ShiftsTab({ data, loading }) {
+function ShiftsTab({ data, loading, isMobile }) {
   const shifts = data?.shifts || [];
 
   if (loading) return <Skeleton h={300} r={12} />;
@@ -510,10 +530,12 @@ function ShiftsTab({ data, loading }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-        <KpiCard label="Total Shifts"    value={shifts.length}               sub={`${closedShifts.length} closed`} icon={WorkHistoryOutlinedIcon} color={C.info} />
-        <KpiCard label="Total Hours"     value={fmtH(totalHours)}            sub="Clocked in time"                  icon={AccessTimeOutlinedIcon} color={C.success} />
-        <KpiCard label="Avg Shift Len"   value={closedShifts.length > 0 ? fmtH(totalHours / closedShifts.length) : '—'} sub="Per closed shift" icon={SpeedOutlinedIcon} color={C.accent} />
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)', gap: 10 }}>
+        <KpiCard label="Total Shifts"  value={shifts.length}               sub={`${closedShifts.length} closed`} icon={WorkHistoryOutlinedIcon} color={C.info}    isMobile={isMobile} />
+        <KpiCard label="Total Hours"   value={fmtH(totalHours)}            sub="Clocked in"                      icon={AccessTimeOutlinedIcon} color={C.success}  isMobile={isMobile} />
+        <div style={{ gridColumn: isMobile ? '1 / -1' : 'auto' }}>
+          <KpiCard label="Avg Shift"   value={closedShifts.length > 0 ? fmtH(totalHours / closedShifts.length) : '—'} sub="Per closed shift" icon={SpeedOutlinedIcon} color={C.accent} isMobile={isMobile} />
+        </div>
       </div>
       <CornerCard borderColor={C.border} style={{ background: C.surface }}>
         <SectionHeader title="Shift History" sub={`${shifts.length} shifts in period`} />
@@ -553,7 +575,7 @@ function ShiftsTab({ data, loading }) {
 }
 
 /* ── Activity Tab ─────────────────────────────────────────────────────────── */
-function ActivityTab({ data, loading }) {
+function ActivityTab({ data, loading, isMobile }) {
   const activity = data?.activity || [];
   const [typeFilter, setTypeFilter] = useState('ALL');
   const [page, setPage] = useState(1);
@@ -583,13 +605,25 @@ function ActivityTab({ data, loading }) {
   return (
     <CornerCard borderColor={C.border} style={{ background: C.surface }}>
       <SectionHeader title="Audit & Activity Log" sub={filtered.length > PAGE_SIZE ? `page ${safePage} of ${totalPages}` : `${filtered.length} of ${activity.length} events`} />
-      <div style={{ padding: '10px 14px', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        {['ALL','REFUND','VOID','DISCOUNT','PRICE_CHANGE'].map(t => (
-          <button key={t} onClick={() => handleFilter(t)} style={{ padding: '5px 11px', borderRadius: 7, border: `1px solid ${typeFilter === t ? C.primary : C.border}`, background: typeFilter === t ? C.primary : 'transparent', color: typeFilter === t ? '#fff' : C.textDim, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
-            {t.replace('_', ' ')}
-          </button>
-        ))}
-      </div>
+      {isMobile ? (
+        <div style={{ padding: '10px 14px', overflowX: 'auto', scrollbarWidth: 'none' }}>
+          <div style={{ display: 'flex', gap: 6, width: 'max-content' }}>
+            {['ALL','REFUND','VOID','DISCOUNT','PRICE_CHANGE'].map(t => (
+              <button key={t} onClick={() => handleFilter(t)} style={{ padding: '5px 11px', borderRadius: 7, border: `1px solid ${typeFilter === t ? C.primary : C.border}`, background: typeFilter === t ? C.primary : 'transparent', color: typeFilter === t ? '#fff' : C.textDim, fontSize: 11, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                {t.replace('_', ' ')}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div style={{ padding: '10px 14px', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {['ALL','REFUND','VOID','DISCOUNT','PRICE_CHANGE'].map(t => (
+            <button key={t} onClick={() => handleFilter(t)} style={{ padding: '5px 11px', borderRadius: 7, border: `1px solid ${typeFilter === t ? C.primary : C.border}`, background: typeFilter === t ? C.primary : 'transparent', color: typeFilter === t ? '#fff' : C.textDim, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+              {t.replace('_', ' ')}
+            </button>
+          ))}
+        </div>
+      )}
       {filtered.length === 0 ? (
         <p style={{ textAlign: 'center', padding: '32px 0', fontSize: 12, color: C.textDim }}>No activity found</p>
       ) : (
@@ -762,8 +796,17 @@ async function downloadPDF(employee, data) {
 /* ── Main page ────────────────────────────────────────────────────────────── */
 const VALID_RANGES = new Set(['overall', 'today', 'week', 'month', 'year']);
 
+const REPORT_TABS = [
+  { id: 'overall',    label: 'Overall',    path: '/manager/reports/overall'    },
+  { id: 'individual', label: 'Individual', path: '/manager/reports/individual' },
+  { id: 'group',      label: 'Group',      path: '/manager/reports/group'      },
+];
+
 export default function ManagerIndividualReportPage() {
-  const { search: locationSearch } = useLocation();
+  const navigate = useNavigate();
+  const isMobile = !useMediaQuery('(min-width:1024px)');
+
+  const { pathname, search: locationSearch } = useLocation();
 
   const initialPreset = useMemo(() => {
     const p = new URLSearchParams(locationSearch).get('preset');
@@ -780,6 +823,9 @@ export default function ManagerIndividualReportPage() {
   const [activeTab, setActiveTab]   = useState('overview');
   const [exporting, setExporting]   = useState(null);
   const [confirmExport, setConfirmExport] = useState(null); // 'csv' | 'pdf' | null
+  const [refreshing, setRefreshing] = useState(false);
+
+  const queryClient = useQueryClient();
 
   const { start, end } = buildDateRange(range);
   const { data: cashiers, isLoading: cashierLoading } = useReportCashiers({ start, end });
@@ -838,6 +884,13 @@ export default function ManagerIndividualReportPage() {
     { enabled: !!activeId }
   );
 
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await queryClient.invalidateQueries({ queryKey: ['report', 'cashiers'] });
+    await queryClient.invalidateQueries({ queryKey: ['report', 'employee'] });
+    setRefreshing(false);
+  }, [queryClient]);
+
   const handleExport = useCallback(async (type) => {
     setExporting(type);
     try {
@@ -864,83 +917,171 @@ export default function ManagerIndividualReportPage() {
   }, [empData]);
 
   return (
-    <div style={{ padding: '24px 28px 40px', background: C.bg, minHeight: '100dvh', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+    <div style={{ padding: isMobile ? '14px 14px 32px' : '24px 28px 40px', background: C.bg, minHeight: '100dvh', fontFamily: "'Plus Jakarta Sans', sans-serif", width: '100%', boxSizing: 'border-box', overflowX: 'hidden' }}>
 
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 9, background: C.primary, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <PersonOutlinedIcon sx={{ fontSize: 18, color: C.accent }} />
-          </div>
-          <div>
-            <p style={{ margin: 0, fontSize: 10, fontWeight: 600, color: C.textDim, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Reports</p>
-            <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: C.textPri, letterSpacing: '-0.3px' }}>Individual Employee Report</h1>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {/* Date range tabs */}
-          <div style={{ display: 'flex', gap: 2, background: C.elevated, borderRadius: 10, padding: 3 }}>
-            {RANGES.map(({ id, label }) => (
-              <button key={id} onClick={() => setRange(id)} style={{ padding: '5px 13px', borderRadius: 7, border: 'none', background: range === id ? C.surface : 'transparent', cursor: 'pointer', boxShadow: range === id ? '0 1px 4px rgba(62,39,35,0.12)' : 'none', fontSize: 11, fontWeight: range === id ? 700 : 500, color: range === id ? C.primary : C.textDim, transition: 'all 0.15s' }}>
-                {label}
-              </button>
-            ))}
-          </div>
-
-          {/* Export buttons */}
-          {activeId && empData && (
+      {isMobile ? (
+        <div style={{ marginBottom: 10 }}>
+          {/* Mobile row 1: icon + title on left, action buttons on right */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 34, height: 34, borderRadius: 9, background: C.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <PersonOutlinedIcon sx={{ fontSize: 17, color: C.accent }} />
+              </div>
+              <h1 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: C.textPri, letterSpacing: '-0.3px' }}>Individual</h1>
+            </div>
             <div style={{ display: 'flex', gap: 6 }}>
-              {[
-                { key: 'csv', icon: TableChartOutlinedIcon,   label: 'Export CSV' },
-                { key: 'pdf', icon: PictureAsPdfOutlinedIcon, label: 'Export PDF' },
-              ].map(({ key, icon: Icon, label }) => (
-                <button key={key} onClick={() => setConfirmExport(key)} disabled={!!exporting}
-                  style={{ height: 34, padding: '0 14px', borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, display: 'flex', alignItems: 'center', gap: 6, cursor: exporting ? 'wait' : 'pointer', opacity: exporting === key ? 0.5 : 1, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                  {exporting === key
-                    ? <span style={{ fontSize: 10, color: C.textDim }}>…</span>
-                    : <>
-                        <Icon sx={{ fontSize: 15, color: C.textSec }} />
-                        <span style={{ fontSize: 12, fontWeight: 600, color: C.textSec, whiteSpace: 'nowrap' }}>{label}</span>
-                      </>
-                  }
+              <button onClick={handleRefresh} disabled={refreshing}
+                title="Refresh"
+                style={{ width: 34, height: 34, borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: refreshing ? 'wait' : 'pointer', opacity: refreshing ? 0.5 : 1, flexShrink: 0 }}>
+                <RefreshOutlinedIcon sx={{ fontSize: 17, color: C.textSec, transition: 'transform 0.4s', transform: refreshing ? 'rotate(360deg)' : 'rotate(0deg)' }} />
+              </button>
+              {activeId && empData && (
+                <button onClick={() => setConfirmExport('pdf')} disabled={!!exporting}
+                  title="Export PDF"
+                  style={{ width: 34, height: 34, borderRadius: 8, border: 'none', background: C.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: exporting ? 'wait' : 'pointer', opacity: exporting ? 0.5 : 1, flexShrink: 0 }}>
+                  <PictureAsPdfOutlinedIcon sx={{ fontSize: 17, color: '#fff' }} />
+                </button>
+              )}
+            </div>
+          </div>
+          {/* Mobile row 2: scrollable pill range filter */}
+          <div style={{ overflowX: 'auto', scrollbarWidth: 'none', marginBottom: 12, width: '100%' }}>
+            <div style={{ display: 'flex', gap: 4, width: 'max-content' }}>
+              {RANGES.map(({ id, label }) => (
+                <button key={id} onClick={() => setRange(id)} style={{ padding: '7px 18px', borderRadius: 20, border: 'none', background: range === id ? C.primary : 'transparent', color: range === id ? '#fff' : C.textDim, fontSize: 13, fontWeight: range === id ? 700 : 500, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                  {label}
                 </button>
               ))}
             </div>
-          )}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 9, background: C.primary, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <PersonOutlinedIcon sx={{ fontSize: 18, color: C.accent }} />
+            </div>
+            <div>
+              <p style={{ margin: 0, fontSize: 10, fontWeight: 600, color: C.textDim, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Reports</p>
+              <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: C.textPri, letterSpacing: '-0.3px' }}>Individual Employee Report</h1>
+            </div>
+          </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: 16 }}>
+          <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            {/* Date range tabs — segment control on desktop */}
+            <div style={{ overflowX: 'auto', scrollbarWidth: 'none' }}>
+              <div style={{ display: 'flex', gap: 2, background: C.elevated, borderRadius: 10, padding: 3, width: 'max-content' }}>
+                {RANGES.map(({ id, label }) => (
+                  <button key={id} onClick={() => setRange(id)} style={{ padding: '5px 13px', borderRadius: 7, border: 'none', background: range === id ? C.surface : 'transparent', cursor: 'pointer', boxShadow: range === id ? '0 1px 4px rgba(62,39,35,0.12)' : 'none', fontSize: 11, fontWeight: range === id ? 700 : 500, color: range === id ? C.primary : C.textDim, transition: 'all 0.15s', whiteSpace: 'nowrap' }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Export buttons */}
+            {activeId && empData && (
+              <div style={{ display: 'flex', gap: 6 }}>
+                {[
+                  { key: 'csv', icon: TableChartOutlinedIcon,   label: 'Export CSV' },
+                  { key: 'pdf', icon: PictureAsPdfOutlinedIcon, label: 'Export PDF' },
+                ].map(({ key, icon: Icon, label }) => (
+                  <button key={key} onClick={() => setConfirmExport(key)} disabled={!!exporting}
+                    style={{ height: 34, padding: '0 14px', borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, display: 'flex', alignItems: 'center', gap: 6, cursor: exporting ? 'wait' : 'pointer', opacity: exporting === key ? 0.5 : 1, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                    {exporting === key
+                      ? <span style={{ fontSize: 10, color: C.textDim }}>…</span>
+                      : <>
+                          <Icon sx={{ fontSize: 15, color: C.textSec }} />
+                          <span style={{ fontSize: 12, fontWeight: 600, color: C.textSec, whiteSpace: 'nowrap' }}>{label}</span>
+                        </>
+                    }
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Report sub-nav — desktop only */}
+      {!isMobile && (
+        <div style={{ overflowX: 'auto', scrollbarWidth: 'none', marginBottom: 20 }}>
+          <div style={{ display: 'flex', gap: 4, width: 'max-content' }}>
+            {REPORT_TABS.map(({ id, label, path }) => {
+              const active = pathname === path;
+              return (
+                <button key={id} onClick={() => navigate(path)} style={{ padding: '7px 18px', borderRadius: 20, border: 'none', background: active ? C.primary : 'transparent', color: active ? '#fff' : C.textDim, fontSize: 13, fontWeight: active ? 700 : 500, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.15s' }}>
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '260px 1fr', gap: 16 }}>
 
         {/* Employee list */}
-        <div>
+        <div style={{ minWidth: 0 }}>
           <div style={{ position: 'relative', marginBottom: 8 }}>
             <SearchOutlinedIcon sx={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 14, color: C.textDim }} />
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search employee…" style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px 8px 30px', borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, fontSize: 12, fontFamily: "'Plus Jakarta Sans', sans-serif", color: C.textPri, outline: 'none' }} />
           </div>
-          {listLoading ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {[1,2,3,4,5].map(i => <Skeleton key={i} h={52} r={10} />)}
-            </div>
-          ) : filtered.length ? (
-            <div className="no-scrollbar" style={{ maxHeight: 'calc(100dvh - 220px)', overflowY: 'auto', paddingRight: 2 }}>
-              {filtered.map((c, i) => (
-                <CashierRow key={c.employeeId} c={c} rank={i} isSelected={activeEmployee?.employeeId === c.employeeId} onClick={() => { setSelectedId(c.employeeId); setActiveTab('overview'); }} />
-              ))}
-            </div>
+          {isMobile ? (
+            listLoading ? (
+              <div style={{ display: 'flex', gap: 8, overflowX: 'auto', scrollbarWidth: 'none' }}>
+                {[1,2,3,4,5].map(i => <Skeleton key={i} h={72} w={68} r={10} />)}
+              </div>
+            ) : filtered.length ? (
+              <div style={{ overflowX: 'auto', scrollbarWidth: 'none' }}>
+                <div style={{ display: 'flex', gap: 8, width: 'max-content', paddingBottom: 4 }}>
+                  {filtered.map((c, i) => {
+                    const isSel = activeEmployee?.employeeId === c.employeeId;
+                    return (
+                      <button key={c.employeeId} onClick={() => { setSelectedId(c.employeeId); setActiveTab('overview'); }}
+                        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, padding: '8px 10px', borderRadius: 10, border: isSel ? `1.5px solid ${C.accent}` : `1px solid ${C.border}`, background: isSel ? `rgba(212,163,115,0.10)` : '#fff', cursor: 'pointer', minWidth: 72, flexShrink: 0 }}>
+                        <div style={{ width: 34, height: 34, borderRadius: 9, background: i === 0 ? C.primary : C.elevated, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', flexShrink: 0 }}>
+                          <span style={{ fontSize: 11, fontWeight: 800, color: i === 0 ? C.accent : C.textDim }}>{initials(c.name)}</span>
+                          {i === 0 && <EmojiEventsOutlinedIcon sx={{ fontSize: 9, color: C.accent, position: 'absolute', top: -4, right: -4 }} />}
+                        </div>
+                        <span style={{ fontSize: 10, fontWeight: isSel ? 700 : 500, color: isSel ? C.primary : C.textPri, maxWidth: 60, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {c.name.split(' ')[0]}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <p style={{ textAlign: 'center', fontSize: 12, color: C.textDim, padding: '16px 0' }}>
+                {search ? 'No matches' : 'No data for this period'}
+              </p>
+            )
           ) : (
-            <p style={{ textAlign: 'center', fontSize: 12, color: C.textDim, padding: '28px 0' }}>
-              {search ? 'No matches' : 'No data for this period'}
-            </p>
+            listLoading ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {[1,2,3,4,5].map(i => <Skeleton key={i} h={52} r={10} />)}
+              </div>
+            ) : filtered.length ? (
+              <div className="no-scrollbar" style={{ maxHeight: 'calc(100dvh - 220px)', overflowY: 'auto', paddingRight: 2 }}>
+                {filtered.map((c, i) => (
+                  <CashierRow key={c.employeeId} c={c} rank={i} isSelected={activeEmployee?.employeeId === c.employeeId} onClick={() => { setSelectedId(c.employeeId); setActiveTab('overview'); }} />
+                ))}
+              </div>
+            ) : (
+              <p style={{ textAlign: 'center', fontSize: 12, color: C.textDim, padding: '28px 0' }}>
+                {search ? 'No matches' : 'No data for this period'}
+              </p>
+            )
           )}
         </div>
 
         {/* Detail panel */}
-        <div>
+        <div style={{ minWidth: 0 }}>
           {!activeEmployee ? (
             <CornerCard borderColor={C.border} style={{ background: C.surface }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 400 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: isMobile ? 280 : 400 }}>
                 <div style={{ textAlign: 'center' }}>
                   <PersonOutlinedIcon sx={{ fontSize: 44, color: C.elevated }} />
                   <p style={{ margin: '8px 0 0', fontSize: 14, color: C.textDim }}>Select an employee to view their report</p>
@@ -951,45 +1092,85 @@ export default function ManagerIndividualReportPage() {
             <>
               {/* Identity bar */}
               <CornerCard borderColor={C.border} style={{ background: C.surface, marginBottom: 14 }}>
-                <div style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
-                  <div style={{ width: 48, height: 48, borderRadius: 12, background: C.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <span style={{ fontSize: 16, fontWeight: 800, color: C.accent }}>{initials(activeEmployee.name)}</span>
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ margin: 0, fontSize: 16, fontWeight: 800, color: C.textPri }}>{activeEmployee.name}</p>
-                    <p style={{ margin: '2px 0 0', fontSize: 11, color: C.textSec }}>
-                      {empData?.employee?.role || activeEmployee.role || 'Cashier'} · #{activeEmployee.employeeCode || String(activeEmployee.employeeId).slice(-6)}
-                      {empData?.employee?.email && <> · {empData.employee.email}</>}
-                    </p>
-                  </div>
-                  {perfBadges?.length > 0 && (
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                      {perfBadges.map(b => <Badge key={b.label} label={b.label} color={b.color} />)}
+                {isMobile ? (
+                  <div style={{ padding: '12px 14px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      {/* Avatar */}
+                      <div style={{ width: 42, height: 42, borderRadius: 10, background: C.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <span style={{ fontSize: 14, fontWeight: 800, color: C.accent }}>{initials(activeEmployee.name)}</span>
+                      </div>
+                      {/* Name + meta */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: C.textPri, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{activeEmployee.name}</p>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 3, flexWrap: 'nowrap' }}>
+                          <span style={{ fontSize: 10, color: C.textSec, flexShrink: 0 }}>{empData?.employee?.role || activeEmployee.role || 'Cashier'}</span>
+                          <span style={{ width: 3, height: 3, borderRadius: '50%', background: C.border, flexShrink: 0 }} />
+                          <span style={{ fontSize: 10, fontWeight: 700, color: C.primary, background: C.elevated, borderRadius: 5, padding: '1px 6px', flexShrink: 0, letterSpacing: '0.04em' }}>
+                            #{activeEmployee.employeeCode || String(activeEmployee.employeeId).slice(-6)}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                  )}
-                  <div style={{ display: 'flex', gap: 4 }}>
-                    <FileDownloadOutlinedIcon sx={{ fontSize: 14, color: C.textDim }} />
+                    {perfBadges?.length > 0 && (
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+                        {perfBadges.map(b => <Badge key={b.label} label={b.label} color={b.color} />)}
+                      </div>
+                    )}
                   </div>
-                </div>
+                ) : (
+                  <div style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
+                    <div style={{ width: 48, height: 48, borderRadius: 12, background: C.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <span style={{ fontSize: 16, fontWeight: 800, color: C.accent }}>{initials(activeEmployee.name)}</span>
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ margin: 0, fontSize: 16, fontWeight: 800, color: C.textPri }}>{activeEmployee.name}</p>
+                      <p style={{ margin: '2px 0 0', fontSize: 11, color: C.textSec }}>
+                        {empData?.employee?.role || activeEmployee.role || 'Cashier'} · #{activeEmployee.employeeCode || String(activeEmployee.employeeId).slice(-6)}
+                        {empData?.employee?.email && <> · {empData.employee.email}</>}
+                      </p>
+                    </div>
+                    {perfBadges?.length > 0 && (
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                        {perfBadges.map(b => <Badge key={b.label} label={b.label} color={b.color} />)}
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <FileDownloadOutlinedIcon sx={{ fontSize: 14, color: C.textDim }} />
+                    </div>
+                  </div>
+                )}
               </CornerCard>
 
               {/* Tab bar */}
-              <div style={{ display: 'flex', gap: 2, marginBottom: 14, background: C.elevated, borderRadius: 10, padding: 3, overflowX: 'auto' }}>
-                {DETAIL_TABS.map(({ id, label, icon: Icon }) => (
-                  <button key={id} onClick={() => setActiveTab(id)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 7, border: 'none', background: activeTab === id ? C.surface : 'transparent', cursor: 'pointer', boxShadow: activeTab === id ? '0 1px 4px rgba(62,39,35,0.12)' : 'none', fontSize: 11, fontWeight: activeTab === id ? 700 : 500, color: activeTab === id ? C.primary : C.textDim, transition: 'all 0.15s', whiteSpace: 'nowrap' }}>
-                    <Icon sx={{ fontSize: 14 }} />
-                    {label}
-                  </button>
-                ))}
-              </div>
+              {isMobile ? (
+                <div style={{ overflowX: 'auto', scrollbarWidth: 'none', marginBottom: 14, width: '100%' }}>
+                  <div style={{ display: 'flex', gap: 4, width: 'max-content' }}>
+                    {DETAIL_TABS.map(({ id, label, icon: Icon }) => (
+                      <button key={id} onClick={() => setActiveTab(id)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 14px', borderRadius: 20, border: 'none', background: activeTab === id ? C.primary : 'transparent', color: activeTab === id ? '#fff' : C.textDim, fontSize: 12, fontWeight: activeTab === id ? 700 : 500, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                        <Icon sx={{ fontSize: 13 }} />
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', gap: 2, marginBottom: 14, background: C.elevated, borderRadius: 10, padding: 3, overflowX: 'auto' }}>
+                  {DETAIL_TABS.map(({ id, label, icon: Icon }) => (
+                    <button key={id} onClick={() => setActiveTab(id)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 7, border: 'none', background: activeTab === id ? C.surface : 'transparent', cursor: 'pointer', boxShadow: activeTab === id ? '0 1px 4px rgba(62,39,35,0.12)' : 'none', fontSize: 11, fontWeight: activeTab === id ? 700 : 500, color: activeTab === id ? C.primary : C.textDim, transition: 'all 0.15s', whiteSpace: 'nowrap' }}>
+                      <Icon sx={{ fontSize: 14 }} />
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               {/* Tab content */}
-              {activeTab === 'overview'     && <OverviewTab     data={empData} loading={detailLoading} />}
-              {activeTab === 'transactions' && <TransactionsTab data={empData} loading={detailLoading} />}
+              {activeTab === 'overview'     && <OverviewTab     data={empData} loading={detailLoading} isMobile={isMobile} />}
+              {activeTab === 'transactions' && <TransactionsTab data={empData} loading={detailLoading} isMobile={isMobile} />}
               {activeTab === 'products'     && <ProductsTab     data={empData} loading={detailLoading} />}
-              {activeTab === 'payments'     && <PaymentsTab     data={empData} loading={detailLoading} />}
-              {activeTab === 'shifts'       && <ShiftsTab       data={empData} loading={detailLoading} />}
-              {activeTab === 'activity'     && <ActivityTab     data={empData} loading={detailLoading} />}
+              {activeTab === 'payments'     && <PaymentsTab     data={empData} loading={detailLoading} isMobile={isMobile} />}
+              {activeTab === 'shifts'       && <ShiftsTab       data={empData} loading={detailLoading} isMobile={isMobile} />}
+              {activeTab === 'activity'     && <ActivityTab     data={empData} loading={detailLoading} isMobile={isMobile} />}
             </>
           )}
         </div>

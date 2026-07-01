@@ -55,11 +55,17 @@ export const getMySchedule = async (req, res, next) => {
         const [eh, em] = s.endTime.split(':').map(Number);
         let mins = (eh * 60 + em) - (sh * 60 + sm);
         if (mins < 0) mins += 24 * 60;
+        const isOvernight = (eh * 60 + em) < (sh * 60 + sm);
+        const endDate = isOvernight
+          ? (() => { const d = new Date(s.date); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10); })()
+          : s.date;
         return {
           scheduleId: String(s._id),
           date: s.date,
+          endDate,
           startTime: s.startTime,
           endTime: s.endTime,
+          isOvernight,
           title: s.title ?? 'Shift',
           color: s.color ?? '#3E2723',
           scheduledHours: +(mins / 60).toFixed(2),
@@ -78,11 +84,17 @@ export const getMySchedule = async (req, res, next) => {
         const [eh, em] = doc.endTime.split(':').map(Number);
         let mins = (eh * 60 + em) - (sh * 60 + sm);
         if (mins < 0) mins += 24 * 60;
+        const isOvernight = (eh * 60 + em) < (sh * 60 + sm);
+        const endDate = isOvernight
+          ? (() => { const d = new Date(doc.date); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10); })()
+          : doc.date;
         return {
           scheduleId: String(doc._id),
           date: doc.date,
+          endDate,
           startTime: doc.startTime,
           endTime: doc.endTime,
+          isOvernight,
           title: doc.title,
           color: doc.color,
           scheduledHours: +(mins / 60).toFixed(2),

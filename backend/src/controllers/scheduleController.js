@@ -32,11 +32,17 @@ function scheduledHours(startTime, endTime) {
 
 function toApiShape(doc) {
   const emp = doc.employeeId;
+  const [sh, sm] = doc.startTime.split(':').map(Number);
+  const [eh, em] = doc.endTime.split(':').map(Number);
+  const isOvernight = (eh * 60 + em) < (sh * 60 + sm);
+  const endDate = isOvernight ? toYMD(addDays(parseYMD(doc.date), 1)) : doc.date;
   return {
     scheduleId: doc._id,
     date: doc.date,
+    endDate,
     startTime: doc.startTime,
     endTime: doc.endTime,
+    isOvernight,
     title: doc.title,
     color: doc.color,
     scheduledHours: scheduledHours(doc.startTime, doc.endTime),

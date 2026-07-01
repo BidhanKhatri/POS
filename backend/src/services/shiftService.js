@@ -41,8 +41,10 @@ const closeShift = async (employeeId, { closingCash = 0, clockOutReason = null }
 
   if (shift.scheduledEnd) {
     const [h, m] = shift.scheduledEnd.split(':').map(Number);
-    const scheduledEndTime = new Date();
-    scheduledEndTime.setHours(h, m, 0, 0);
+    const base = new Date(shift.clockInTime);
+    const scheduledEndTime = new Date(base.getFullYear(), base.getMonth(), base.getDate(), h, m, 0, 0);
+    // If scheduledEnd <= clockIn time (overnight shift), the end is on the next calendar day
+    if (scheduledEndTime <= base) scheduledEndTime.setDate(scheduledEndTime.getDate() + 1);
     // More than 10 minutes before scheduled end = early
     earlyClockOut = now.getTime() < scheduledEndTime.getTime() - 10 * 60 * 1000;
   }

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useMediaQuery } from '@mui/material';
 import ArrowBackOutlinedIcon      from '@mui/icons-material/ArrowBackOutlined';
 import EditOutlinedIcon           from '@mui/icons-material/EditOutlined';
 import PersonOutlineOutlinedIcon  from '@mui/icons-material/PersonOutlineOutlined';
@@ -44,6 +45,10 @@ function fmtDate(d) {
   if (!d) return '—';
   return new Date(d).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
 }
+function fmtDateShort(d) {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString([], { month: 'short', day: 'numeric', year: '2-digit' });
+}
 function fmtDateTime(d) {
   if (!d) return '—';
   const dt = new Date(d);
@@ -51,19 +56,19 @@ function fmtDateTime(d) {
     dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-function StatCard({ label, value, sub, icon: Icon, color, skeleton }) {
+function StatCard({ label, value, sub, icon: Icon, color, skeleton, isMobile }) {
   return (
-    <CornerCard accentColor={color} borderColor={C.border} borderRadius={12} cornerSize={26} cornerHeight={26}>
-      <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-        <div style={{ width: 36, height: 36, borderRadius: 9, background: `${color}18`, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <Icon sx={{ fontSize: 18, color }} />
+    <CornerCard accentColor={color} borderColor={C.border} borderRadius={12} cornerSize={isMobile ? 20 : 26} cornerHeight={isMobile ? 20 : 26}>
+      <div style={{ padding: isMobile ? '10px 12px' : '14px 16px', display: 'flex', alignItems: 'flex-start', gap: isMobile ? 9 : 12 }}>
+        <div style={{ width: isMobile ? 28 : 36, height: isMobile ? 28 : 36, borderRadius: isMobile ? 7 : 9, background: `${color}18`, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Icon sx={{ fontSize: isMobile ? 14 : 18, color }} />
         </div>
-        <div>
+        <div style={{ flex: 1, minWidth: 0 }}>
           {skeleton
-            ? <div style={{ height: 20, width: 70, borderRadius: 4, background: C.elevated, marginBottom: 4 }} />
-            : <p style={{ margin: 0, fontSize: 18, fontWeight: 800, color: C.textPri, lineHeight: '24px' }}>{value}</p>}
-          {sub && <p style={{ margin: '1px 0 0', fontSize: 10, color: C.textDim, fontWeight: 600 }}>{sub}</p>}
-          <p style={{ margin: '3px 0 0', fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</p>
+            ? <div style={{ height: isMobile ? 15 : 20, width: 60, borderRadius: 4, background: C.elevated, marginBottom: 4 }} />
+            : <p style={{ margin: 0, fontSize: isMobile ? 14 : 18, fontWeight: 800, color: C.textPri, lineHeight: isMobile ? '19px' : '24px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</p>}
+          {sub && !isMobile && <p style={{ margin: '1px 0 0', fontSize: 10, color: C.textDim, fontWeight: 600 }}>{sub}</p>}
+          <p style={{ margin: isMobile ? '2px 0 0' : '3px 0 0', fontSize: 9, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</p>
         </div>
       </div>
     </CornerCard>
@@ -85,26 +90,27 @@ export default function ManagerCustomerDetailPage() {
   const navigate = useNavigate();
   const { id }   = useParams();
   const { token } = useAuthStore();
+  const isMobile = !useMediaQuery('(min-width:1024px)');
 
   const [customer, setCustomer] = useState(null);
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState('');
 
-  const [tab,      setTab]      = useState(0);
+  const [tab, setTab] = useState(0);
 
   // Purchases
-  const [purchases,  setPurchases]  = useState([]);
-  const [pTotal,     setPTotal]     = useState(0);
-  const [pPage,      setPPage]      = useState(1);
-  const [pPages,     setPPages]     = useState(1);
-  const [pLoading,   setPLoading]   = useState(false);
+  const [purchases, setPurchases] = useState([]);
+  const [pTotal,    setPTotal]    = useState(0);
+  const [pPage,     setPPage]     = useState(1);
+  const [pPages,    setPPages]    = useState(1);
+  const [pLoading,  setPLoading]  = useState(false);
 
   // Refunds
-  const [refunds,    setRefunds]    = useState([]);
-  const [rTotal,     setRTotal]     = useState(0);
-  const [rPage,      setRPage]      = useState(1);
-  const [rPages,     setRPages]     = useState(1);
-  const [rLoading,   setRLoading]   = useState(false);
+  const [refunds,  setRefunds]  = useState([]);
+  const [rTotal,   setRTotal]   = useState(0);
+  const [rPage,    setRPage]    = useState(1);
+  const [rPages,   setRPages]   = useState(1);
+  const [rLoading, setRLoading] = useState(false);
 
   // Edit modal
   const [modal,   setModal]   = useState(false);
@@ -130,13 +136,7 @@ export default function ManagerCustomerDetailPage() {
     setPLoading(true);
     try {
       const r = await fetch(`${API}/api/customers/${id}/purchases?page=${pg}&limit=20`, { headers });
-      if (r.ok) {
-        const d = await r.json();
-        setPurchases(d.purchases || []);
-        setPTotal(d.total || 0);
-        setPPage(d.page || 1);
-        setPPages(d.pages || 1);
-      }
+      if (r.ok) { const d = await r.json(); setPurchases(d.purchases || []); setPTotal(d.total || 0); setPPage(d.page || 1); setPPages(d.pages || 1); }
     } catch { /* */ }
     finally { setPLoading(false); }
   };
@@ -145,22 +145,14 @@ export default function ManagerCustomerDetailPage() {
     setRLoading(true);
     try {
       const r = await fetch(`${API}/api/customers/${id}/refunds?page=${pg}&limit=20`, { headers });
-      if (r.ok) {
-        const d = await r.json();
-        setRefunds(d.refunds || []);
-        setRTotal(d.total || 0);
-        setRPage(d.page || 1);
-        setRPages(d.pages || 1);
-      }
+      if (r.ok) { const d = await r.json(); setRefunds(d.refunds || []); setRTotal(d.total || 0); setRPage(d.page || 1); setRPages(d.pages || 1); }
     } catch { /* */ }
     finally { setRLoading(false); }
   };
 
   useEffect(() => {
     if (!token) return;
-    loadCustomer();
-    loadPurchases(1);
-    loadRefunds(1);
+    loadCustomer(); loadPurchases(1); loadRefunds(1);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, token]);
 
@@ -183,14 +175,14 @@ export default function ManagerCustomerDetailPage() {
 
   if (loading) {
     return (
-      <div style={{ padding: '28px 32px', fontFamily: FONT }}>
-        <div style={{ display: 'flex', gap: 12, marginBottom: 28 }}>
-          <div style={{ height: 36, width: 80, borderRadius: 8, background: C.elevated }} />
-          <div style={{ height: 36, flex: 1, maxWidth: 200, borderRadius: 8, background: C.elevated }} />
+      <div style={{ padding: isMobile ? '14px 14px 40px' : '28px 32px', fontFamily: FONT, boxSizing: 'border-box', width: '100%', overflowX: 'hidden' }}>
+        <div style={{ display: 'flex', gap: 10, marginBottom: isMobile ? 14 : 28 }}>
+          <div style={{ height: 34, width: 34, borderRadius: 8, background: C.elevated }} />
+          <div style={{ height: 34, flex: 1, maxWidth: 160, borderRadius: 8, background: C.elevated }} />
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 12, marginBottom: 22 }}>
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} style={{ height: 90, borderRadius: 12, background: C.surface, border: `1px solid ${C.border}` }} />
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(5,1fr)', gap: isMobile ? 8 : 12, marginBottom: 20 }}>
+          {Array.from({ length: isMobile ? 4 : 5 }).map((_, i) => (
+            <div key={i} style={{ height: isMobile ? 68 : 90, borderRadius: 12, background: C.surface, border: `1px solid ${C.border}` }} />
           ))}
         </div>
       </div>
@@ -199,7 +191,7 @@ export default function ManagerCustomerDetailPage() {
 
   if (error) {
     return (
-      <div style={{ padding: '80px 32px', textAlign: 'center', fontFamily: FONT }}>
+      <div style={{ padding: isMobile ? '60px 20px' : '80px 32px', textAlign: 'center', fontFamily: FONT }}>
         <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: C.error }}>{error}</p>
         <button onClick={() => navigate('/manager/customers')}
           style={{ marginTop: 14, padding: '8px 18px', borderRadius: 8, border: 'none', background: C.primary, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: FONT }}>
@@ -210,57 +202,71 @@ export default function ManagerCustomerDetailPage() {
   }
 
   return (
-    <div style={{ padding: '28px 32px 56px', background: C.bg, minHeight: '100dvh', fontFamily: FONT }}>
+    <div style={{ padding: isMobile ? '14px 14px 48px' : '28px 32px 56px', background: C.bg, minHeight: '100dvh', fontFamily: FONT, boxSizing: 'border-box', width: '100%', overflowX: 'hidden' }}>
 
-      {/* Top bar */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, gap: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      {/* ── Top bar ── */}
+      {isMobile ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
           <button onClick={() => navigate('/manager/customers')}
-            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 12px', borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, color: C.textSec, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: FONT }}>
-            <ArrowBackOutlinedIcon sx={{ fontSize: 15 }} /> Customers
+            style={{ width: 34, height: 34, borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+            <ArrowBackOutlinedIcon sx={{ fontSize: 16, color: C.textSec }} />
           </button>
-          <span style={{ color: C.textDim, fontSize: 14 }}>/</span>
-          <span style={{ fontSize: 14, fontWeight: 700, color: C.textPri }}>{customer?.name}</span>
+          <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: C.textPri, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{customer?.name}</p>
+          <button onClick={() => { setFormErr(''); setModal(true); }}
+            style={{ width: 34, height: 34, borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+            <EditOutlinedIcon sx={{ fontSize: 16, color: C.textSec }} />
+          </button>
         </div>
-        <button onClick={() => { setFormErr(''); setModal(true); }}
-          style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 14px', borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, fontSize: 12, fontWeight: 600, color: C.textSec, cursor: 'pointer', fontFamily: FONT }}>
-          <EditOutlinedIcon sx={{ fontSize: 15 }} /> Edit
-        </button>
-      </div>
-
-      {/* Customer info card */}
-      <CornerCard accentColor={C.accent} borderColor={C.border} borderRadius={14} cornerSize={36} cornerHeight={36} style={{ marginBottom: 20 }}>
-        <div style={{ padding: '20px 24px', display: 'flex', alignItems: 'flex-start', gap: 20, flexWrap: 'wrap' }}>
-          <div style={{ width: 52, height: 52, borderRadius: 14, background: C.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <PersonOutlineOutlinedIcon sx={{ fontSize: 26, color: C.accent }} />
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button onClick={() => navigate('/manager/customers')}
+              style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 12px', borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, color: C.textSec, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: FONT }}>
+              <ArrowBackOutlinedIcon sx={{ fontSize: 15 }} /> Customers
+            </button>
+            <span style={{ color: C.textDim, fontSize: 14 }}>/</span>
+            <span style={{ fontSize: 14, fontWeight: 700, color: C.textPri }}>{customer?.name}</span>
           </div>
-          <div style={{ flex: 1, minWidth: 200 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 6 }}>
-              <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: C.textPri }}>{customer?.name}</h2>
-              <span style={{ padding: '2px 10px', borderRadius: 10, background: customer?.totalOrders > 1 ? 'rgba(46,125,79,0.10)' : 'rgba(2,119,189,0.10)', color: customer?.totalOrders > 1 ? C.success : C.info, fontSize: 10, fontWeight: 800, letterSpacing: '0.06em' }}>
+          <button onClick={() => { setFormErr(''); setModal(true); }}
+            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 14px', borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, fontSize: 12, fontWeight: 600, color: C.textSec, cursor: 'pointer', fontFamily: FONT }}>
+            <EditOutlinedIcon sx={{ fontSize: 15 }} /> Edit
+          </button>
+        </div>
+      )}
+
+      {/* ── Customer info card ── */}
+      <CornerCard accentColor={C.accent} borderColor={C.border} borderRadius={isMobile ? 12 : 14} cornerSize={isMobile ? 22 : 36} cornerHeight={isMobile ? 22 : 36} style={{ marginBottom: isMobile ? 12 : 20 }}>
+        <div style={{ padding: isMobile ? '14px 14px' : '20px 24px', display: 'flex', alignItems: 'flex-start', gap: isMobile ? 12 : 20, flexWrap: isMobile ? 'nowrap' : 'wrap' }}>
+          <div style={{ width: isMobile ? 40 : 52, height: isMobile ? 40 : 52, borderRadius: isMobile ? 10 : 14, background: C.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <PersonOutlineOutlinedIcon sx={{ fontSize: isMobile ? 20 : 26, color: C.accent }} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: isMobile ? 6 : 6 }}>
+              <h2 style={{ margin: 0, fontSize: isMobile ? 15 : 20, fontWeight: 800, color: C.textPri, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: isMobile ? 'nowrap' : 'normal', maxWidth: isMobile ? '100%' : 'auto' }}>{customer?.name}</h2>
+              <span style={{ padding: '2px 9px', borderRadius: 10, background: customer?.totalOrders > 1 ? 'rgba(46,125,79,0.10)' : 'rgba(2,119,189,0.10)', color: customer?.totalOrders > 1 ? C.success : C.info, fontSize: 10, fontWeight: 800, letterSpacing: '0.06em', whiteSpace: 'nowrap', flexShrink: 0 }}>
                 {customer?.totalOrders > 1 ? 'RETURNING' : 'NEW'}
               </span>
             </div>
-            <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 4 : 16, flexWrap: 'wrap' }}>
               {customer?.phone && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <PhoneOutlinedIcon sx={{ fontSize: 13, color: C.textDim }} />
-                  <span style={{ fontSize: 13, color: C.textSec, fontFamily: 'monospace' }}>{customer.phone}</span>
+                  <PhoneOutlinedIcon sx={{ fontSize: 12, color: C.textDim }} />
+                  <span style={{ fontSize: isMobile ? 12 : 13, color: C.textSec, fontFamily: 'monospace' }}>{customer.phone}</span>
                 </div>
               )}
               {customer?.email && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <EmailOutlinedIcon sx={{ fontSize: 13, color: C.textDim }} />
-                  <span style={{ fontSize: 13, color: C.textSec }}>{customer.email}</span>
+                  <EmailOutlinedIcon sx={{ fontSize: 12, color: C.textDim }} />
+                  <span style={{ fontSize: isMobile ? 12 : 13, color: C.textSec, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{customer.email}</span>
                 </div>
               )}
               <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <EventOutlinedIcon sx={{ fontSize: 13, color: C.textDim }} />
-                <span style={{ fontSize: 12, color: C.textDim }}>Registered {fmtDate(customer?.createdAt)}</span>
+                <EventOutlinedIcon sx={{ fontSize: 12, color: C.textDim }} />
+                <span style={{ fontSize: isMobile ? 11 : 12, color: C.textDim }}>Registered {fmtDate(customer?.createdAt)}</span>
               </div>
             </div>
             {customer?.notes && (
-              <p style={{ margin: '10px 0 0', fontSize: 12, color: C.textSec, background: C.bg, padding: '8px 12px', borderRadius: 8, borderLeft: `3px solid ${C.accent}` }}>
+              <p style={{ margin: `${isMobile ? 8 : 10}px 0 0`, fontSize: 12, color: C.textSec, background: C.bg, padding: '8px 12px', borderRadius: 8, borderLeft: `3px solid ${C.accent}` }}>
                 {customer.notes}
               </p>
             )}
@@ -268,20 +274,20 @@ export default function ManagerCustomerDetailPage() {
         </div>
       </CornerCard>
 
-      {/* Stats grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 12, marginBottom: 24 }}>
-        <StatCard label="Total Orders"  value={customer?.totalOrders ?? 0}         icon={ShoppingBagOutlinedIcon} color={C.info}    />
-        <StatCard label="Total Spend"   value={fmt$(customer?.totalSpent)}          icon={AttachMoneyOutlinedIcon} color={C.success} />
-        <StatCard label="Net Spend"     value={fmt$(customer?.netSpent)}            sub="After refunds"            icon={AttachMoneyOutlinedIcon} color={C.primary} />
-        <StatCard label="Last Visit"    value={fmtDate(customer?.lastVisit)}        icon={EventOutlinedIcon}       color={C.warning} />
-        <StatCard label="Refunded"      value={fmt$(customer?.refundedAmount)}      icon={MoneyOffOutlinedIcon}    color={C.error}   />
+      {/* ── Stats grid ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(5,1fr)', gap: isMobile ? 8 : 12, marginBottom: isMobile ? 12 : 24 }}>
+        <StatCard label="Total Orders" value={customer?.totalOrders ?? 0}    icon={ShoppingBagOutlinedIcon} color={C.info}    isMobile={isMobile} />
+        <StatCard label="Total Spend"  value={fmt$(customer?.totalSpent)}     icon={AttachMoneyOutlinedIcon} color={C.success} isMobile={isMobile} />
+        <StatCard label="Net Spend"    value={fmt$(customer?.netSpent)}        sub="After refunds"            icon={AttachMoneyOutlinedIcon} color={C.primary} isMobile={isMobile} />
+        <StatCard label="Last Visit"   value={isMobile ? fmtDateShort(customer?.lastVisit) : fmtDate(customer?.lastVisit)} icon={EventOutlinedIcon} color={C.warning} isMobile={isMobile} />
+        <StatCard label="Refunded"     value={fmt$(customer?.refundedAmount)}  icon={MoneyOffOutlinedIcon}    color={C.error}   isMobile={isMobile} />
       </div>
 
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: 2, background: C.elevated, borderRadius: 10, padding: 4, marginBottom: 16, width: 'fit-content' }}>
+      {/* ── Tabs ── */}
+      <div style={{ display: 'flex', gap: 2, background: C.elevated, borderRadius: 10, padding: 4, marginBottom: isMobile ? 10 : 16, width: isMobile ? '100%' : 'fit-content', boxSizing: 'border-box' }}>
         {TABS.map((t, i) => (
           <button key={t} onClick={() => setTab(i)}
-            style={{ padding: '7px 20px', borderRadius: 7, border: 'none', background: tab === i ? C.surface : 'transparent', fontSize: 12, fontWeight: tab === i ? 700 : 500, color: tab === i ? C.primary : C.textDim, cursor: 'pointer', fontFamily: FONT, boxShadow: tab === i ? '0 1px 3px rgba(62,39,35,0.10)' : 'none' }}>
+            style={{ flex: isMobile ? 1 : 'none', padding: isMobile ? '8px 10px' : '7px 20px', borderRadius: 7, border: 'none', background: tab === i ? C.surface : 'transparent', fontSize: 12, fontWeight: tab === i ? 700 : 500, color: tab === i ? C.primary : C.textDim, cursor: 'pointer', fontFamily: FONT, boxShadow: tab === i ? '0 1px 3px rgba(62,39,35,0.10)' : 'none', whiteSpace: 'nowrap' }}>
             {t}
             {i === 0 && pTotal > 0 && <span style={{ marginLeft: 5, fontSize: 10, fontWeight: 700, color: tab === 0 ? C.primary : C.textDim }}>({pTotal})</span>}
             {i === 1 && rTotal > 0 && <span style={{ marginLeft: 5, fontSize: 10, fontWeight: 700, color: tab === 1 ? C.primary : C.textDim }}>({rTotal})</span>}
@@ -289,142 +295,205 @@ export default function ManagerCustomerDetailPage() {
         ))}
       </div>
 
-      {/* Purchases tab */}
+      {/* ── Purchases tab ── */}
       {tab === 0 && (
-        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '140px 160px 70px 100px 80px 90px', background: C.tableHdr, borderBottom: `1px solid ${C.border}` }}>
-            {[['Invoice','left'],['Date','left'],['Items','center'],['Amount','right'],['Method','left'],['Status','left']].map(([h, a]) => (
-              <div key={h} style={{ padding: '10px 14px', fontSize: 10, fontWeight: 700, color: C.primary, textTransform: 'uppercase', letterSpacing: '0.08em', textAlign: a }}>{h}</div>
-            ))}
-          </div>
-
-          {pLoading && Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} style={{ display: 'grid', gridTemplateColumns: '140px 160px 70px 100px 80px 90px', borderBottom: `1px solid ${C.border}` }}>
-              {[120, 130, 30, 70, 50, 60].map((w, j) => (
-                <div key={j} style={{ padding: 14 }}>
-                  <div style={{ height: 11, width: w, borderRadius: 4, background: C.elevated }} />
+        <>
+          {/* Mobile card list */}
+          {isMobile && (
+            <div>
+              {pLoading && Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px 14px', marginBottom: 8 }}>
+                  <div style={{ height: 12, width: '50%', borderRadius: 4, background: C.elevated, marginBottom: 6 }} />
+                  <div style={{ height: 10, width: '70%', borderRadius: 4, background: C.elevated }} />
                 </div>
               ))}
-            </div>
-          ))}
-
-          {!pLoading && purchases.length === 0 && (
-            <div style={{ padding: '48px 24px', textAlign: 'center' }}>
-              <ReceiptLongOutlinedIcon sx={{ fontSize: 38, color: C.textDim, display: 'block', margin: '0 auto 12px' }} />
-              <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: C.textSec }}>No purchases yet</p>
-            </div>
-          )}
-
-          {!pLoading && purchases.map((s, i) => (
-            <div key={s._id}
-              onClick={() => navigate(`/manager/transactions/${s._id}`)}
-              style={{ display: 'grid', gridTemplateColumns: '140px 160px 70px 100px 80px 90px', borderBottom: `1px solid ${C.border}`, cursor: 'pointer', background: 'transparent' }}
-              onMouseEnter={e => e.currentTarget.style.background = C.tableHover}
-              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-              <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: C.primary, fontFamily: 'monospace' }}>{s.invoiceNo}</span>
-                <OpenInNewOutlinedIcon sx={{ fontSize: 11, color: C.textDim }} />
-              </div>
-              <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center' }}>
-                <span style={{ fontSize: 12, color: C.textSec }}>{fmtDateTime(s.createdAt)}</span>
-              </div>
-              <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: C.textSec }}>{s.items?.length ?? 0}</span>
-              </div>
-              <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: C.textPri, fontVariantNumeric: 'tabular-nums' }}>{fmt$(s.grandTotal)}</span>
-              </div>
-              <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center' }}>
-                {s.paymentMethod
-                  ? <span style={{ fontSize: 11, fontWeight: 600, color: C.textSec, padding: '2px 8px', borderRadius: 5, background: C.elevated }}>{s.paymentMethod}</span>
-                  : <span style={{ color: C.textDim }}>—</span>}
-              </div>
-              <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center' }}>
-                <Badge status={s.paymentStatus} />
-              </div>
-            </div>
-          ))}
-
-          {!pLoading && pPages > 1 && (
-            <div style={{ padding: '10px 16px', borderTop: `1px solid ${C.border}`, background: C.tableHdr, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-              <button onClick={() => loadPurchases(pPage - 1)} disabled={pPage === 1} style={{ width: 30, height: 30, borderRadius: 7, border: `1px solid ${C.border}`, background: C.surface, cursor: pPage === 1 ? 'default' : 'pointer', opacity: pPage === 1 ? 0.35 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <ChevronLeftIcon sx={{ fontSize: 16, color: C.textSec }} />
-              </button>
-              <span style={{ fontSize: 12, color: C.textSec, padding: '0 8px' }}>Page {pPage} of {pPages} · {pTotal} purchase{pTotal !== 1 ? 's' : ''}</span>
-              <button onClick={() => loadPurchases(pPage + 1)} disabled={pPage === pPages} style={{ width: 30, height: 30, borderRadius: 7, border: `1px solid ${C.border}`, background: C.surface, cursor: pPage === pPages ? 'default' : 'pointer', opacity: pPage === pPages ? 0.35 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <ChevronRightIcon sx={{ fontSize: 16, color: C.textSec }} />
-              </button>
+              {!pLoading && purchases.length === 0 && (
+                <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '40px 20px', textAlign: 'center' }}>
+                  <ReceiptLongOutlinedIcon sx={{ fontSize: 36, color: C.textDim, display: 'block', margin: '0 auto 10px' }} />
+                  <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textSec }}>No purchases yet</p>
+                </div>
+              )}
+              {!pLoading && purchases.map(s => (
+                <div key={s._id}
+                  onClick={() => navigate(`/manager/transactions/${s._id}`)}
+                  style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px 14px', marginBottom: 8, cursor: 'pointer' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: C.primary, fontFamily: 'monospace' }}>{s.invoiceNo}</span>
+                      <OpenInNewOutlinedIcon sx={{ fontSize: 11, color: C.textDim }} />
+                    </div>
+                    <Badge status={s.paymentStatus} />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: 11, color: C.textDim }}>{fmtDateTime(s.createdAt)}</span>
+                    <span style={{ fontSize: 14, fontWeight: 800, color: C.textPri, fontVariantNumeric: 'tabular-nums' }}>{fmt$(s.grandTotal)}</span>
+                  </div>
+                  <div style={{ marginTop: 6, paddingTop: 6, borderTop: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 10, color: C.textDim }}>{s.items?.length ?? 0} item{s.items?.length !== 1 ? 's' : ''}</span>
+                    {s.paymentMethod && <span style={{ fontSize: 10, fontWeight: 600, color: C.textSec, padding: '1px 7px', borderRadius: 5, background: C.elevated }}>{s.paymentMethod}</span>}
+                  </div>
+                </div>
+              ))}
+              {!pLoading && pPages > 1 && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, paddingTop: 6 }}>
+                  <button onClick={() => loadPurchases(pPage - 1)} disabled={pPage === 1} style={{ width: 32, height: 32, borderRadius: 7, border: `1px solid ${C.border}`, background: C.surface, cursor: pPage === 1 ? 'default' : 'pointer', opacity: pPage === 1 ? 0.35 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><ChevronLeftIcon sx={{ fontSize: 16, color: C.textSec }} /></button>
+                  <span style={{ fontSize: 12, color: C.textSec, padding: '0 6px' }}>Page {pPage} of {pPages}</span>
+                  <button onClick={() => loadPurchases(pPage + 1)} disabled={pPage === pPages} style={{ width: 32, height: 32, borderRadius: 7, border: `1px solid ${C.border}`, background: C.surface, cursor: pPage === pPages ? 'default' : 'pointer', opacity: pPage === pPages ? 0.35 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><ChevronRightIcon sx={{ fontSize: 16, color: C.textSec }} /></button>
+                </div>
+              )}
             </div>
           )}
-        </div>
+
+          {/* Desktop table */}
+          {!isMobile && (
+            <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '140px 160px 70px 100px 80px 90px', background: C.tableHdr, borderBottom: `1px solid ${C.border}` }}>
+                {[['Invoice','left'],['Date','left'],['Items','center'],['Amount','right'],['Method','left'],['Status','left']].map(([h, a]) => (
+                  <div key={h} style={{ padding: '10px 14px', fontSize: 10, fontWeight: 700, color: C.primary, textTransform: 'uppercase', letterSpacing: '0.08em', textAlign: a }}>{h}</div>
+                ))}
+              </div>
+              {pLoading && Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} style={{ display: 'grid', gridTemplateColumns: '140px 160px 70px 100px 80px 90px', borderBottom: `1px solid ${C.border}` }}>
+                  {[120, 130, 30, 70, 50, 60].map((w, j) => (
+                    <div key={j} style={{ padding: 14 }}><div style={{ height: 11, width: w, borderRadius: 4, background: C.elevated }} /></div>
+                  ))}
+                </div>
+              ))}
+              {!pLoading && purchases.length === 0 && (
+                <div style={{ padding: '48px 24px', textAlign: 'center' }}>
+                  <ReceiptLongOutlinedIcon sx={{ fontSize: 38, color: C.textDim, display: 'block', margin: '0 auto 12px' }} />
+                  <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: C.textSec }}>No purchases yet</p>
+                </div>
+              )}
+              {!pLoading && purchases.map(s => (
+                <div key={s._id}
+                  onClick={() => navigate(`/manager/transactions/${s._id}`)}
+                  style={{ display: 'grid', gridTemplateColumns: '140px 160px 70px 100px 80px 90px', borderBottom: `1px solid ${C.border}`, cursor: 'pointer', background: 'transparent' }}
+                  onMouseEnter={e => e.currentTarget.style.background = C.tableHover}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                  <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: C.primary, fontFamily: 'monospace' }}>{s.invoiceNo}</span>
+                    <OpenInNewOutlinedIcon sx={{ fontSize: 11, color: C.textDim }} />
+                  </div>
+                  <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center' }}><span style={{ fontSize: 12, color: C.textSec }}>{fmtDateTime(s.createdAt)}</span></div>
+                  <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ fontSize: 13, fontWeight: 700, color: C.textSec }}>{s.items?.length ?? 0}</span></div>
+                  <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}><span style={{ fontSize: 13, fontWeight: 700, color: C.textPri, fontVariantNumeric: 'tabular-nums' }}>{fmt$(s.grandTotal)}</span></div>
+                  <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center' }}>
+                    {s.paymentMethod ? <span style={{ fontSize: 11, fontWeight: 600, color: C.textSec, padding: '2px 8px', borderRadius: 5, background: C.elevated }}>{s.paymentMethod}</span> : <span style={{ color: C.textDim }}>—</span>}
+                  </div>
+                  <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center' }}><Badge status={s.paymentStatus} /></div>
+                </div>
+              ))}
+              {!pLoading && pPages > 1 && (
+                <div style={{ padding: '10px 16px', borderTop: `1px solid ${C.border}`, background: C.tableHdr, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                  <button onClick={() => loadPurchases(pPage - 1)} disabled={pPage === 1} style={{ width: 30, height: 30, borderRadius: 7, border: `1px solid ${C.border}`, background: C.surface, cursor: pPage === 1 ? 'default' : 'pointer', opacity: pPage === 1 ? 0.35 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><ChevronLeftIcon sx={{ fontSize: 16, color: C.textSec }} /></button>
+                  <span style={{ fontSize: 12, color: C.textSec, padding: '0 8px' }}>Page {pPage} of {pPages} · {pTotal} purchase{pTotal !== 1 ? 's' : ''}</span>
+                  <button onClick={() => loadPurchases(pPage + 1)} disabled={pPage === pPages} style={{ width: 30, height: 30, borderRadius: 7, border: `1px solid ${C.border}`, background: C.surface, cursor: pPage === pPages ? 'default' : 'pointer', opacity: pPage === pPages ? 0.35 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><ChevronRightIcon sx={{ fontSize: 16, color: C.textSec }} /></button>
+                </div>
+              )}
+            </div>
+          )}
+        </>
       )}
 
-      {/* Refunds tab */}
+      {/* ── Refunds tab ── */}
       {tab === 1 && (
-        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '140px 160px 120px 120px 90px', background: C.tableHdr, borderBottom: `1px solid ${C.border}` }}>
-            {[['Invoice','left'],['Date','left'],['Sale Total','right'],['Refunded','right'],['Status','left']].map(([h, a]) => (
-              <div key={h} style={{ padding: '10px 14px', fontSize: 10, fontWeight: 700, color: C.primary, textTransform: 'uppercase', letterSpacing: '0.08em', textAlign: a }}>{h}</div>
-            ))}
-          </div>
-
-          {rLoading && Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} style={{ display: 'grid', gridTemplateColumns: '140px 160px 120px 120px 90px', borderBottom: `1px solid ${C.border}` }}>
-              {[120, 130, 80, 80, 60].map((w, j) => (
-                <div key={j} style={{ padding: 14 }}>
-                  <div style={{ height: 11, width: w, borderRadius: 4, background: C.elevated }} />
+        <>
+          {/* Mobile card list */}
+          {isMobile && (
+            <div>
+              {rLoading && Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px 14px', marginBottom: 8 }}>
+                  <div style={{ height: 12, width: '50%', borderRadius: 4, background: C.elevated, marginBottom: 6 }} />
+                  <div style={{ height: 10, width: '70%', borderRadius: 4, background: C.elevated }} />
                 </div>
               ))}
-            </div>
-          ))}
-
-          {!rLoading && refunds.length === 0 && (
-            <div style={{ padding: '48px 24px', textAlign: 'center' }}>
-              <MoneyOffOutlinedIcon sx={{ fontSize: 38, color: C.textDim, display: 'block', margin: '0 auto 12px' }} />
-              <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: C.textSec }}>No refunds on record</p>
-            </div>
-          )}
-
-          {!rLoading && refunds.map(s => (
-            <div key={s._id}
-              onClick={() => navigate(`/manager/transactions/${s._id}`)}
-              style={{ display: 'grid', gridTemplateColumns: '140px 160px 120px 120px 90px', borderBottom: `1px solid ${C.border}`, cursor: 'pointer', background: 'transparent' }}
-              onMouseEnter={e => e.currentTarget.style.background = C.tableHover}
-              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-              <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: C.primary, fontFamily: 'monospace' }}>{s.invoiceNo}</span>
-                <OpenInNewOutlinedIcon sx={{ fontSize: 11, color: C.textDim }} />
-              </div>
-              <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center' }}>
-                <span style={{ fontSize: 12, color: C.textSec }}>{fmtDateTime(s.createdAt)}</span>
-              </div>
-              <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: C.textPri, fontVariantNumeric: 'tabular-nums' }}>{fmt$(s.grandTotal)}</span>
-              </div>
-              <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: C.error, fontVariantNumeric: 'tabular-nums' }}>−{fmt$(s.refundedAmount)}</span>
-              </div>
-              <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center' }}>
-                <Badge status={s.paymentStatus} />
-              </div>
-            </div>
-          ))}
-
-          {!rLoading && rPages > 1 && (
-            <div style={{ padding: '10px 16px', borderTop: `1px solid ${C.border}`, background: C.tableHdr, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-              <button onClick={() => loadRefunds(rPage - 1)} disabled={rPage === 1} style={{ width: 30, height: 30, borderRadius: 7, border: `1px solid ${C.border}`, background: C.surface, cursor: rPage === 1 ? 'default' : 'pointer', opacity: rPage === 1 ? 0.35 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <ChevronLeftIcon sx={{ fontSize: 16, color: C.textSec }} />
-              </button>
-              <span style={{ fontSize: 12, color: C.textSec, padding: '0 8px' }}>Page {rPage} of {rPages} · {rTotal} refund{rTotal !== 1 ? 's' : ''}</span>
-              <button onClick={() => loadRefunds(rPage + 1)} disabled={rPage === rPages} style={{ width: 30, height: 30, borderRadius: 7, border: `1px solid ${C.border}`, background: C.surface, cursor: rPage === rPages ? 'default' : 'pointer', opacity: rPage === rPages ? 0.35 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <ChevronRightIcon sx={{ fontSize: 16, color: C.textSec }} />
-              </button>
+              {!rLoading && refunds.length === 0 && (
+                <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '40px 20px', textAlign: 'center' }}>
+                  <MoneyOffOutlinedIcon sx={{ fontSize: 36, color: C.textDim, display: 'block', margin: '0 auto 10px' }} />
+                  <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textSec }}>No refunds on record</p>
+                </div>
+              )}
+              {!rLoading && refunds.map(s => (
+                <div key={s._id}
+                  onClick={() => navigate(`/manager/transactions/${s._id}`)}
+                  style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px 14px', marginBottom: 8, cursor: 'pointer' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: C.primary, fontFamily: 'monospace' }}>{s.invoiceNo}</span>
+                      <OpenInNewOutlinedIcon sx={{ fontSize: 11, color: C.textDim }} />
+                    </div>
+                    <Badge status={s.paymentStatus} />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: 11, color: C.textDim }}>{fmtDateTime(s.createdAt)}</span>
+                    <div style={{ textAlign: 'right' }}>
+                      <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: C.error, fontVariantNumeric: 'tabular-nums' }}>−{fmt$(s.refundedAmount)}</p>
+                      <p style={{ margin: 0, fontSize: 10, color: C.textDim }}>of {fmt$(s.grandTotal)}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {!rLoading && rPages > 1 && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, paddingTop: 6 }}>
+                  <button onClick={() => loadRefunds(rPage - 1)} disabled={rPage === 1} style={{ width: 32, height: 32, borderRadius: 7, border: `1px solid ${C.border}`, background: C.surface, cursor: rPage === 1 ? 'default' : 'pointer', opacity: rPage === 1 ? 0.35 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><ChevronLeftIcon sx={{ fontSize: 16, color: C.textSec }} /></button>
+                  <span style={{ fontSize: 12, color: C.textSec, padding: '0 6px' }}>Page {rPage} of {rPages}</span>
+                  <button onClick={() => loadRefunds(rPage + 1)} disabled={rPage === rPages} style={{ width: 32, height: 32, borderRadius: 7, border: `1px solid ${C.border}`, background: C.surface, cursor: rPage === rPages ? 'default' : 'pointer', opacity: rPage === rPages ? 0.35 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><ChevronRightIcon sx={{ fontSize: 16, color: C.textSec }} /></button>
+                </div>
+              )}
             </div>
           )}
-        </div>
+
+          {/* Desktop table */}
+          {!isMobile && (
+            <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '140px 160px 120px 120px 90px', background: C.tableHdr, borderBottom: `1px solid ${C.border}` }}>
+                {[['Invoice','left'],['Date','left'],['Sale Total','right'],['Refunded','right'],['Status','left']].map(([h, a]) => (
+                  <div key={h} style={{ padding: '10px 14px', fontSize: 10, fontWeight: 700, color: C.primary, textTransform: 'uppercase', letterSpacing: '0.08em', textAlign: a }}>{h}</div>
+                ))}
+              </div>
+              {rLoading && Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} style={{ display: 'grid', gridTemplateColumns: '140px 160px 120px 120px 90px', borderBottom: `1px solid ${C.border}` }}>
+                  {[120, 130, 80, 80, 60].map((w, j) => (
+                    <div key={j} style={{ padding: 14 }}><div style={{ height: 11, width: w, borderRadius: 4, background: C.elevated }} /></div>
+                  ))}
+                </div>
+              ))}
+              {!rLoading && refunds.length === 0 && (
+                <div style={{ padding: '48px 24px', textAlign: 'center' }}>
+                  <MoneyOffOutlinedIcon sx={{ fontSize: 38, color: C.textDim, display: 'block', margin: '0 auto 12px' }} />
+                  <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: C.textSec }}>No refunds on record</p>
+                </div>
+              )}
+              {!rLoading && refunds.map(s => (
+                <div key={s._id}
+                  onClick={() => navigate(`/manager/transactions/${s._id}`)}
+                  style={{ display: 'grid', gridTemplateColumns: '140px 160px 120px 120px 90px', borderBottom: `1px solid ${C.border}`, cursor: 'pointer', background: 'transparent' }}
+                  onMouseEnter={e => e.currentTarget.style.background = C.tableHover}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                  <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: C.primary, fontFamily: 'monospace' }}>{s.invoiceNo}</span>
+                    <OpenInNewOutlinedIcon sx={{ fontSize: 11, color: C.textDim }} />
+                  </div>
+                  <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center' }}><span style={{ fontSize: 12, color: C.textSec }}>{fmtDateTime(s.createdAt)}</span></div>
+                  <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}><span style={{ fontSize: 13, fontWeight: 600, color: C.textPri, fontVariantNumeric: 'tabular-nums' }}>{fmt$(s.grandTotal)}</span></div>
+                  <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}><span style={{ fontSize: 13, fontWeight: 700, color: C.error, fontVariantNumeric: 'tabular-nums' }}>−{fmt$(s.refundedAmount)}</span></div>
+                  <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center' }}><Badge status={s.paymentStatus} /></div>
+                </div>
+              ))}
+              {!rLoading && rPages > 1 && (
+                <div style={{ padding: '10px 16px', borderTop: `1px solid ${C.border}`, background: C.tableHdr, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                  <button onClick={() => loadRefunds(rPage - 1)} disabled={rPage === 1} style={{ width: 30, height: 30, borderRadius: 7, border: `1px solid ${C.border}`, background: C.surface, cursor: rPage === 1 ? 'default' : 'pointer', opacity: rPage === 1 ? 0.35 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><ChevronLeftIcon sx={{ fontSize: 16, color: C.textSec }} /></button>
+                  <span style={{ fontSize: 12, color: C.textSec, padding: '0 8px' }}>Page {rPage} of {rPages} · {rTotal} refund{rTotal !== 1 ? 's' : ''}</span>
+                  <button onClick={() => loadRefunds(rPage + 1)} disabled={rPage === rPages} style={{ width: 30, height: 30, borderRadius: 7, border: `1px solid ${C.border}`, background: C.surface, cursor: rPage === rPages ? 'default' : 'pointer', opacity: rPage === rPages ? 0.35 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><ChevronRightIcon sx={{ fontSize: 16, color: C.textSec }} /></button>
+                </div>
+              )}
+            </div>
+          )}
+        </>
       )}
 
-      {/* Edit modal */}
+      {/* ── Edit modal ── */}
       {modal && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div onClick={() => !saving && setModal(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(43,29,26,0.45)', backdropFilter: 'blur(4px)' }} />

@@ -156,6 +156,21 @@ export default function ManagerLayout() {
   const toggleGroup = (group) =>
     setOpenGroups(prev => ({ ...prev, [group]: !prev[group] }));
 
+  const [openChildItems, setOpenChildItems] = useState(() => {
+    const result = {};
+    for (const { items } of NAV_GROUPS) {
+      for (const item of items) {
+        if (item.children?.some(c => pathname === c.path || pathname.startsWith(c.path + '/'))) {
+          result[item.path] = true;
+        }
+      }
+    }
+    return result;
+  });
+
+  const toggleChildItem = (path) =>
+    setOpenChildItems(prev => ({ ...prev, [path]: !prev[path] }));
+
   useEffect(() => {
     if (reportsActive) setReportsOpen(true);
   }, [reportsActive]);
@@ -427,31 +442,27 @@ export default function ManagerLayout() {
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh', background: '#F5F3F1', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
 
       {/* Top header */}
-      <header style={{ background: 'linear-gradient(135deg, #2A1715 0%, #3E2723 100%)', borderBottom: '1px solid #1f100e', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, position: 'relative' }}>
+      <header style={{ background: '#3E2723', borderBottom: '1px solid #2A1715', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {user?.imageUrl ? (
-            <img src={user.imageUrl} alt={user.name} style={{ width: 32, height: 32, borderRadius: 8, objectFit: 'cover', flexShrink: 0, border: '1.5px solid rgba(212,163,115,0.35)' }} />
-          ) : (
-            <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(212,163,115,0.18)', border: '1.5px solid rgba(212,163,115,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 14, fontWeight: 700, color: '#D4A373' }}>
-              {(user?.name || 'M').charAt(0).toUpperCase()}
-            </div>
-          )}
+          {/* Store logo replaces the "M" initial when available */}
+          <div style={{ width: 34, height: 34, borderRadius: 9, overflow: 'hidden', background: storeLogo ? 'transparent' : 'rgba(255,255,255,0.15)', border: '1.5px solid rgba(255,255,255,0.20)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            {storeLogo
+              ? <img src={storeLogo} alt="Store" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              : <span style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>M</span>
+            }
+          </div>
           <div>
             <p style={{ fontSize: 13, fontWeight: 700, color: '#fff', lineHeight: '17px', margin: 0 }}>{user?.name || 'Manager'}</p>
-            <p style={{ fontSize: 11, fontWeight: 500, color: 'rgba(255,255,255,0.50)', margin: 0, letterSpacing: '0.04em' }}>{user?.employeeCode}</p>
+            <p style={{ fontSize: 11, fontWeight: 500, color: 'rgba(255,255,255,0.55)', margin: 0, letterSpacing: '0.04em' }}>{user?.employeeCode}</p>
           </div>
         </div>
 
-        {/* Store logo — centered absolutely so it doesn't shift the flex children */}
-        {storeLogo && (
-          <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', pointerEvents: 'none' }}>
-            <img src={storeLogo} alt="Store logo" style={{ height: 34, maxWidth: 120, objectFit: 'contain', borderRadius: 6, display: 'block' }} />
-          </div>
-        )}
-
-        <button onClick={handleLogout} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 11px', borderRadius: 7, background: 'rgba(212,163,115,0.12)', border: '1px solid rgba(212,163,115,0.25)', color: 'rgba(255,255,255,0.80)', fontSize: 12, fontWeight: 600, cursor: 'pointer', letterSpacing: '0.04em' }}>
-          <LogoutOutlinedIcon sx={{ fontSize: 14 }} />
-          LOG OUT
+        {/* Menu button — opens right-side drawer */}
+        <button
+          onClick={() => setMenuOpen(true)}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: 9, background: 'rgba(255,255,255,0.12)', border: '1.5px solid rgba(255,255,255,0.18)', cursor: 'pointer', flexShrink: 0 }}
+        >
+          <MenuIcon sx={{ fontSize: 20, color: '#fff' }} />
         </button>
       </header>
 
@@ -503,9 +514,9 @@ export default function ManagerLayout() {
           </button>
         </div>
 
-        {/* User card */}
+        {/* User card + logout */}
         <div style={{ padding: '12px 14px', borderBottom: '1px solid #DDD2CC' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 10px', borderRadius: 10, background: '#F9F6F3' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 10px', borderRadius: 10, background: '#F9F6F3', marginBottom: 10 }}>
             {user?.imageUrl ? (
               <img src={user.imageUrl} alt={user.name} style={{ width: 30, height: 30, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
             ) : (
@@ -518,6 +529,10 @@ export default function ManagerLayout() {
               <p style={{ margin: 0, fontSize: 10, fontWeight: 500, color: '#A09490', letterSpacing: '0.03em' }}>{user?.employeeCode || 'Manager'}</p>
             </div>
           </div>
+          <button onClick={handleLogout} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '10px 12px', borderRadius: 9, background: 'rgba(183,28,28,0.06)', border: '1px solid rgba(183,28,28,0.22)', color: '#B71C1C', fontSize: 13, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.02em' }}>
+            <LogoutOutlinedIcon sx={{ fontSize: 16, color: '#B71C1C' }} />
+            Sign Out
+          </button>
         </div>
 
         {/* Grouped drawer nav */}
@@ -551,7 +566,7 @@ export default function ManagerLayout() {
                   <ExpandMoreIcon sx={{ fontSize: 14, color: '#C0B5B0', transform: groupIsOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.22s cubic-bezier(0.4,0,0.2,1)' }} />
                 </button>
 
-                <div style={{ overflow: 'hidden', maxHeight: groupIsOpen ? `${items.length * 52}px` : '0px', transition: 'max-height 0.26s cubic-bezier(0.4,0,0.2,1)' }}>
+                <div style={{ overflow: 'hidden', maxHeight: groupIsOpen ? `${items.reduce((h, it) => h + 52 + (it.children?.length ? it.children.length * 44 : 0), 0)}px` : '0px', transition: 'max-height 0.26s cubic-bezier(0.4,0,0.2,1)' }}>
                   {items.map(({ label, path, icon: Icon, children }) => {
                     const hasChildren = Boolean(children?.length);
                     const active = hasChildren
@@ -559,23 +574,32 @@ export default function ManagerLayout() {
                       : pathname === path || pathname.startsWith(path + '/');
 
                     if (hasChildren) {
+                      const childOpen = !!openChildItems[path];
                       return (
                         <div key={path}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 18px 4px', opacity: 0.65 }}>
-                            <Icon sx={{ fontSize: 18, color: '#6B5B57' }} />
-                            <span style={{ fontSize: 13, fontWeight: 600, color: '#4A3A36' }}>{label}</span>
+                          <button onClick={() => toggleChildItem(path)} style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '12px 18px', background: active ? '#F5F0EC' : 'transparent', border: 'none', borderLeft: `3px solid ${active ? '#3E2723' : 'transparent'}`, borderLeftWidth: 3, textAlign: 'left', cursor: 'pointer' }}>
+                            <Icon sx={{ fontSize: 20, color: active ? '#3E2723' : '#6B5B57' }} />
+                            <span style={{ fontSize: 14, fontWeight: active ? 700 : 600, color: active ? '#3E2723' : '#2B1D1A', flex: 1 }}>{label}</span>
+                            <ExpandMoreIcon sx={{ fontSize: 16, color: active ? '#3E2723' : '#B0A49F', transform: childOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.22s cubic-bezier(0.4,0,0.2,1)', flexShrink: 0 }} />
+                          </button>
+                          <div style={{ overflow: 'hidden', maxHeight: childOpen ? `${children.length * 44}px` : '0px', transition: 'max-height 0.26s cubic-bezier(0.4,0,0.2,1)' }}>
+                            <div style={{ display: 'flex', paddingLeft: 20, paddingTop: 2, paddingBottom: 4 }}>
+                              <div style={{ width: 1, borderRadius: 2, background: '#E2D5CC', flexShrink: 0, marginRight: 12, marginLeft: 8 }} />
+                              <div style={{ flex: 1 }}>
+                                {children.map(({ label: cl, path: cp, icon: CI }) => {
+                                  const ca = pathname === cp || pathname.startsWith(cp + '/');
+                                  const showSyncChild = syncEnabled && SYNCED_PATHS.has(cp);
+                                  return (
+                                    <button key={cp} onClick={() => goTo(cp)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '9px 10px', marginBottom: 1, borderRadius: 8, border: 'none', background: ca ? '#F2EBE5' : 'transparent', cursor: 'pointer', textAlign: 'left' }}>
+                                      <CI sx={{ fontSize: 15, color: ca ? '#3E2723' : '#B0A49F', flexShrink: 0 }} />
+                                      <span style={{ fontSize: 13, fontWeight: ca ? 700 : 500, color: ca ? '#2B1D1A' : '#7A6E6A', flex: 1 }}>{cl}</span>
+                                      {showSyncChild && <span style={{ fontSize: 9, fontWeight: 700, color: '#2E7D4F', background: '#E8F5EE', border: '1px solid #C8E6C9', borderRadius: 4, padding: '1px 5px', letterSpacing: '0.05em', flexShrink: 0, marginRight: 4 }}>SYNCED</span>}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
                           </div>
-                          {children.map(({ label: cl, path: cp, icon: CI }) => {
-                            const ca = pathname === cp || pathname.startsWith(cp + '/');
-                            const showSyncChild = syncEnabled && SYNCED_PATHS.has(cp);
-                            return (
-                              <button key={cp} onClick={() => goTo(cp)} style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '10px 18px 10px 42px', background: ca ? '#F5F0EC' : 'transparent', borderLeft: `3px solid ${ca ? '#3E2723' : 'transparent'}`, border: 'none', borderLeftWidth: 3, textAlign: 'left', cursor: 'pointer' }}>
-                                <CI sx={{ fontSize: 17, color: ca ? '#3E2723' : '#6B5B57' }} />
-                                <span style={{ fontSize: 13, fontWeight: ca ? 700 : 500, color: ca ? '#3E2723' : '#2B1D1A', flex: 1 }}>{cl}</span>
-                                {showSyncChild && <span style={{ fontSize: 9, fontWeight: 700, color: '#2E7D4F', background: '#E8F5EE', border: '1px solid #C8E6C9', borderRadius: 4, padding: '1px 5px', letterSpacing: '0.05em', flexShrink: 0, marginRight: 4 }}>SYNCED</span>}
-                              </button>
-                            );
-                          })}
                         </div>
                       );
                     }
@@ -596,13 +620,6 @@ export default function ManagerLayout() {
           })}
         </div>
 
-        {/* Sign out */}
-        <div style={{ padding: '12px 14px 24px', borderTop: '1px solid #DDD2CC' }}>
-          <button onClick={handleLogout} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '9px 12px', borderRadius: 9, background: 'transparent', border: '1px solid #DDD5D0', color: '#8C7E7A', fontSize: 12, fontWeight: 600, cursor: 'pointer', letterSpacing: '0.04em' }}>
-            <LogoutOutlinedIcon sx={{ fontSize: 14, color: '#A09490' }} />
-            Sign out
-          </button>
-        </div>
       </aside>
     </div>
     </>
