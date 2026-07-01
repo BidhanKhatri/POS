@@ -528,7 +528,7 @@ export default function ShiftPage() {
                   width: '100%', boxSizing: 'border-box',
                   padding: '9px 12px', borderRadius: 8,
                   border: `1px solid ${C.divider}`,
-                  fontSize: 13, fontFamily: FONT, color: C.textPri,
+                  fontSize: 16, fontFamily: FONT, color: C.textPri,
                   background: '#fff', outline: 'none',
                 }}
               />

@@ -412,7 +412,7 @@ export default function TransactionDetailPage() {
                   placeholder="customer@example.com"
                   style={{
                     flex: 1, padding: '8px 11px', borderRadius: 8,
-                    border: `1px solid ${C.border}`, fontSize: 13, color: C.textPri,
+                    border: `1px solid ${C.border}`, fontSize: 16, color: C.textPri,
                     background: '#fff', outline: 'none', boxSizing: 'border-box',
                     fontFamily: FONT,
                   }}

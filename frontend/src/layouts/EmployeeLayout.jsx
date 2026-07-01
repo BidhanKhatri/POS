@@ -18,6 +18,7 @@ import CloseIcon                     from '@mui/icons-material/Close';
 import useAuthStore from '../store/useAuthStore';
 import { useLoading } from '../context/LoadingContext';
 import SessionMonitor from '../components/SessionLock/SessionMonitor';
+import BiometricPromptModal from '../components/BiometricSetup/BiometricPromptModal';
 
 // ── Mobile bottom nav (primary 3 tabs) ────────────────────────────────────────
 const NAV_ITEMS = [
@@ -151,6 +152,7 @@ export default function EmployeeLayout() {
     return (
       <>
       <SessionMonitor />
+      <BiometricPromptModal />
       <div style={{
         display: 'flex',
         minHeight: '100dvh',
@@ -390,6 +392,7 @@ export default function EmployeeLayout() {
   return (
     <>
     <SessionMonitor />
+    <BiometricPromptModal />
     {renderLogoutModal()}
     <div
       style={{

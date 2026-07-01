@@ -72,7 +72,7 @@ function CredentialCard({ cred, onRevoke, onRename, revoking }) {
                 value={name}
                 onChange={e => setName(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') handleSaveName(); if (e.key === 'Escape') setEditing(false); }}
-                style={{ flex: 1, fontSize: 13, fontWeight: 700, color: C.textPri, border: `1px solid ${C.primary}`, borderRadius: 6, padding: '4px 8px', outline: 'none', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+                style={{ flex: 1, fontSize: 16, fontWeight: 700, color: C.textPri, border: `1px solid ${C.primary}`, borderRadius: 6, padding: '4px 8px', outline: 'none', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
               />
               <button onClick={handleSaveName} disabled={saving} style={{ padding: '4px 10px', borderRadius: 6, border: 'none', background: C.primary, color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                 {saving ? '…' : 'Save'}
@@ -255,7 +255,7 @@ export default function BiometricSetup() {
             value={deviceName}
             onChange={e => setDeviceName(e.target.value)}
             placeholder='e.g. "iPhone 15", "Work Laptop"'
-            style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 13, color: C.textPri, background: '#fff', outline: 'none', boxSizing: 'border-box', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+            style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 16, color: C.textPri, background: '#fff', outline: 'none', boxSizing: 'border-box', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
           />
         </div>
         <button

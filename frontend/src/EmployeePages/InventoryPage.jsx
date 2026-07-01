@@ -285,7 +285,7 @@ export default function InventoryPage() {
         <div style={{ position: 'relative', marginBottom: 14 }}>
           <SearchOutlinedIcon sx={{ fontSize: 18, color: C.textDim, position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name, SKU or barcode…"
-            style={{ width: '100%', padding: '9px 12px 9px 34px', borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 13, color: C.textPri, background: C.surface, outline: 'none', boxSizing: 'border-box', fontFamily: FONT }} />
+            style={{ width: '100%', padding: '9px 12px 9px 34px', borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 16, color: C.textPri, background: C.surface, outline: 'none', boxSizing: 'border-box', fontFamily: FONT }} />
           {search && (
             <button onClick={() => setSearch('')} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', padding: 2 }}>
               <CloseOutlinedIcon sx={{ fontSize: 15, color: C.textDim }} />
@@ -423,7 +423,7 @@ export default function InventoryPage() {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search by name, SKU or barcode…"
-            style={{ width: '100%', padding: '10px 36px 10px 38px', borderRadius: 9, border: `1px solid ${C.border}`, fontSize: 13, color: C.textPri, background: C.surface, outline: 'none', boxSizing: 'border-box', fontFamily: FONT }}
+            style={{ width: '100%', padding: '10px 36px 10px 38px', borderRadius: 9, border: `1px solid ${C.border}`, fontSize: 16, color: C.textPri, background: C.surface, outline: 'none', boxSizing: 'border-box', fontFamily: FONT }}
           />
           {search && (
             <button onClick={() => setSearch('')} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', padding: 2 }}>

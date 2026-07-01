@@ -36,7 +36,7 @@ const fieldLabel = {
 };
 const fieldInput = {
   width: '100%', padding: '10px 12px', borderRadius: 8,
-  border: '1px solid #DDD2CC', fontSize: 14, color: '#2B1D1A',
+  border: '1px solid #DDD2CC', fontSize: 16, color: '#2B1D1A',
   background: '#fff', outline: 'none', boxSizing: 'border-box',
   fontFamily: "'Plus Jakarta Sans', sans-serif",
 };
@@ -183,7 +183,7 @@ function CompletedSaleScreen({ sale, token, API, onNewSale, paymentMethods }) {
           <p style={{ margin: '0 0 8px', fontSize: 12, fontWeight: 700, color: '#2B1D1A' }}>Send receipt by email</p>
           <div style={{ display: 'flex', gap: 8 }}>
             <input type="email" value={emailAddr} onChange={(e) => { setEmailAddr(e.target.value); setEmailResult(null); }} placeholder="customer@example.com"
-              style={{ flex: 1, padding: '8px 11px', borderRadius: 8, border: '1px solid #DDD2CC', fontSize: 13, color: '#2B1D1A', background: '#fff', outline: 'none', boxSizing: 'border-box', fontFamily: "'Plus Jakarta Sans', sans-serif" }} />
+              style={{ flex: 1, padding: '8px 11px', borderRadius: 8, border: '1px solid #DDD2CC', fontSize: 16, color: '#2B1D1A', background: '#fff', outline: 'none', boxSizing: 'border-box', fontFamily: "'Plus Jakarta Sans', sans-serif" }} />
             <button onClick={handleEmail} disabled={emailSending || !emailAddr.trim()}
               style={{ padding: '8px 14px', borderRadius: 8, flexShrink: 0, background: emailSending || !emailAddr.trim() ? '#EFE7E2' : '#3E2723', color: emailSending || !emailAddr.trim() ? '#A09490' : '#fff', border: 'none', fontSize: 13, fontWeight: 700, cursor: emailSending ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: 5, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
               <SendOutlinedIcon sx={{ fontSize: 15 }} />

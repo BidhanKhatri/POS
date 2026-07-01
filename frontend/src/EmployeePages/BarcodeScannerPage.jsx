@@ -396,7 +396,7 @@ export default function BarcodeScannerPage() {
             <input
               type="text" value={manualValue} onChange={e => setManualValue(e.target.value)}
               placeholder="Enter barcode or SKU…"
-              style={{ flex: 1, padding: '9px 12px', borderRadius: 9, border: `1.5px solid ${C.border}`, fontSize: 13, color: C.text, outline: 'none', fontFamily: 'inherit', background: C.bg }}
+              style={{ flex: 1, padding: '9px 12px', borderRadius: 9, border: `1.5px solid ${C.border}`, fontSize: 16, color: C.text, outline: 'none', fontFamily: 'inherit', background: C.bg }}
             />
             <button type="submit" disabled={!manualValue.trim() || lookupLoading}
               style={{ padding: '9px 14px', background: manualValue.trim() ? C.brown : '#C0B5B0', color: '#fff', border: 'none', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: manualValue.trim() ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>

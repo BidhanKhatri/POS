@@ -130,7 +130,7 @@ export default function CustomerSearchPage() {
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search by name or phone…"
-              style={{ flex: 1, border: 'none', outline: 'none', fontSize: 14, fontWeight: 500, color: C.textPri, background: 'transparent', fontFamily: FONT }}
+              style={{ flex: 1, border: 'none', outline: 'none', fontSize: 16, fontWeight: 500, color: C.textPri, background: 'transparent', fontFamily: FONT }}
             />
             {search && (
               <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', padding: 0 }}>
@@ -155,12 +155,12 @@ export default function CustomerSearchPage() {
             <div>
               <p style={{ margin: '0 0 5px', fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Registered From</p>
               <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
-                style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 13, color: C.textPri, fontFamily: FONT, outline: 'none', background: C.surface, boxSizing: 'border-box' }} />
+                style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 16, color: C.textPri, fontFamily: FONT, outline: 'none', background: C.surface, boxSizing: 'border-box' }} />
             </div>
             <div>
               <p style={{ margin: '0 0 5px', fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>To</p>
               <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
-                style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 13, color: C.textPri, fontFamily: FONT, outline: 'none', background: C.surface, boxSizing: 'border-box' }} />
+                style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 16, color: C.textPri, fontFamily: FONT, outline: 'none', background: C.surface, boxSizing: 'border-box' }} />
             </div>
           </div>
         )}

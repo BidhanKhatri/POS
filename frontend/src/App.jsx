@@ -6,6 +6,7 @@ import { useLoading } from './context/LoadingContext';
 import LoginScreen from './AuthPages/LoginScreen';
 import SignupPage from './AuthPages/SignupPage';
 import VerifiedPage from './AuthPages/VerifiedPage';
+import BiometricOnboardingPage from './AuthPages/BiometricOnboardingPage';
 import EmployeeLayout from './layouts/EmployeeLayout';
 import TerminalPage from './EmployeePages/TerminalPage';
 import TenderPage from './EmployeePages/TenderPage';
@@ -93,10 +94,11 @@ function LocalAuthRoutes({ role }) {
         <Route path="settings"          element={<ManagerSettingsPage />} />
       </Route>
 
-      <Route path="/login"           element={<Navigate to={home} replace />} />
-      <Route path="/signup"          element={<Navigate to={home} replace />} />
-      <Route path="/signup/verified" element={<VerifiedPage />} />
-      <Route path="*"                element={<Navigate to={home} replace />} />
+      <Route path="/login"              element={<Navigate to={home} replace />} />
+      <Route path="/signup"             element={<Navigate to={home} replace />} />
+      <Route path="/signup/verified"    element={<VerifiedPage />} />
+      <Route path="/signup/biometric"   element={<BiometricOnboardingPage />} />
+      <Route path="*"                   element={<Navigate to={home} replace />} />
     </Routes>
   );
 }
@@ -105,10 +107,11 @@ function GuestRoutes() {
   return (
     <Routes>
       <Route path="/"              element={<LoginScreen />} />
-      <Route path="/login"         element={<LoginScreen />} />
-      <Route path="/signup"        element={<SignupPage />} />
-      <Route path="/signup/verified" element={<VerifiedPage />} />
-      <Route path="*"              element={<Navigate to="/login" replace />} />
+      <Route path="/login"              element={<LoginScreen />} />
+      <Route path="/signup"             element={<SignupPage />} />
+      <Route path="/signup/verified"    element={<VerifiedPage />} />
+      <Route path="/signup/biometric"   element={<BiometricOnboardingPage />} />
+      <Route path="*"                   element={<Navigate to="/login" replace />} />
     </Routes>
   );
 }

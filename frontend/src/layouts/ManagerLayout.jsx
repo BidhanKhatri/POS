@@ -23,6 +23,7 @@ import ChevronLeftIcon                   from '@mui/icons-material/ChevronLeft';
 import useAuthStore from '../store/useAuthStore';
 import { useLoading } from '../context/LoadingContext';
 import SessionMonitor from '../components/SessionLock/SessionMonitor';
+import BiometricPromptModal from '../components/BiometricSetup/BiometricPromptModal';
 import { API_URL as API } from '../config/api';
 
 // ─── Navigation structure ─────────────────────────────────────────────────────
@@ -192,6 +193,7 @@ export default function ManagerLayout() {
     return (
       <>
       <SessionMonitor />
+      <BiometricPromptModal />
       <style>{`
         .mgr-nav-btn:hover:not(.mgr-nav-btn--active) { background: #F7F2EE !important; }
         .mgr-nav-btn:hover:not(.mgr-nav-btn--active) span { color: #3E2723 !important; }
@@ -421,6 +423,7 @@ export default function ManagerLayout() {
   return (
     <>
     <SessionMonitor />
+    <BiometricPromptModal />
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh', background: '#F5F3F1', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
 
       {/* Top header */}

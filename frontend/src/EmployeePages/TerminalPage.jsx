@@ -153,12 +153,18 @@ export default function TerminalPage() {
   const gateActive = user?.role === 'Employee' &&
     (gateLoading || schedLoading || noScheduleToday || shiftEnded || isStaleShift || !gateShift);
   useEffect(() => {
+    const main = document.querySelector('main');
     if (gateActive) {
       document.body.style.overflow = 'hidden';
+      if (main) main.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';
+      if (main) main.style.overflow = '';
     }
-    return () => { document.body.style.overflow = ''; };
+    return () => {
+      document.body.style.overflow = '';
+      if (main) main.style.overflow = '';
+    };
   }, [gateActive]);
 
   /* ── Web Audio beep ── */

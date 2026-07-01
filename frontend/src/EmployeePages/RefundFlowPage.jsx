@@ -32,7 +32,7 @@ const fieldLabel = {
 };
 const fieldInput = {
   width: '100%', padding: '10px 12px', borderRadius: 8,
-  border: `1px solid ${C.border}`, fontSize: 14, color: C.textPri,
+  border: `1px solid ${C.border}`, fontSize: 16, color: C.textPri,
   background: '#fff', outline: 'none', boxSizing: 'border-box',
   fontFamily: "'Plus Jakarta Sans', sans-serif",
 };

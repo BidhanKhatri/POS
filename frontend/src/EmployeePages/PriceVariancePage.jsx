@@ -31,7 +31,7 @@ const fieldLabel = {
 };
 const fieldInput = {
   width: '100%', padding: '9px 10px', borderRadius: 7,
-  border: '1px solid #DDD2CC', fontSize: 13, color: '#2B1D1A',
+  border: '1px solid #DDD2CC', fontSize: 16, color: '#2B1D1A',
   background: '#fff', outline: 'none', boxSizing: 'border-box',
   fontFamily: FONT,
 };

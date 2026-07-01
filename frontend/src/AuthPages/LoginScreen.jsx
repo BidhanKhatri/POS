@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { TextField, InputAdornment } from '@mui/material';
-import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import EmailOutlinedIcon from '@mui/icons-material/EmailOutlined';
 import BackspaceOutlinedIcon from '@mui/icons-material/BackspaceOutlined';
-import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import LoginIcon from '@mui/icons-material/Login';
 import PersonAddAltIcon from '@mui/icons-material/PersonAddAlt';
 import FingerprintIcon from '@mui/icons-material/Fingerprint';
 import HourglassEmptyOutlinedIcon from '@mui/icons-material/HourglassEmptyOutlined';
@@ -14,6 +13,7 @@ import { useWebAuthn } from '../hooks/useWebAuthn';
 import { useLoading } from '../context/LoadingContext';
 import toast, { Toaster } from 'react-hot-toast';
 import { API_URL as API } from '../config/api';
+import ForgotPinFlow from './ForgotPinFlow';
 
 const MAX_ATTEMPTS = 3;
 const LOCKOUT_SECONDS = 60;
@@ -128,6 +128,9 @@ const LoginScreen = () => {
   const [lockoutSeconds, setLockoutSeconds] = useState(0);
   const lockoutRef = useRef(null);
 
+  // Forgot PIN overlay
+  const [showForgotPin, setShowForgotPin] = useState(false);
+
   const isLocked = lockoutSeconds > 0;
 
   // Countdown timer
@@ -193,7 +196,24 @@ const LoginScreen = () => {
         return;
       }
 
-      if (!res.ok) throw new Error(data.message || 'Login failed');
+      if (!res.ok) {
+        const msg = 'Invalid email or PIN';
+        setErrorMsg(msg);
+        toast.error(msg, { duration: 2500, style: { fontSize: 11, padding: '8px 12px', maxWidth: 280 } });
+        setPin('');
+        triggerShake();
+
+        // Sync attempt count and lockout from server so state survives page refresh.
+        // Only applied when the email exists (emailFound !== false).
+        if (data.emailFound !== false && data.attempts !== undefined) {
+          setAttempts(data.attempts);
+          if (data.lockedUntil) {
+            const secsLeft = Math.max(1, Math.ceil((new Date(data.lockedUntil) - Date.now()) / 1000));
+            setLockoutSeconds(secsLeft);
+          }
+        }
+        return;
+      }
 
       // Success — persist email and user in store, redirect by role
       setErrorMsg('');
@@ -203,21 +223,12 @@ const LoginScreen = () => {
       startLoading();
       navigate('/employee/terminal', { replace: true });
     } catch (err) {
-      const msg = err.message || 'Login failed';
+      // Network / parse errors — show generic message, no attempt penalty
+      const msg = 'Invalid email or PIN';
       setErrorMsg(msg);
-      toast.error(msg, {
-        duration: 2500,
-        style: { fontSize: 11, padding: '8px 12px', maxWidth: 280 },
-      });
-
-      const newAttempts = attempts + 1;
-      setAttempts(newAttempts);
+      toast.error(msg, { duration: 2500, style: { fontSize: 11, padding: '8px 12px', maxWidth: 280 } });
       setPin('');
       triggerShake();
-
-      if (newAttempts >= MAX_ATTEMPTS) {
-        setLockoutSeconds(LOCKOUT_SECONDS);
-      }
     } finally {
       setLoading(false);
     }
@@ -240,8 +251,8 @@ const LoginScreen = () => {
 
   /* ── PIN dot row — red on error, normal otherwise ── */
   const PinDots = () => (
-    <div className={shake ? 'pin-shake' : ''}>
-      <div className="flex gap-5">
+    <div className={`flex flex-col items-center ${shake ? 'pin-shake' : ''}`}>
+      <div className="flex gap-5 justify-center">
         {Array.from({ length: 4 }, (_, i) => (
           <div
             key={i}
@@ -259,14 +270,14 @@ const LoginScreen = () => {
       </div>
 
       {/* Attempt / lockout feedback */}
-      <div style={{ marginTop: (isLocked || (attempts > 0 && attempts < MAX_ATTEMPTS)) ? 6 : 0, textAlign: 'center' }}>
+      <div style={{ marginTop: (isLocked || (attempts > 0 && attempts < MAX_ATTEMPTS)) ? 6 : 0, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
         {isLocked ? (
           <span style={{ fontSize: 11, fontWeight: 600, color: '#B71C1C', letterSpacing: '0.02em' }}>
             Too many attempts — try again in {lockoutSeconds}s
           </span>
         ) : attempts > 0 && attempts < MAX_ATTEMPTS ? (
           <span style={{ fontSize: 11, fontWeight: 500, color: '#B71C1C', letterSpacing: '0.02em' }}>
-            Incorrect PIN — {MAX_ATTEMPTS - attempts} attempt{MAX_ATTEMPTS - attempts !== 1 ? 's' : ''} left
+            Invalid email or PIN
           </span>
         ) : null}
       </div>
@@ -345,8 +356,8 @@ const LoginScreen = () => {
             cursor: (isLocked || loading || pin.length < 4 || !email.trim()) ? 'not-allowed' : 'pointer',
           }}
         >
-          <AccessTimeIcon sx={{ fontSize: 17 }} />
-          {loading ? 'CHECKING…' : isLocked ? `LOCKED ${lockoutSeconds}s` : 'CLOCK IN'}
+          <LoginIcon sx={{ fontSize: 17 }} />
+          {loading ? 'CHECKING…' : isLocked ? `LOCKED ${lockoutSeconds}s` : 'LOGIN'}
         </button>
 
         <button
@@ -398,6 +409,27 @@ const LoginScreen = () => {
           )}
         </div>
       )}
+
+      {/* Forgot PIN — always visible, subtle */}
+      <div style={{ textAlign: 'center', paddingTop: 2 }}>
+        <button
+          onClick={() => setShowForgotPin(true)}
+          style={{
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            fontSize: 12,
+            fontWeight: 500,
+            color: '#A09490',
+            padding: 0,
+            transition: 'color 0.15s',
+          }}
+          onMouseEnter={e => (e.currentTarget.style.color = '#3E2723')}
+          onMouseLeave={e => (e.currentTarget.style.color = '#A09490')}
+        >
+          Forgot your PIN?
+        </button>
+      </div>
     </div>
   );
 
@@ -411,22 +443,32 @@ const LoginScreen = () => {
     );
   }
 
+  if (showForgotPin) {
+    return (
+      <div className="min-h-screen bg-background font-sans text-on-surface flex flex-col items-center justify-center px-4 py-6">
+        <Toaster position="top-center" toastOptions={{ style: { marginTop: 36 } }} />
+        <ForgotPinFlow
+          initialEmail={email}
+          onBack={() => setShowForgotPin(false)}
+          onSuccess={(resetEmail) => {
+            setEmail(resetEmail);
+            setShowForgotPin(false);
+            setAttempts(0);
+            setLockoutSeconds(0);
+            clearInterval(lockoutRef.current);
+            setPin('');
+            setErrorMsg('');
+            toast.success('PIN updated — please log in', { style: { fontSize: 12 } });
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background font-sans text-on-surface">
       <Toaster position="top-center" toastOptions={{ style: { marginTop: 36 } }} />
 
-      {/* Status pill — fixed at top centre */}
-      <div className="flex justify-center" style={{ position: 'fixed', top: 14, left: 0, right: 0, zIndex: 10, pointerEvents: 'none' }}>
-        <div className="flex items-center gap-1.5 bg-surface border border-divider-tone rounded-full" style={{ padding: '5px 14px' }}>
-          <LockOutlinedIcon sx={{ fontSize: 11 }} className="text-on-surface-variant" />
-          <span
-            className="text-on-surface-variant uppercase"
-            style={{ fontSize: 10, fontWeight: 600, lineHeight: '14px', letterSpacing: '0.1em' }}
-          >
-            Terminal Secure — Please Enter PIN
-          </span>
-        </div>
-      </div>
 
       <div className="flex min-h-screen flex-col items-center justify-center px-4 py-6">
         <div className="w-full max-w-[500px] flex flex-col gap-5">
@@ -462,7 +504,7 @@ const LoginScreen = () => {
                 '& .MuiOutlinedInput-root': {
                   backgroundColor: '#FFFFFF',
                   borderRadius: '8px',
-                  fontSize: 14,
+                  fontSize: 16,
                   fontWeight: 500,
                   boxShadow: 'inset 0 2px 4px rgba(62,39,35,0.06)',
                   '& fieldset': { borderColor: '#DDD2CC', borderWidth: '1.5px' },
@@ -470,7 +512,7 @@ const LoginScreen = () => {
                   '&.Mui-focused fieldset': { borderColor: '#3E2723', borderWidth: '2px' },
                 },
                 '& .MuiInputLabel-root': {
-                  fontSize: 14,
+                  fontSize: 16,
                   fontWeight: 500,
                   color: '#6B5B57',
                   '&.Mui-focused': { color: '#3E2723' },
@@ -485,23 +527,6 @@ const LoginScreen = () => {
             <PinDots />
             <NumGrid keyH={72} />
 
-            {/* Persistent error — cleared on next successful attempt */}
-            {errorMsg && (
-              <div style={{
-                width: '100%',
-                background: 'rgba(183,28,28,0.06)',
-                border: '1px solid rgba(183,28,28,0.22)',
-                borderRadius: 8,
-                padding: '9px 13px',
-                display: 'flex', alignItems: 'flex-start', gap: 8,
-              }}>
-                <span style={{
-                  fontSize: 11, fontWeight: 600, color: '#B71C1C', lineHeight: '16px',
-                }}>
-                  {errorMsg}
-                </span>
-              </div>
-            )}
 
             <ActionButtons />
           </div>

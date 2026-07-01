@@ -92,6 +92,15 @@ const userSchema = new mongoose.Schema(
             default: '',
             trim: true,
         },
+        loginAttempts: {
+            type: Number,
+            default: 0,
+        },
+        loginLockedUntil: {
+            type: Date,
+            default: null,
+            index: true,
+        },
     },
     {
         timestamps: true,

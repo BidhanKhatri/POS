@@ -46,7 +46,9 @@ const loginUser = async (email, pin) => {
       err.statusCode = 403;
       throw err;
     }
-    throw new Error('Invalid email or PIN');
+    const err = new Error('Invalid email or PIN');
+    err.emailFound = false;
+    throw err;
   }
 
   // Status check — gives specific, actionable messages per state
@@ -74,10 +76,40 @@ const loginUser = async (email, pin) => {
     throw new Error('Employee account is inactive');
   }
 
+  // Server-side lockout check — persists across page refreshes
+  const now = new Date();
+  if (user.loginLockedUntil && user.loginLockedUntil > now) {
+    const err = new Error('Too many failed attempts.');
+    err.emailFound = true;
+    err.attempts = user.loginAttempts;
+    err.lockedUntil = user.loginLockedUntil;
+    throw err;
+  }
+
   const isMatch = await user.matchPin(pin);
 
   if (!isMatch) {
-    throw new Error('Invalid email or PIN');
+    const MAX_LOGIN_ATTEMPTS = 3;
+    const LOCKOUT_MS = 60 * 1000;
+    const newAttempts = (user.loginAttempts || 0) + 1;
+    const lockedUntil = newAttempts >= MAX_LOGIN_ATTEMPTS ? new Date(Date.now() + LOCKOUT_MS) : null;
+
+    await User.findByIdAndUpdate(user._id, {
+      $set: { loginAttempts: newAttempts, loginLockedUntil: lockedUntil },
+    });
+
+    const err = new Error('Invalid email or PIN');
+    err.emailFound = true;
+    err.attempts = newAttempts;
+    if (lockedUntil) err.lockedUntil = lockedUntil;
+    throw err;
+  }
+
+  // Successful login — clear any stored attempt counter
+  if (user.loginAttempts > 0 || user.loginLockedUntil) {
+    await User.findByIdAndUpdate(user._id, {
+      $set: { loginAttempts: 0, loginLockedUntil: null },
+    });
   }
 
   return serializeUser(user, true);

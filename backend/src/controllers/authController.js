@@ -35,6 +35,14 @@ const login = async (req, res, next) => {
     if (error.accountStatus) {
       return res.status(403).json({ message: error.message, accountStatus: error.accountStatus });
     }
+    if (error.emailFound !== undefined) {
+      return res.status(401).json({
+        message: error.message,
+        emailFound: error.emailFound,
+        attempts: error.attempts ?? undefined,
+        lockedUntil: error.lockedUntil ?? undefined,
+      });
+    }
     next(error);
   }
 };

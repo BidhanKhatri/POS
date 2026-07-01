@@ -158,7 +158,7 @@ function Field({ label, name, value, onChange, placeholder, type = 'text', autoC
                     onFocus={() => setFocused(true)}
                     onBlur={() => setFocused(false)}
                     className="flex-1 bg-transparent outline-none px-3 py-3"
-                    style={{ fontSize: 14, lineHeight: '20px', color: C.textPri }}
+                    style={{ fontSize: 16, lineHeight: '20px', color: C.textPri }}
                 />
             </div>
         </label>
