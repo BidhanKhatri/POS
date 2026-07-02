@@ -19,6 +19,7 @@ import useAuthStore                         from '../store/useAuthStore';
 import { useSocketEvent }                   from '../context/SocketContext';
 import { EVENTS }                           from '../socket/events';
 
+import { useMediaQuery } from '@mui/material';
 import { API_URL as API } from '../config/api';
 const FONT = "'Plus Jakarta Sans', sans-serif";
 
@@ -98,31 +99,36 @@ function Badge({ status }) {
   );
 }
 
-function KpiCard({ label, value, sub, icon: Icon, color, iconBg, skeleton }) {
+function KpiCard({ label, value, sub, icon: Icon, color, iconBg, skeleton, compact }) {
+  const pad      = compact ? '11px 12px' : '16px 18px';
+  const iconSize = compact ? 34 : 40;
+  const iconFn   = compact ? 17 : 20;
+  const valSize  = compact ? 15 : 20;
+  const cornerW  = compact ? 18 : 24;
   return (
-    <div style={{ position: 'relative', background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '16px 18px', display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-      <div style={{ position: 'absolute', top: 0, left: 0, width: 24, height: 24, borderTop: `1.5px solid ${color}`, borderLeft: `1.5px solid ${color}`, borderTopLeftRadius: 10, pointerEvents: 'none' }} />
-      <div style={{ position: 'absolute', bottom: 0, right: 0, width: 24, height: 24, borderBottom: `1.5px solid ${color}`, borderRight: `1.5px solid ${color}`, borderBottomRightRadius: 10, pointerEvents: 'none' }} />
-      <div style={{ width: 40, height: 40, borderRadius: 10, background: iconBg, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Icon sx={{ fontSize: 20, color }} />
+    <div style={{ position: 'relative', background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: pad, display: 'flex', alignItems: 'center', gap: compact ? 10 : 14, fontFamily: FONT }}>
+      <div style={{ position: 'absolute', top: 0, left: 0, width: cornerW, height: cornerW, borderTop: `1.5px solid ${color}`, borderLeft: `1.5px solid ${color}`, borderTopLeftRadius: 10, pointerEvents: 'none' }} />
+      <div style={{ position: 'absolute', bottom: 0, right: 0, width: cornerW, height: cornerW, borderBottom: `1.5px solid ${color}`, borderRight: `1.5px solid ${color}`, borderBottomRightRadius: 10, pointerEvents: 'none' }} />
+      <div style={{ width: iconSize, height: iconSize, borderRadius: 9, background: iconBg, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 0 1px ${color}22` }}>
+        <Icon sx={{ fontSize: iconFn, color }} />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         {skeleton
-          ? <div style={{ height: 22, width: 80, borderRadius: 4, background: C.elevated, marginBottom: 4 }} />
-          : <p style={{ margin: 0, fontSize: 20, fontWeight: 800, color: C.textPri, letterSpacing: '-0.5px', lineHeight: '26px' }}>{value}</p>
+          ? <div style={{ height: compact ? 16 : 22, width: compact ? 60 : 80, borderRadius: 4, background: C.elevated, marginBottom: 4 }} />
+          : <p style={{ margin: 0, fontSize: valSize, fontWeight: 800, color: C.textPri, letterSpacing: '-0.4px', lineHeight: 1.1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</p>
         }
-        {sub && <p style={{ margin: '1px 0 0', fontSize: 10, color: C.textDim, fontWeight: 600 }}>{sub}</p>}
-        <p style={{ margin: '4px 0 0', fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</p>
+        {!compact && sub && <p style={{ margin: '1px 0 0', fontSize: 10, color: C.textDim, fontWeight: 600 }}>{sub}</p>}
+        <p style={{ margin: compact ? '3px 0 0' : '4px 0 0', fontSize: compact ? 9 : 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em', lineHeight: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</p>
       </div>
     </div>
   );
 }
 
-function Sel({ value, onChange, options }) {
+function Sel({ value, onChange, options, full }) {
   return (
-    <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+    <div style={{ position: 'relative', display: full ? 'flex' : 'inline-flex', alignItems: 'center', width: full ? '100%' : undefined }}>
       <select value={value} onChange={e => onChange(e.target.value)}
-        style={{ appearance: 'none', WebkitAppearance: 'none', padding: '7px 30px 7px 11px', borderRadius: 8, border: `1px solid ${value ? C.primary : C.border}`, background: value ? `${C.primary}08` : C.surface, color: value ? C.primary : C.textSec, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: FONT, outline: 'none' }}>
+        style={{ appearance: 'none', WebkitAppearance: 'none', padding: '7px 30px 7px 11px', borderRadius: 8, border: `1px solid ${value ? C.primary : C.border}`, background: value ? `${C.primary}08` : C.surface, color: value ? C.primary : C.textSec, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: FONT, outline: 'none', width: full ? '100%' : undefined }}>
         {options.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
       </select>
       <KeyboardArrowDownIcon sx={{ fontSize: 15, color: value ? C.primary : C.textDim, position: 'absolute', right: 7, pointerEvents: 'none' }} />
@@ -161,6 +167,7 @@ export default function ManagerTransactionPage() {
 
   const [hovered, setHovered] = useState(null);
   const debounce = useRef(null);
+  const isMobile = !useMediaQuery('(min-width:1024px)');
 
   // ── Build query string ────────────────────────────────────────────────────
   const buildQS = useCallback((extra = {}) => {
@@ -245,42 +252,64 @@ export default function ManagerTransactionPage() {
 
   const COLS = '150px 155px 190px 70px 85px 100px 110px 110px 110px';
 
+  const kpiItems = [
+    { label: 'Total Transactions', value: kpis ? kpis.totalCount.toLocaleString() : '—', sub: 'Matching filters', icon: ReceiptOutlinedIcon,       color: C.info,    iconBg: 'rgba(2,119,189,0.09)'  },
+    { label: 'Gross Revenue',      value: kpis ? fmt$(kpis.grossRevenue) : '—',           sub: kpis ? `Discounts: ${fmt$(kpis.discountTotal)}` : '', icon: AttachMoneyOutlinedIcon,  color: C.success, iconBg: 'rgba(46,125,79,0.09)'  },
+    { label: 'Net Revenue',        value: kpis ? fmt$(kpis.netRevenue) : '—',             sub: 'After refunds', icon: MoneyOffOutlinedIcon,          color: C.info,    iconBg: 'rgba(2,119,189,0.08)'  },
+    { label: 'Refunded / Voided',  value: kpis ? `${fmt$(kpis.refundedAmount)} / ${kpis.voidCount}` : '—', sub: '$ refunded · void count', icon: RemoveCircleOutlinedIcon, color: C.error, iconBg: 'rgba(183,28,28,0.09)' },
+  ];
+
   return (
-    <div style={{ padding: '28px 32px 48px', background: C.bg, minHeight: '100dvh', fontFamily: FONT }}>
+    <div style={{ padding: isMobile ? '14px 14px 48px' : '28px 32px 48px', background: C.bg, minHeight: '100dvh', fontFamily: FONT, width: '100%', boxSizing: 'border-box', overflowX: 'hidden' }}>
+      <style>{'.tx-kpi-scroll::-webkit-scrollbar { display: none; }'}</style>
 
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ width: 38, height: 38, borderRadius: 10, background: C.primary, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <ReceiptLongOutlinedIcon sx={{ fontSize: 19, color: C.accent }} />
+      <div style={{ display: 'flex', alignItems: isMobile ? 'center' : 'flex-start', justifyContent: 'space-between', marginBottom: isMobile ? 16 : 24, gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: isMobile ? 34 : 38, height: isMobile ? 34 : 38, borderRadius: isMobile ? 9 : 10, background: C.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <ReceiptLongOutlinedIcon sx={{ fontSize: isMobile ? 17 : 19, color: C.accent }} />
           </div>
           <div>
-            <p style={{ margin: 0, fontSize: 10, fontWeight: 600, color: C.textDim, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Manager Portal</p>
-            <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: C.textPri, letterSpacing: '-0.4px' }}>
+            {!isMobile && <p style={{ margin: 0, fontSize: 10, fontWeight: 600, color: C.textDim, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Manager Portal</p>}
+            <h1 style={{ margin: 0, fontSize: isMobile ? 18 : 22, fontWeight: 800, color: C.textPri, letterSpacing: '-0.4px' }}>
               Transactions
-              {!loading && total > 0 && <span style={{ fontSize: 13, fontWeight: 600, color: C.textDim, marginLeft: 10 }}>{total.toLocaleString()} records</span>}
+              {!loading && total > 0 && !isMobile && <span style={{ fontSize: 13, fontWeight: 600, color: C.textDim, marginLeft: 10 }}>{total.toLocaleString()} records</span>}
             </h1>
+            {isMobile && !loading && total > 0 && <p style={{ margin: 0, fontSize: 11, color: C.textDim, fontWeight: 500 }}>{total.toLocaleString()} records</p>}
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
           <button onClick={() => { loadRows(page); loadKpis(); }}
-            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 13px', borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, fontSize: 12, fontWeight: 600, color: C.textSec, cursor: 'pointer' }}>
-            <RefreshOutlinedIcon sx={{ fontSize: 15 }} /> Refresh
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: isMobile ? 0 : 5, padding: isMobile ? '7px' : '7px 13px', borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, fontSize: 12, fontWeight: 600, color: C.textSec, cursor: 'pointer', width: isMobile ? 34 : undefined, height: isMobile ? 34 : undefined }}>
+            <RefreshOutlinedIcon sx={{ fontSize: 15 }} />
+            {!isMobile && ' Refresh'}
           </button>
           <button onClick={() => window.open(`${API}/api/reports/export?${buildQS({ format: 'csv' })}`, '_blank')}
-            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 14px', borderRadius: 8, border: 'none', background: C.primary, fontSize: 12, fontWeight: 700, color: '#fff', cursor: 'pointer' }}>
-            <DownloadOutlinedIcon sx={{ fontSize: 15 }} /> Export CSV
+            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: isMobile ? '7px 11px' : '7px 14px', borderRadius: 8, border: 'none', background: C.primary, fontSize: 12, fontWeight: 700, color: '#fff', cursor: 'pointer' }}>
+            <DownloadOutlinedIcon sx={{ fontSize: 15 }} />{isMobile ? 'CSV' : 'Export CSV'}
           </button>
         </div>
       </div>
 
       {/* KPI cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 22 }}>
-        <KpiCard label="Total Transactions" value={kpis ? kpis.totalCount.toLocaleString() : '—'} sub="Matching filters" icon={ReceiptOutlinedIcon} color={C.info} iconBg="rgba(2,119,189,0.09)" skeleton={kpiLoad} />
-        <KpiCard label="Gross Revenue" value={kpis ? fmt$(kpis.grossRevenue) : '—'} sub={kpis ? `Discounts: ${fmt$(kpis.discountTotal)}` : ''} icon={AttachMoneyOutlinedIcon} color={C.success} iconBg="rgba(46,125,79,0.09)" skeleton={kpiLoad} />
-        <KpiCard label="Net Revenue" value={kpis ? fmt$(kpis.netRevenue) : '—'} sub="After refunds" icon={MoneyOffOutlinedIcon} color={C.info} iconBg="rgba(2,119,189,0.08)" skeleton={kpiLoad} />
-        <KpiCard label="Refunded / Voided" value={kpis ? `${fmt$(kpis.refundedAmount)} / ${kpis.voidCount}` : '—'} sub="$ refunded · void count" icon={RemoveCircleOutlinedIcon} color={C.error} iconBg="rgba(183,28,28,0.09)" skeleton={kpiLoad} />
-      </div>
+      {isMobile ? (
+        <div className="tx-kpi-scroll" style={{ overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch', scrollSnapType: 'x mandatory', marginBottom: 14 }}>
+          <div style={{ display: 'flex', gap: 8, width: 'max-content' }}>
+            {[[0,1],[2,3]].map((pair, ci) => (
+              <div key={ci} style={{ display: 'flex', flexDirection: 'column', gap: 8, width: 'calc((100vw - 36px) / 2)', flexShrink: 0, scrollSnapAlign: 'start' }}>
+                {pair.map(idx => {
+                  const k = kpiItems[idx];
+                  return <KpiCard key={k.label} label={k.label} value={k.value} sub={k.sub} icon={k.icon} color={k.color} iconBg={k.iconBg} skeleton={kpiLoad} compact />;
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 22 }}>
+          {kpiItems.map(k => <KpiCard key={k.label} label={k.label} value={k.value} sub={k.sub} icon={k.icon} color={k.color} iconBg={k.iconBg} skeleton={kpiLoad} />)}
+        </div>
+      )}
 
       {/* Filter bar */}
       <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, marginBottom: 16, overflow: 'hidden' }}>
@@ -300,10 +329,10 @@ export default function ManagerTransactionPage() {
         </div>
 
         {openFilter && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, padding: '14px 16px', background: '#FDFCFB', alignItems: 'flex-end' }}>
+          <div style={{ padding: '14px 16px', background: '#FDFCFB', display: 'flex', flexDirection: isMobile ? 'column' : 'row', flexWrap: isMobile ? 'nowrap' : 'wrap', gap: isMobile ? 12 : 16, alignItems: isMobile ? 'stretch' : 'flex-end' }}>
             <div>
               <p style={{ margin: '0 0 6px', fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Date Range</p>
-              <div style={{ display: 'flex', gap: 3, background: C.elevated, borderRadius: 9, padding: 3 }}>
+              <div style={{ display: 'flex', gap: 3, background: C.elevated, borderRadius: 9, padding: 3, overflowX: isMobile ? 'auto' : 'visible' }}>
                 {DATE_PRESETS.map(({ id, label }) => (
                   <button key={id} onClick={() => setPreset(id)}
                     style={{ padding: '5px 11px', height: 30, borderRadius: 6, border: 'none', background: preset === id ? C.surface : 'transparent', cursor: 'pointer', boxShadow: preset === id ? '0 1px 3px rgba(62,39,35,0.12)' : 'none', fontSize: 11, fontWeight: preset === id ? 700 : 500, color: preset === id ? C.primary : C.textDim, whiteSpace: 'nowrap' }}>
@@ -313,52 +342,80 @@ export default function ManagerTransactionPage() {
               </div>
             </div>
             {preset === 'custom' && (
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                 <div>
                   <p style={{ margin: '0 0 6px', fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>From</p>
-                  <input type="date" value={cStart} onChange={e => setCStart(e.target.value)} style={{ padding: '7px 10px', borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 12, color: C.textPri, fontFamily: FONT, outline: 'none', background: C.surface }} />
+                  <input type="date" value={cStart} onChange={e => setCStart(e.target.value)} style={{ padding: '7px 10px', borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 12, color: C.textPri, fontFamily: FONT, outline: 'none', background: C.surface, width: '100%', boxSizing: 'border-box' }} />
                 </div>
                 <div>
                   <p style={{ margin: '0 0 6px', fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>To</p>
-                  <input type="date" value={cEnd} onChange={e => setCEnd(e.target.value)} style={{ padding: '7px 10px', borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 12, color: C.textPri, fontFamily: FONT, outline: 'none', background: C.surface }} />
+                  <input type="date" value={cEnd} onChange={e => setCEnd(e.target.value)} style={{ padding: '7px 10px', borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 12, color: C.textPri, fontFamily: FONT, outline: 'none', background: C.surface, width: '100%', boxSizing: 'border-box' }} />
                 </div>
               </div>
             )}
-            <div>
-              <p style={{ margin: '0 0 6px', fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Employee</p>
-              <Sel value={empId} onChange={setEmpId} options={empOpts} />
-            </div>
-            <div>
-              <p style={{ margin: '0 0 6px', fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Status</p>
-              <Sel value={status} onChange={setStatus} options={STATUS_OPTS} />
-            </div>
-            <div>
-              <p style={{ margin: '0 0 6px', fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Method</p>
-              <Sel value={method} onChange={setMethod} options={METHOD_OPTS} />
-            </div>
+            {isMobile ? (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <div>
+                  <p style={{ margin: '0 0 6px', fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Status</p>
+                  <Sel value={status} onChange={setStatus} options={STATUS_OPTS} full />
+                </div>
+                <div>
+                  <p style={{ margin: '0 0 6px', fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Method</p>
+                  <Sel value={method} onChange={setMethod} options={METHOD_OPTS} full />
+                </div>
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <p style={{ margin: '0 0 6px', fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Employee</p>
+                  <Sel value={empId} onChange={setEmpId} options={empOpts} full />
+                </div>
+              </div>
+            ) : (
+              <>
+                <div>
+                  <p style={{ margin: '0 0 6px', fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Employee</p>
+                  <Sel value={empId} onChange={setEmpId} options={empOpts} />
+                </div>
+                <div>
+                  <p style={{ margin: '0 0 6px', fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Status</p>
+                  <Sel value={status} onChange={setStatus} options={STATUS_OPTS} />
+                </div>
+                <div>
+                  <p style={{ margin: '0 0 6px', fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Method</p>
+                  <Sel value={method} onChange={setMethod} options={METHOD_OPTS} />
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>
 
-      {/* Table */}
+      {/* Table / Card list */}
       <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden' }}>
-        {/* Header */}
-        <div style={{ display: 'grid', gridTemplateColumns: COLS, background: C.tableHdr, borderBottom: `1px solid ${C.border}` }}>
-          {[['Invoice','left'],['Date & Time','left'],['Employee','left'],['Items','center'],['Method','left'],['Status','left'],['Gross','right'],['Refunded','right'],['Net','right']].map(([h, a]) => (
-            <div key={h} style={{ padding: '10px 14px', fontSize: 10, fontWeight: 700, color: C.primary, textTransform: 'uppercase', letterSpacing: '0.08em', textAlign: a }}>{h}</div>
-          ))}
-        </div>
 
-        {/* Skeleton: only on initial empty load — not on refetch */}
-        {loading && rows.length === 0 && Array.from({ length: 7 }).map((_, i) => (
-          <div key={i} style={{ display: 'grid', gridTemplateColumns: COLS, borderBottom: `1px solid ${C.border}`, background: i % 2 ? '#FDFCFB' : C.surface }}>
-            {[110,120,150,30,50,60,70,70,70].map((w, j) => (
-              <div key={j} style={{ padding: 14 }}>
-                <div style={{ height: 11, width: w, borderRadius: 4, background: C.elevated }} />
+        {/* Skeleton */}
+        {loading && rows.length === 0 && (
+          isMobile ? (
+            Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} style={{ padding: '12px 14px', borderBottom: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <div style={{ height: 12, width: 110, borderRadius: 4, background: C.elevated }} />
+                  <div style={{ height: 18, width: 50, borderRadius: 10, background: C.elevated }} />
+                </div>
+                <div style={{ height: 11, width: 180, borderRadius: 4, background: C.elevated }} />
+                <div style={{ height: 10, width: 120, borderRadius: 4, background: C.elevated }} />
               </div>
-            ))}
-          </div>
-        ))}
+            ))
+          ) : (
+            Array.from({ length: 7 }).map((_, i) => (
+              <div key={i} style={{ display: 'grid', gridTemplateColumns: COLS, borderBottom: `1px solid ${C.border}`, background: i % 2 ? '#FDFCFB' : C.surface }}>
+                {[110,120,150,30,50,60,70,70,70].map((w, j) => (
+                  <div key={j} style={{ padding: 14 }}>
+                    <div style={{ height: 11, width: w, borderRadius: 4, background: C.elevated }} />
+                  </div>
+                ))}
+              </div>
+            ))
+          )
+        )}
 
         {/* Error */}
         {!loading && error && (
@@ -380,72 +437,112 @@ export default function ManagerTransactionPage() {
           </div>
         )}
 
-        {/* Data rows + pagination — stays mounted; dims during refetch instead of swapping to skeleton */}
+        {/* Data rows + pagination */}
         {!error && rows.length > 0 && (
           <div style={{ opacity: loading ? 0.45 : 1, transition: 'opacity 0.2s', pointerEvents: loading ? 'none' : 'auto' }}>
-            {rows.map((tx, i) => {
-              const net       = (tx.grandTotal || 0) - (tx.refundedAmount || 0);
-              const emp       = tx.employee || tx.employeeId;
-              const mth       = tx.primaryPayment?.method || '';
-              const isVoided  = tx.paymentStatus === 'VOIDED';
-              const isHov     = hovered === tx._id;
-              const dt        = new Date(tx.createdAt);
 
-              return (
-                <div key={tx._id}
-                  onClick={() => navigate(`/manager/transactions/${tx._id}`)}
-                  onMouseEnter={() => setHovered(tx._id)}
-                  onMouseLeave={() => setHovered(null)}
-                  style={{ display: 'grid', gridTemplateColumns: COLS, borderBottom: `1px solid ${C.border}`, background: isHov ? C.tableHover : i % 2 ? '#FDFCFB' : C.surface, cursor: 'pointer', borderLeft: `2px solid ${isHov ? C.primary : 'transparent'}`, opacity: isVoided ? 0.65 : 1 }}>
-
-                  <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: C.primary, fontFamily: 'monospace' }}>{tx.invoiceNo}</span>
-                    {isHov && <OpenInNewOutlinedIcon sx={{ fontSize: 11, color: C.textDim }} />}
-                  </div>
-
-                  <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: C.textPri }}>{dt.toLocaleDateString([], { month: 'short', day: 'numeric', year: '2-digit' })}</span>
-                    <span style={{ fontSize: 10, color: C.textDim, marginTop: 1 }}>{dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                  </div>
-
-                  <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
-                    <PersonOutlineOutlinedIcon sx={{ fontSize: 13, color: C.textDim, flexShrink: 0 }} />
-                    <div style={{ minWidth: 0 }}>
-                      <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: C.textPri, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{emp?.name || '—'}</p>
-                      {emp?.employeeCode && <p style={{ margin: 0, fontSize: 10, color: C.textDim, fontFamily: 'monospace' }}>#{emp.employeeCode}</p>}
+            {isMobile ? (
+              /* Mobile card list */
+              rows.map((tx, i) => {
+                const net      = (tx.grandTotal || 0) - (tx.refundedAmount || 0);
+                const emp      = tx.employee || tx.employeeId;
+                const mth      = tx.primaryPayment?.method || '';
+                const isVoided = tx.paymentStatus === 'VOIDED';
+                const dt       = new Date(tx.createdAt);
+                return (
+                  <div key={tx._id} onClick={() => navigate(`/manager/transactions/${tx._id}`)}
+                    style={{ padding: '12px 14px', borderBottom: `1px solid ${C.border}`, background: i % 2 ? '#FDFCFB' : C.surface, cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 5, opacity: isVoided ? 0.65 : 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: C.primary, fontFamily: 'monospace' }}>{tx.invoiceNo}</span>
+                      <Badge status={tx.paymentStatus} />
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                      <div style={{ minWidth: 0 }}>
+                        <span style={{ fontSize: 11, color: C.textSec }}>
+                          {dt.toLocaleDateString([], { month: 'short', day: 'numeric', year: '2-digit' })} · {dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                        {emp?.name && (
+                          <span style={{ marginLeft: 6, fontSize: 11, color: C.textSec }}>
+                            <PersonOutlineOutlinedIcon sx={{ fontSize: 11, verticalAlign: 'middle', marginRight: '2px', color: C.textDim }} />{emp.name}
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                        <div style={{ fontSize: 14, fontWeight: 800, color: isVoided ? C.textDim : C.success, fontVariantNumeric: 'tabular-nums' }}>{isVoided ? '—' : fmt$(net)}</div>
+                        {!isVoided && tx.grandTotal !== net && <div style={{ fontSize: 10, color: C.textDim, fontVariantNumeric: 'tabular-nums' }}>{fmt$(tx.grandTotal)}</div>}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 10, color: C.textDim }}>{tx.items?.length ?? 0} item{tx.items?.length !== 1 ? 's' : ''}</span>
+                      {mth && <span style={{ fontSize: 10, fontWeight: 600, color: C.textSec, padding: '1px 6px', borderRadius: 4, background: C.elevated }}>{mth}</span>}
+                      {tx.refundedAmount > 0 && <span style={{ fontSize: 10, fontWeight: 600, color: C.error }}>Refunded {fmt$(tx.refundedAmount)}</span>}
                     </div>
                   </div>
-
-                  <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: C.textSec }}>{tx.items?.length ?? 0}</span>
-                  </div>
-
-                  <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center' }}>
-                    {mth ? <span style={{ fontSize: 11, fontWeight: 600, color: C.textSec, padding: '2px 8px', borderRadius: 5, background: C.elevated }}>{mth}</span> : <span style={{ color: C.textDim, fontSize: 12 }}>—</span>}
-                  </div>
-
-                  <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center' }}>
-                    <Badge status={tx.paymentStatus} />
-                  </div>
-
-                  <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: C.textPri, fontVariantNumeric: 'tabular-nums' }}>{fmt$(tx.grandTotal)}</span>
-                  </div>
-
-                  <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: tx.refundedAmount > 0 ? C.error : C.textDim, fontVariantNumeric: 'tabular-nums' }}>
-                      {tx.refundedAmount > 0 ? fmt$(tx.refundedAmount) : '—'}
-                    </span>
-                  </div>
-
-                  <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
-                    <span style={{ fontSize: 13, fontWeight: 800, color: isVoided ? C.textDim : C.success, fontVariantNumeric: 'tabular-nums' }}>
-                      {isVoided ? '—' : fmt$(net)}
-                    </span>
-                  </div>
+                );
+              })
+            ) : (
+              /* Desktop table */
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: COLS, background: C.tableHdr, borderBottom: `1px solid ${C.border}` }}>
+                  {[['Invoice','left'],['Date & Time','left'],['Employee','left'],['Items','center'],['Method','left'],['Status','left'],['Gross','right'],['Refunded','right'],['Net','right']].map(([h, a]) => (
+                    <div key={h} style={{ padding: '10px 14px', fontSize: 10, fontWeight: 700, color: C.primary, textTransform: 'uppercase', letterSpacing: '0.08em', textAlign: a }}>{h}</div>
+                  ))}
                 </div>
-              );
-            })}
+                {rows.map((tx, i) => {
+                  const net      = (tx.grandTotal || 0) - (tx.refundedAmount || 0);
+                  const emp      = tx.employee || tx.employeeId;
+                  const mth      = tx.primaryPayment?.method || '';
+                  const isVoided = tx.paymentStatus === 'VOIDED';
+                  const isHov    = hovered === tx._id;
+                  const dt       = new Date(tx.createdAt);
+                  return (
+                    <div key={tx._id}
+                      onClick={() => navigate(`/manager/transactions/${tx._id}`)}
+                      onMouseEnter={() => setHovered(tx._id)}
+                      onMouseLeave={() => setHovered(null)}
+                      style={{ display: 'grid', gridTemplateColumns: COLS, borderBottom: `1px solid ${C.border}`, background: isHov ? C.tableHover : i % 2 ? '#FDFCFB' : C.surface, cursor: 'pointer', borderLeft: `2px solid ${isHov ? C.primary : 'transparent'}`, opacity: isVoided ? 0.65 : 1 }}>
+                      <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: C.primary, fontFamily: 'monospace' }}>{tx.invoiceNo}</span>
+                        {isHov && <OpenInNewOutlinedIcon sx={{ fontSize: 11, color: C.textDim }} />}
+                      </div>
+                      <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: C.textPri }}>{dt.toLocaleDateString([], { month: 'short', day: 'numeric', year: '2-digit' })}</span>
+                        <span style={{ fontSize: 10, color: C.textDim, marginTop: 1 }}>{dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                      </div>
+                      <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+                        <PersonOutlineOutlinedIcon sx={{ fontSize: 13, color: C.textDim, flexShrink: 0 }} />
+                        <div style={{ minWidth: 0 }}>
+                          <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: C.textPri, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{emp?.name || '—'}</p>
+                          {emp?.employeeCode && <p style={{ margin: 0, fontSize: 10, color: C.textDim, fontFamily: 'monospace' }}>#{emp.employeeCode}</p>}
+                        </div>
+                      </div>
+                      <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: C.textSec }}>{tx.items?.length ?? 0}</span>
+                      </div>
+                      <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center' }}>
+                        {mth ? <span style={{ fontSize: 11, fontWeight: 600, color: C.textSec, padding: '2px 8px', borderRadius: 5, background: C.elevated }}>{mth}</span> : <span style={{ color: C.textDim, fontSize: 12 }}>—</span>}
+                      </div>
+                      <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center' }}>
+                        <Badge status={tx.paymentStatus} />
+                      </div>
+                      <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: C.textPri, fontVariantNumeric: 'tabular-nums' }}>{fmt$(tx.grandTotal)}</span>
+                      </div>
+                      <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: tx.refundedAmount > 0 ? C.error : C.textDim, fontVariantNumeric: 'tabular-nums' }}>
+                          {tx.refundedAmount > 0 ? fmt$(tx.refundedAmount) : '—'}
+                        </span>
+                      </div>
+                      <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+                        <span style={{ fontSize: 13, fontWeight: 800, color: isVoided ? C.textDim : C.success, fontVariantNumeric: 'tabular-nums' }}>
+                          {isVoided ? '—' : fmt$(net)}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </>
+            )}
 
             {/* Pagination footer */}
             {rows.length > 0 && (

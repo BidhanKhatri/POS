@@ -1,16 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import SearchOutlinedIcon        from '@mui/icons-material/SearchOutlined';
-import CloseOutlinedIcon         from '@mui/icons-material/CloseOutlined';
-import RefreshOutlinedIcon       from '@mui/icons-material/RefreshOutlined';
-import PeopleOutlinedIcon        from '@mui/icons-material/PeopleOutlined';
-import FilterListOutlinedIcon    from '@mui/icons-material/FilterListOutlined';
-import ChevronLeftIcon           from '@mui/icons-material/ChevronLeft';
-import ChevronRightIcon          from '@mui/icons-material/ChevronRight';
-import EventOutlinedIcon         from '@mui/icons-material/EventOutlined';
-import PhoneOutlinedIcon         from '@mui/icons-material/PhoneOutlined';
-import useAuthStore              from '../store/useAuthStore';
-import CornerCard                from '../components/CornerCard/CornerCard';
+import SearchOutlinedIcon     from '@mui/icons-material/SearchOutlined';
+import CloseOutlinedIcon      from '@mui/icons-material/CloseOutlined';
+import RefreshOutlinedIcon    from '@mui/icons-material/RefreshOutlined';
+import PeopleOutlinedIcon     from '@mui/icons-material/PeopleOutlined';
+import FilterListOutlinedIcon from '@mui/icons-material/FilterListOutlined';
+import ChevronLeftIcon        from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon       from '@mui/icons-material/ChevronRight';
+import EventOutlinedIcon      from '@mui/icons-material/EventOutlined';
+import PhoneOutlinedIcon      from '@mui/icons-material/PhoneOutlined';
+import useAuthStore           from '../store/useAuthStore';
 
 import { API_URL as API } from '../config/api';
 const FONT = "'Plus Jakarta Sans', sans-serif";
@@ -27,10 +26,13 @@ function fmt$(n) {
   if (n == null || n === 0) return '$0.00';
   return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
-
 function fmtDate(d) {
   if (!d) return '—';
   return new Date(d).toLocaleDateString([], { month: 'short', day: 'numeric', year: '2-digit' });
+}
+
+function Sk({ h = 16, w = '100%', r = 6 }) {
+  return <div style={{ height: h, width: w, borderRadius: r, background: 'linear-gradient(90deg,#EDE5E0 25%,#F5F3F1 50%,#EDE5E0 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.4s infinite', flexShrink: 0 }} />;
 }
 
 function pageList(cur, total) {
@@ -55,6 +57,7 @@ export default function CustomerSearchPage() {
   const [pages,   setPages]   = useState(1);
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState('');
+  const [hovered, setHovered] = useState(null);
 
   const [search,     setSearch]     = useState('');
   const [startDate,  setStartDate]  = useState('');
@@ -98,8 +101,11 @@ export default function CustomerSearchPage() {
 
   const goPage = pg => { if (pg >= 1 && pg <= pages && pg !== page) loadRows(pg); };
 
+  const hasDateFilter = startDate || endDate;
+
   return (
     <div style={{ padding: '16px 16px 40px', background: C.bg, minHeight: '100%', fontFamily: FONT }}>
+      <style>{`@keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }`}</style>
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18, gap: 10 }}>
@@ -109,28 +115,32 @@ export default function CustomerSearchPage() {
           </div>
           <div>
             <p style={{ margin: 0, fontSize: 9, fontWeight: 700, color: C.textDim, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Employee Portal</p>
-            <h1 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: C.textPri }}>
+            <h1 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: C.textPri, letterSpacing: '-0.2px' }}>
               Customers
-              {!loading && total > 0 && <span style={{ fontSize: 12, fontWeight: 600, color: C.textDim, marginLeft: 8 }}>{total.toLocaleString()}</span>}
+              {!loading && total > 0 && (
+                <span style={{ fontSize: 12, fontWeight: 600, color: C.textDim, marginLeft: 8 }}>{total.toLocaleString()}</span>
+              )}
             </h1>
           </div>
         </div>
-        <button onClick={() => loadRows(page)}
-          style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '7px 11px', borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, fontSize: 12, fontWeight: 600, color: C.textSec, cursor: 'pointer', fontFamily: FONT }}>
-          <RefreshOutlinedIcon sx={{ fontSize: 15 }} />
+        <button
+          onClick={() => loadRows(page)}
+          style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, cursor: 'pointer' }}>
+          <RefreshOutlinedIcon sx={{ fontSize: 16, color: C.textSec }} />
         </button>
       </div>
 
       {/* Filter bar */}
       <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, marginBottom: 14, overflow: 'hidden' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderBottom: showFilter ? `1px solid ${C.border}` : 'none' }}>
+          {/* Search input */}
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 9, padding: '8px 12px' }}>
             <SearchOutlinedIcon sx={{ fontSize: 16, color: C.textDim, flexShrink: 0 }} />
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search by name or phone…"
-              style={{ flex: 1, border: 'none', outline: 'none', fontSize: 16, fontWeight: 500, color: C.textPri, background: 'transparent', fontFamily: FONT }}
+              style={{ flex: 1, border: 'none', outline: 'none', fontSize: 14, fontWeight: 500, color: C.textPri, background: 'transparent', fontFamily: FONT }}
             />
             {search && (
               <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', padding: 0 }}>
@@ -138,14 +148,17 @@ export default function CustomerSearchPage() {
               </button>
             )}
           </div>
-          <button onClick={() => setShowFilter(f => !f)}
-            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 11px', borderRadius: 8, border: `1px solid ${showFilter ? C.primary : C.border}`, background: showFilter ? C.primary : C.surface, color: showFilter ? '#fff' : C.textSec, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: FONT, whiteSpace: 'nowrap' }}>
+          {/* Filter toggle */}
+          <button
+            onClick={() => setShowFilter(f => !f)}
+            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 11px', borderRadius: 8, border: `1px solid ${showFilter ? C.primary : C.border}`, background: showFilter ? C.primary : C.surface, color: showFilter ? '#fff' : C.textSec, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: FONT, whiteSpace: 'nowrap', flexShrink: 0 }}>
             <FilterListOutlinedIcon sx={{ fontSize: 15 }} />
-            {(startDate || endDate) && <span style={{ width: 6, height: 6, borderRadius: '50%', background: showFilter ? C.accent : C.primary }} />}
+            {hasDateFilter && <span style={{ width: 6, height: 6, borderRadius: '50%', background: showFilter ? C.accent : C.primary }} />}
           </button>
-          {(startDate || endDate) && (
-            <button onClick={() => { setStartDate(''); setEndDate(''); }}
-              style={{ padding: '8px 10px', borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, color: C.textSec, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: FONT }}>
+          {hasDateFilter && (
+            <button
+              onClick={() => { setStartDate(''); setEndDate(''); }}
+              style={{ padding: '8px 10px', borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, color: C.textSec, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: FONT, flexShrink: 0 }}>
               Clear
             </button>
           )}
@@ -155,38 +168,39 @@ export default function CustomerSearchPage() {
             <div>
               <p style={{ margin: '0 0 5px', fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Registered From</p>
               <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
-                style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 16, color: C.textPri, fontFamily: FONT, outline: 'none', background: C.surface, boxSizing: 'border-box' }} />
+                style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 14, color: C.textPri, fontFamily: FONT, outline: 'none', background: C.surface, boxSizing: 'border-box' }} />
             </div>
             <div>
               <p style={{ margin: '0 0 5px', fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>To</p>
               <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
-                style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 16, color: C.textPri, fontFamily: FONT, outline: 'none', background: C.surface, boxSizing: 'border-box' }} />
+                style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 14, color: C.textPri, fontFamily: FONT, outline: 'none', background: C.surface, boxSizing: 'border-box' }} />
             </div>
           </div>
         )}
       </div>
 
-      {/* Customer list */}
+      {/* Skeleton */}
       {loading && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {Array.from({ length: 6 }).map((_, i) => (
+          {Array.from({ length: 7 }).map((_, i) => (
             <div key={i} style={{ background: C.surface, borderRadius: 12, padding: '14px 16px', border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ width: 42, height: 42, borderRadius: 11, background: C.elevated, flexShrink: 0 }} />
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <div style={{ height: 12, width: '55%', borderRadius: 4, background: C.elevated }} />
-                <div style={{ height: 10, width: '35%', borderRadius: 4, background: C.elevated }} />
+              <Sk h={42} w={42} r={11} />
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 7 }}>
+                <Sk h={13} w="52%" />
+                <Sk h={10} w="34%" />
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'flex-end' }}>
-                <div style={{ height: 12, width: 60, borderRadius: 4, background: C.elevated }} />
-                <div style={{ height: 10, width: 40, borderRadius: 4, background: C.elevated }} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
+                <Sk h={13} w={64} />
+                <Sk h={10} w={44} />
               </div>
             </div>
           ))}
         </div>
       )}
 
+      {/* Error */}
       {!loading && error && (
-        <div style={{ padding: '40px 24px', textAlign: 'center' }}>
+        <div style={{ padding: '48px 24px', textAlign: 'center' }}>
           <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.error }}>{error}</p>
           <button onClick={() => loadRows(1)}
             style={{ marginTop: 12, padding: '8px 18px', borderRadius: 8, border: 'none', background: C.primary, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: FONT }}>
@@ -195,9 +209,12 @@ export default function CustomerSearchPage() {
         </div>
       )}
 
+      {/* Empty */}
       {!loading && !error && rows.length === 0 && (
-        <div style={{ padding: '48px 24px', textAlign: 'center' }}>
-          <PeopleOutlinedIcon sx={{ fontSize: 44, color: C.textDim, display: 'block', margin: '0 auto 14px' }} />
+        <div style={{ padding: '56px 24px', textAlign: 'center' }}>
+          <div style={{ width: 52, height: 52, borderRadius: 14, background: C.elevated, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
+            <PeopleOutlinedIcon sx={{ fontSize: 26, color: C.textDim }} />
+          </div>
           <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: C.textSec }}>No customers found</p>
           <p style={{ margin: '4px 0 0', fontSize: 13, color: C.textDim }}>
             {search ? 'Try a different name or phone number.' : 'Customers appear here once sales with buyer details are recorded.'}
@@ -205,54 +222,62 @@ export default function CustomerSearchPage() {
         </div>
       )}
 
+      {/* Customer list */}
       {!loading && !error && rows.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {rows.map(c => (
-              <CornerCard key={c._id} borderColor={C.border} borderRadius={12} cornerSize={22} cornerHeight={22}
-                style={{ cursor: 'pointer' }}>
-                <button
-                  onClick={() => navigate(`/employee/customers/${c._id}`)}
-                  style={{ width: '100%', background: 'transparent', border: 'none', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', textAlign: 'left', fontFamily: FONT }}>
-                  {/* Avatar */}
-                  <div style={{ width: 42, height: 42, borderRadius: 11, background: C.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 16, fontWeight: 800, color: C.accent }}>
-                    {c.name.charAt(0).toUpperCase()}
-                  </div>
+            <div
+              key={c._id}
+              onClick={() => navigate(`/employee/customers/${c._id}`)}
+              onMouseEnter={() => setHovered(c._id)}
+              onMouseLeave={() => setHovered(null)}
+              style={{ position: 'relative', background: hovered === c._id ? C.tableHover : C.surface, border: `1px solid ${C.border}`, borderRadius: 12, cursor: 'pointer', overflow: 'hidden', transition: 'background 0.12s' }}
+            >
+              {/* corner decorators */}
+              <div style={{ position: 'absolute', top: 0, left: 0, width: 16, height: 16, borderTop: `1.5px solid ${C.accent}`, borderLeft: `1.5px solid ${C.accent}`, borderTopLeftRadius: 10, pointerEvents: 'none' }} />
+              <div style={{ position: 'absolute', bottom: 0, right: 0, width: 16, height: 16, borderBottom: `1.5px solid ${C.accent}`, borderRight: `1.5px solid ${C.accent}`, borderBottomRightRadius: 10, pointerEvents: 'none' }} />
 
-                  {/* Name + contact */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: C.textPri, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</span>
-                      <span style={{ padding: '1px 7px', borderRadius: 6, background: c.totalOrders > 1 ? 'rgba(46,125,79,0.10)' : 'rgba(2,119,189,0.10)', color: c.totalOrders > 1 ? C.success : C.info, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', flexShrink: 0 }}>
-                        {c.totalOrders > 1 ? 'RETURNING' : 'NEW'}
-                      </span>
+              <div style={{ padding: '13px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                {/* Avatar */}
+                <div style={{ width: 42, height: 42, borderRadius: 11, background: C.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 16, fontWeight: 800, color: C.accent }}>
+                  {c.name.charAt(0).toUpperCase()}
+                </div>
+
+                {/* Name + contact */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: C.textPri, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</span>
+                    <span style={{ padding: '1px 7px', borderRadius: 6, background: c.totalOrders > 1 ? 'rgba(46,125,79,0.10)' : 'rgba(2,119,189,0.10)', color: c.totalOrders > 1 ? C.success : C.info, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', flexShrink: 0 }}>
+                      {c.totalOrders > 1 ? 'RETURNING' : 'NEW'}
+                    </span>
+                  </div>
+                  {c.phone && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 3 }}>
+                      <PhoneOutlinedIcon sx={{ fontSize: 11, color: C.textDim }} />
+                      <span style={{ fontSize: 11, color: C.textDim, fontFamily: 'monospace' }}>{c.phone}</span>
                     </div>
-                    {c.phone && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
-                        <PhoneOutlinedIcon sx={{ fontSize: 11, color: C.textDim }} />
-                        <span style={{ fontSize: 12, color: C.textDim, fontFamily: 'monospace' }}>{c.phone}</span>
-                      </div>
-                    )}
-                  </div>
+                  )}
+                </div>
 
-                  {/* Spend + last visit */}
-                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: C.textPri, fontVariantNumeric: 'tabular-nums' }}>{fmt$(c.totalSpent)}</p>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 3, justifyContent: 'flex-end', marginTop: 2 }}>
-                      <EventOutlinedIcon sx={{ fontSize: 10, color: C.textDim }} />
-                      <span style={{ fontSize: 10, color: C.textDim }}>{fmtDate(c.lastVisit)}</span>
-                    </div>
-                    <p style={{ margin: '1px 0 0', fontSize: 10, color: C.textDim }}>{c.totalOrders} order{c.totalOrders !== 1 ? 's' : ''}</p>
+                {/* Spend + last visit */}
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                  <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: C.textPri, fontVariantNumeric: 'tabular-nums' }}>{fmt$(c.totalSpent)}</p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 3, justifyContent: 'flex-end', marginTop: 3 }}>
+                    <EventOutlinedIcon sx={{ fontSize: 10, color: C.textDim }} />
+                    <span style={{ fontSize: 10, color: C.textDim }}>{fmtDate(c.lastVisit)}</span>
                   </div>
+                  <p style={{ margin: '2px 0 0', fontSize: 10, color: C.textDim }}>{c.totalOrders} order{c.totalOrders !== 1 ? 's' : ''}</p>
+                </div>
 
-                  <ChevronRightIcon sx={{ fontSize: 18, color: C.textDim, flexShrink: 0 }} />
-                </button>
-              </CornerCard>
+                <ChevronRightIcon sx={{ fontSize: 17, color: C.textDim, flexShrink: 0 }} />
+              </div>
+            </div>
           ))}
 
           {/* Pagination */}
-          <div style={{ marginTop: 8, paddingTop: 10, borderTop: `1px solid ${C.border}` }}>
+          <div style={{ marginTop: 8, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
             {pages > 1 && (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, flexWrap: 'wrap', marginBottom: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, flexWrap: 'wrap', marginBottom: 10 }}>
                 <button onClick={() => goPage(page - 1)} disabled={page === 1}
                   style={{ width: 34, height: 34, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${C.border}`, background: C.surface, cursor: page === 1 ? 'default' : 'pointer', opacity: page === 1 ? 0.35 : 1 }}>
                   <ChevronLeftIcon sx={{ fontSize: 18, color: C.textSec }} />

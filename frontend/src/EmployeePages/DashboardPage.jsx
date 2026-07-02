@@ -14,8 +14,6 @@ import CreditCardIcon                from '@mui/icons-material/CreditCard';
 import PaymentIcon                   from '@mui/icons-material/Payment';
 import MoreHorizIcon                 from '@mui/icons-material/MoreHoriz';
 import useAuthStore from '../store/useAuthStore';
-import CornerCard from '../components/CornerCard/CornerCard';
-
 import { API_URL as API } from '../config/api';
 const FONT = "'Plus Jakarta Sans', sans-serif";
 
@@ -127,27 +125,51 @@ function Section({ title, children, action }) {
 }
 
 // ── KPI card ──────────────────────────────────────────────────────────────────
-function KpiCard({ label, value, icon: Icon, iconBg, color, sub }) {
+function KpiCard({ label, value, icon: Icon, iconBg, color, sub, compact }) {
+  const pad      = compact ? '11px 12px' : '14px 16px';
+  const iconSize = compact ? 34 : 38;
+  const iconFn   = compact ? 16 : 19;
+  const valSize  = compact ? 15 : 18;
+  const cornerW  = compact ? 16 : 22;
   return (
-    <CornerCard borderColor={C.border} cornerSize={18} cornerHeight={18} style={{ background: C.surface }}>
-      <div style={{ padding: '13px 12px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-          <div style={{ width: 30, height: 30, borderRadius: 8, background: iconBg, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Icon sx={{ fontSize: 15, color }} />
-          </div>
-          <p style={{ margin: 0, fontSize: 9, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em', lineHeight: '13px' }}>{label}</p>
-        </div>
-        <p style={{ margin: 0, fontSize: 20, fontWeight: 800, color: color || C.textPri, letterSpacing: '-0.4px', lineHeight: 1 }}>{value}</p>
-        {sub && <p style={{ margin: '3px 0 0', fontSize: 10, fontWeight: 500, color: C.textDim }}>{sub}</p>}
+    <div style={{
+      position: 'relative', background: C.surface, border: `1px solid ${C.border}`,
+      borderRadius: 12, padding: pad,
+      display: 'flex', alignItems: 'center', gap: compact ? 10 : 12,
+      fontFamily: FONT,
+    }}>
+      <div style={{ position: 'absolute', top: 0, left: 0, width: cornerW, height: cornerW, borderTop: `1.5px solid ${color}`, borderLeft: `1.5px solid ${color}`, borderTopLeftRadius: 10, pointerEvents: 'none' }} />
+      <div style={{ position: 'absolute', bottom: 0, right: 0, width: cornerW, height: cornerW, borderBottom: `1.5px solid ${color}`, borderRight: `1.5px solid ${color}`, borderBottomRightRadius: 10, pointerEvents: 'none' }} />
+      <div style={{ width: iconSize, height: iconSize, borderRadius: 9, background: iconBg, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 0 1px ${color}22` }}>
+        <Icon sx={{ fontSize: iconFn, color }} />
       </div>
-    </CornerCard>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <p style={{ margin: 0, fontSize: valSize, fontWeight: 800, color: C.textPri, letterSpacing: '-0.4px', lineHeight: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</p>
+        {sub && <p style={{ margin: '2px 0 0', fontSize: 10, fontWeight: 500, color: C.textDim, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub}</p>}
+        <p style={{ margin: compact ? '3px 0 0' : '4px 0 0', fontSize: 9, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em', lineHeight: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</p>
+      </div>
+    </div>
   );
 }
 
-
 // ── Skeleton loader ───────────────────────────────────────────────────────────
 function Skeleton({ h = 16, w = '100%', r = 6 }) {
-  return <div style={{ height: h, width: w, borderRadius: r, background: C.elevated, animation: 'pulse 1.4s ease infinite' }} />;
+  return <div style={{ height: h, width: w, borderRadius: r, background: 'linear-gradient(90deg, #EDE5E0 25%, #F5F3F1 50%, #EDE5E0 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.4s infinite', flexShrink: 0 }} />;
+}
+
+function KpiCardSkeleton({ compact }) {
+  const pad      = compact ? '11px 12px' : '14px 16px';
+  const iconSize = compact ? 34 : 38;
+  const valH     = compact ? 15 : 18;
+  return (
+    <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: pad, display: 'flex', alignItems: 'center', gap: compact ? 10 : 12 }}>
+      <Skeleton h={iconSize} w={iconSize} r={9} />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: compact ? 5 : 7 }}>
+        <Skeleton h={valH} w="68%" />
+        <Skeleton h={9} w="42%" />
+      </div>
+    </div>
+  );
 }
 
 export default function DashboardPage() {
@@ -249,18 +271,10 @@ export default function DashboardPage() {
 
   const renderKpis = () => (
     <Section title="Today at a Glance">
-      <div style={{ display: 'grid', gridTemplateColumns: isDesktop ? 'repeat(4,1fr)' : 'repeat(2,1fr)', gap: 8 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isDesktop ? 'repeat(4,1fr)' : 'repeat(2,1fr)', gap: isDesktop ? 12 : 8 }}>
         {loading
-          ? Array.from({ length: 4 }).map((_, i) => (
-              <CornerCard key={i} borderColor={C.border} cornerSize={18} cornerHeight={18} style={{ background: C.surface }}>
-                <div style={{ padding: '13px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <Skeleton h={28} w={28} r={8} />
-                  <Skeleton h={22} w="60%" />
-                  <Skeleton h={12} w="40%" />
-                </div>
-              </CornerCard>
-            ))
-          : kpiCards.map((c, i) => <KpiCard key={i} {...c} />)
+          ? Array.from({ length: 4 }).map((_, i) => <KpiCardSkeleton key={i} compact={!isDesktop} />)
+          : kpiCards.map((c, i) => <KpiCard key={i} {...c} compact={!isDesktop} />)
         }
       </div>
     </Section>
@@ -498,7 +512,7 @@ export default function DashboardPage() {
 
   return (
     <div style={wrapper}>
-      <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.45} }`}</style>
+      <style>{`@keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }`}</style>
 
       {/* ── Header ── */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>

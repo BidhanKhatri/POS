@@ -91,23 +91,23 @@ function DeltaBadge({ value }) {
 }
 
 function KpiCard({ label, value, sub, icon: Icon, color, iconBg, delta, isMobile }) {
-  const pad      = isMobile ? '11px 10px' : '16px 18px';
-  const iconBox  = isMobile ? 30 : 40;
-  const iconFs   = isMobile ? 15 : 20;
-  const valFs    = isMobile ? 16 : 21;
-  const cornerSz = isMobile ? 22 : 32;
+  const pad      = isMobile ? '11px 12px' : '14px 16px';
+  const iconBox  = isMobile ? 34 : 38;
+  const iconFs   = isMobile ? 16 : 19;
+  const valFs    = isMobile ? 15 : 18;
+  const cornerSz = isMobile ? 16 : 22;
   return (
-    <div style={{ position: 'relative', background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: pad, display: 'flex', alignItems: 'flex-start', gap: isMobile ? 8 : 14 }}>
+    <div style={{ position: 'relative', background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: pad, display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 12, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
       <div style={{ position: 'absolute', top: 0, left: 0, width: cornerSz, height: cornerSz, borderTop: `1.5px solid ${color}`, borderLeft: `1.5px solid ${color}`, borderTopLeftRadius: 10, pointerEvents: 'none' }} />
       <div style={{ position: 'absolute', bottom: 0, right: 0, width: cornerSz, height: cornerSz, borderBottom: `1.5px solid ${color}`, borderRight: `1.5px solid ${color}`, borderBottomRightRadius: 10, pointerEvents: 'none' }} />
-      <div style={{ width: iconBox, height: iconBox, borderRadius: isMobile ? 8 : 10, background: iconBg, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ width: iconBox, height: iconBox, borderRadius: 9, background: iconBg, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 0 1px ${color}22` }}>
         <Icon sx={{ fontSize: iconFs, color }} />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ margin: 0, fontSize: valFs, fontWeight: 800, color: C.textPri, letterSpacing: '-0.5px', lineHeight: isMobile ? '22px' : '26px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</p>
-        {sub && <p style={{ margin: '1px 0 0', fontSize: isMobile ? 10 : 11, fontWeight: 600, color: C.textDim, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub}</p>}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: isMobile ? 3 : 4 }}>
-          <p style={{ margin: 0, fontSize: 9, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.07em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{label}</p>
+        <p style={{ margin: 0, fontSize: valFs, fontWeight: 800, color: C.textPri, letterSpacing: '-0.4px', lineHeight: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</p>
+        {sub && <p style={{ margin: '2px 0 0', fontSize: 10, fontWeight: 500, color: C.textDim, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub}</p>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
+          <p style={{ margin: 0, fontSize: 9, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em', lineHeight: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{label}</p>
           <DeltaBadge value={delta} />
         </div>
       </div>
@@ -467,18 +467,21 @@ function AllTimeTrendChart({ data, isMobile }) {
 }
 
 function SkeletonBlock({ h = 20, w = '100%', radius = 6 }) {
-  return <div style={{ height: h, width: w, borderRadius: radius, background: C.elevated, animation: 'pulse 1.4s ease infinite alternate' }} />;
+  return <div style={{ height: h, width: w, borderRadius: radius, background: 'linear-gradient(90deg, #EDE5E0 25%, #F5F3F1 50%, #EDE5E0 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.4s infinite', flexShrink: 0 }} />;
 }
 
 function LoadingKpis({ isMobile }) {
+  const pad    = isMobile ? '11px 12px' : '14px 16px';
+  const iconSz = isMobile ? 34 : 38;
+  const valH   = isMobile ? 15 : 18;
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: isMobile ? 8 : 14 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: isMobile ? 8 : 12, marginBottom: 20 }}>
       {[1, 2, 3, 4].map(i => (
-        <div key={i} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: isMobile ? '11px 10px' : '16px 18px', display: 'flex', gap: isMobile ? 8 : 14 }}>
-          <SkeletonBlock h={isMobile ? 30 : 40} w={isMobile ? 30 : 40} radius={isMobile ? 8 : 10} />
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <SkeletonBlock h={isMobile ? 16 : 22} w="70%" />
-            <SkeletonBlock h={10} w="50%" />
+        <div key={i} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: pad, display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 12 }}>
+          <SkeletonBlock h={iconSz} w={iconSz} radius={9} />
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: isMobile ? 5 : 7 }}>
+            <SkeletonBlock h={valH} w="68%" />
+            <SkeletonBlock h={9} w="42%" />
           </div>
         </div>
       ))}
@@ -734,7 +737,15 @@ export default function ManagerOverallReportPage() {
             ? 'Monthly revenue bars colored by year · donut shows each year\'s share of all-time revenue'
             : `Net revenue over the selected period${compareStart ? ' vs. prior period' : ''}`}
         >
-          {trend.isLoading ? <SkeletonBlock h={248} radius={0} /> : isToday ? (
+          {trend.isLoading ? (
+            <div style={{ padding: '8px 12px 16px' }}>
+              <SkeletonBlock h={230} radius={8} />
+              <div style={{ marginTop: 12, display: 'flex', gap: 14 }}>
+                <SkeletonBlock h={10} w={60} />
+                <SkeletonBlock h={10} w={76} />
+              </div>
+            </div>
+          ) : isToday ? (
             <TodayTrendChart data={trendData} summaryData={cur} isMobile={isMobile} />
           ) : isOverall ? (
             <AllTimeTrendChart data={trendData} isMobile={isMobile} />
@@ -767,7 +778,19 @@ export default function ManagerOverallReportPage() {
 
         {/* Payment Methods */}
         <ChartShell title="Payment Methods" sub="Revenue by tender type">
-          {payments.isLoading ? <SkeletonBlock h={230} radius={0} /> : (
+          {payments.isLoading ? (
+            <div style={{ padding: '4px 12px 8px' }}>
+              {[1, 2, 3].map(k => (
+                <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 0', borderBottom: k < 3 ? `1px solid ${C.border}` : 'none' }}>
+                  <SkeletonBlock h={10} w={10} radius={3} />
+                  <SkeletonBlock h={12} w="34%" />
+                  <div style={{ flex: 1 }} />
+                  <SkeletonBlock h={12} w={62} />
+                  <SkeletonBlock h={22} w={42} radius={5} />
+                </div>
+              ))}
+            </div>
+          ) : (
             <div style={{ padding: '0 12px 4px' }}>
               {(payments.data?.methods || []).map((m, i, arr) => (
                 <div key={m.method} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 0', borderBottom: i < arr.length - 1 ? `1px solid ${C.border}` : 'none' }}>
@@ -805,8 +828,21 @@ export default function ManagerOverallReportPage() {
           <p style={{ margin: '2px 0 0', fontSize: 11, color: C.textDim }}>Ranked by net revenue · real-time from sales data</p>
         </div>
         {products.isLoading ? (
-          <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {[1, 2, 3, 4, 5].map(i => <SkeletonBlock key={i} h={16} />)}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 20px', background: C.tableHdr, borderBottom: `1px solid ${C.border}` }}>
+              <SkeletonBlock h={9} w={22} radius={3} />
+              <SkeletonBlock h={9} w="26%" radius={3} />
+              <div style={{ flex: 1 }} />
+              {[58, 62, 62, 62, 56].map((w, i) => <SkeletonBlock key={i} h={9} w={w} radius={3} />)}
+            </div>
+            {[1, 2, 3, 4, 5].map(i => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 20px', borderBottom: `1px solid ${C.border}`, background: i % 2 === 0 ? '#FDFCFB' : C.surface }}>
+                <SkeletonBlock h={22} w={22} radius={6} />
+                <SkeletonBlock h={13} w="28%" />
+                <div style={{ flex: 1 }} />
+                {[58, 52, 62, 58, 48].map((w, j) => <SkeletonBlock key={j} h={13} w={w} />)}
+              </div>
+            ))}
           </div>
         ) : (
           <>
@@ -847,8 +883,24 @@ export default function ManagerOverallReportPage() {
           <p style={{ margin: '2px 0 0', fontSize: 11, color: C.textDim }}>Detailed performance breakdown per employee · ranked by net revenue</p>
         </div>
         {cashiers.isLoading ? (
-          <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {[1, 2, 3, 4].map(i => <SkeletonBlock key={i} h={16} />)}
+          <div style={{ overflowX: 'auto' }}>
+            <div style={{ minWidth: 640 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 16px', background: C.tableHdr, borderBottom: `1px solid ${C.border}` }}>
+                <SkeletonBlock h={9} w={22} radius={3} />
+                <SkeletonBlock h={9} w="16%" radius={3} />
+                {[48, 62, 62, 72, 70, 62, 58, 54, 48, 44].map((w, i) => <SkeletonBlock key={i} h={9} w={w} radius={3} />)}
+              </div>
+              {[1, 2, 3, 4].map(i => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '13px 16px', borderBottom: `1px solid ${C.border}`, background: i % 2 === 0 ? '#FDFCFB' : C.surface }}>
+                  <SkeletonBlock h={22} w={22} radius={6} />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, width: '15%' }}>
+                    <SkeletonBlock h={12} w="100%" />
+                    <SkeletonBlock h={9} w="55%" />
+                  </div>
+                  {[48, 62, 62, 72, 70, 62, 58, 54, 48, 44].map((w, j) => <SkeletonBlock key={j} h={13} w={w} />)}
+                </div>
+              ))}
+            </div>
           </div>
         ) : cashiers.data?.length ? (
           <>
@@ -957,8 +1009,21 @@ export default function ManagerOverallReportPage() {
             </div>
 
             {posGroups.isLoading ? (
-              <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {[1, 2, 3].map(i => <SkeletonBlock key={i} h={16} />)}
+              <div style={{ overflowX: 'auto' }}>
+                <div style={{ minWidth: 520 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 16px', background: C.tableHdr, borderBottom: `1px solid ${C.border}` }}>
+                    <SkeletonBlock h={9} w={22} radius={3} />
+                    <SkeletonBlock h={9} w="18%" radius={3} />
+                    {[54, 70, 68, 64, 68, 58, 60, 54].map((w, i) => <SkeletonBlock key={i} h={9} w={w} radius={3} />)}
+                  </div>
+                  {[1, 2, 3].map(i => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '13px 16px', borderBottom: `1px solid ${C.border}`, background: i % 2 === 0 ? '#FDFCFB' : C.surface }}>
+                      <SkeletonBlock h={22} w={22} radius={6} />
+                      <SkeletonBlock h={13} w="20%" />
+                      {[54, 70, 68, 64, 68, 58, 60, 54].map((w, j) => <SkeletonBlock key={j} h={13} w={w} />)}
+                    </div>
+                  ))}
+                </div>
               </div>
             ) : (!grps.length || grps.every(g => g.stats.txnCount === 0)) ? (
               <p style={{ textAlign: 'center', padding: '32px 0', fontSize: 12, color: C.textDim }}>No group sales data for this period</p>
@@ -1032,8 +1097,8 @@ export default function ManagerOverallReportPage() {
       {insights.data && <InsightsPanel insights={insights.data} />}
 
       <style>{`
-        @keyframes pulse { from { opacity: 1; } to { opacity: 0.5; } }
-        @keyframes spin   { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
       `}</style>
     </div>
   );

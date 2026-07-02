@@ -4,6 +4,8 @@ import { useMediaQuery } from '@mui/material';
 import {
   ResponsiveContainer,
   ComposedChart,
+  LineChart,
+  Line,
   Area,
   Bar,
   XAxis,
@@ -105,35 +107,42 @@ function Delta({ value }) {
   );
 }
 
-function KpiCard({ label, value, icon: Icon, color, iconBg, delta, onClick, alert }) {
+function KpiCard({ label, mobileLabel, value, icon: Icon, color, iconBg, delta, onClick, alert, compact }) {
+  const pad      = compact ? '11px 12px' : '14px 16px';
+  const iconSize = compact ? 34 : 38;
+  const iconFn   = compact ? 16 : 19;
+  const valSize  = compact ? 15 : 18;
+  const cornerW  = compact ? 16 : 22;
+  const displayLabel = compact && mobileLabel ? mobileLabel : label;
   return (
     <div
       onClick={onClick}
       style={{
         position: 'relative', background: C.surface,
         border: `1px solid ${alert ? color + '55' : C.border}`,
-        borderRadius: 12, padding: '14px 16px',
-        display: 'flex', alignItems: 'center', gap: 12,
+        borderRadius: 12, padding: pad,
+        display: 'flex', alignItems: 'center', gap: compact ? 10 : 12,
         cursor: onClick ? 'pointer' : 'default',
         transition: 'box-shadow 0.15s',
         boxShadow: alert ? `0 0 0 2px ${color}22` : 'none',
+        fontFamily: "'Plus Jakarta Sans', sans-serif",
       }}
       onMouseEnter={(e) => { if (onClick) e.currentTarget.style.boxShadow = '0 2px 12px rgba(62,39,35,0.12)'; }}
       onMouseLeave={(e) => { e.currentTarget.style.boxShadow = alert ? `0 0 0 2px ${color}22` : 'none'; }}
     >
-      <div style={{ position: 'absolute', top: 0, left: 0, width: 22, height: 22, borderTop: `1.5px solid ${color}`, borderLeft: `1.5px solid ${color}`, borderTopLeftRadius: 10, pointerEvents: 'none' }} />
-      <div style={{ position: 'absolute', bottom: 0, right: 0, width: 22, height: 22, borderBottom: `1.5px solid ${color}`, borderRight: `1.5px solid ${color}`, borderBottomRightRadius: 10, pointerEvents: 'none' }} />
-      <div style={{ width: 38, height: 38, borderRadius: 10, background: iconBg, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 0 1px ${color}22` }}>
-        <Icon sx={{ fontSize: 19, color }} />
+      <div style={{ position: 'absolute', top: 0, left: 0, width: cornerW, height: cornerW, borderTop: `1.5px solid ${color}`, borderLeft: `1.5px solid ${color}`, borderTopLeftRadius: 10, pointerEvents: 'none' }} />
+      <div style={{ position: 'absolute', bottom: 0, right: 0, width: cornerW, height: cornerW, borderBottom: `1.5px solid ${color}`, borderRight: `1.5px solid ${color}`, borderBottomRightRadius: 10, pointerEvents: 'none' }} />
+      <div style={{ width: iconSize, height: iconSize, borderRadius: 9, background: iconBg, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 0 1px ${color}22` }}>
+        <Icon sx={{ fontSize: iconFn, color }} />
       </div>
       <div style={{ minWidth: 0, flex: 1 }}>
-        <p style={{ margin: 0, fontSize: 18, fontWeight: 800, color: C.textPri, letterSpacing: '-0.4px', lineHeight: 1 }}>{value}</p>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
-          <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em', lineHeight: 1 }}>{label}</p>
-          {delta !== undefined && <Delta value={delta} />}
+        <p style={{ margin: 0, fontSize: valSize, fontWeight: 800, color: C.textPri, letterSpacing: '-0.4px', lineHeight: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: compact ? 3 : 4 }}>
+          <p style={{ margin: 0, fontSize: compact ? 9 : 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em', lineHeight: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayLabel}</p>
+          {!compact && delta !== undefined && <Delta value={delta} />}
         </div>
       </div>
-      {onClick && <ChevronRightOutlinedIcon sx={{ fontSize: 15, color: C.textDim, flexShrink: 0 }} />}
+      {onClick && !compact && <ChevronRightOutlinedIcon sx={{ fontSize: 15, color: C.textDim, flexShrink: 0 }} />}
     </div>
   );
 }
@@ -225,17 +234,21 @@ function Skeleton({ height = 16, width = '100%', borderRadius = 6 }) {
   );
 }
 
-function KpiCardSkeleton() {
+function KpiCardSkeleton({ compact }) {
+  const pad      = compact ? '11px 12px' : '14px 16px';
+  const iconSize = compact ? 34 : 38;
+  const valH     = compact ? 15 : 18;
+  const lblH     = compact ? 9  : 10;
   return (
     <div style={{
       background: C.surface, border: `1px solid ${C.border}`,
-      borderRadius: 12, padding: '14px 16px',
-      display: 'flex', alignItems: 'center', gap: 12,
+      borderRadius: 12, padding: pad,
+      display: 'flex', alignItems: 'center', gap: compact ? 10 : 12,
     }}>
-      <Skeleton height={38} width={38} borderRadius={10} />
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 7 }}>
-        <Skeleton height={18} width="68%" />
-        <Skeleton height={10} width="42%" />
+      <Skeleton height={iconSize} width={iconSize} borderRadius={9} />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: compact ? 5 : 7 }}>
+        <Skeleton height={valH} width="68%" />
+        <Skeleton height={lblH} width="42%" />
       </div>
     </div>
   );
@@ -245,26 +258,41 @@ function KpiCardSkeleton() {
 function RevenueChartTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
   return (
-    <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', boxShadow: '0 4px 16px rgba(62,39,35,0.12)', minWidth: 140 }}>
+    <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', boxShadow: '0 4px 16px rgba(62,39,35,0.12)', minWidth: 150 }}>
       <p style={{ margin: '0 0 6px', fontSize: 10, fontWeight: 700, color: C.textDim, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{label}</p>
-      {payload.map((p) => (
-        <p key={p.dataKey} style={{ margin: '2px 0', fontSize: 14, fontWeight: 800, color: p.dataKey === 'revenue' ? C.revenueColor : C.txnColor, letterSpacing: '-0.3px' }}>
-          {p.dataKey === 'revenue' ? fmt$(p.value) : `${fmtNum(p.value)} txns`}
-        </p>
-      ))}
+      {payload.map((p) => {
+        if (p.dataKey === 'revenue')      return <p key={p.dataKey} style={{ margin: '2px 0', fontSize: 14, fontWeight: 800, color: C.revenueColor, letterSpacing: '-0.3px' }}>{fmt$(p.value)}</p>;
+        if (p.dataKey === 'transactions') return <p key={p.dataKey} style={{ margin: '2px 0', fontSize: 13, fontWeight: 700, color: C.txnColor, letterSpacing: '-0.3px' }}>{fmtNum(p.value)} txns</p>;
+        if (p.dataKey === 'cumRevenue')   return <p key={p.dataKey} style={{ margin: '4px 0 2px', fontSize: 12, fontWeight: 700, color: C.accent, letterSpacing: '-0.2px', borderTop: `1px solid ${C.border}`, paddingTop: 4 }}>Cumulative: {fmt$(p.value)}</p>;
+        return null;
+      })}
     </div>
   );
 }
 
-function RevenueChart({ data, loading }) {
-  if (loading) return <div style={{ padding: '20px 20px 16px' }}><Skeleton height={220} /></div>;
+function RevenueChart({ data, loading, period }) {
+  if (loading) return (
+    <div style={{ padding: '16px 18px 14px' }}>
+      <Skeleton height={230} borderRadius={8} />
+      <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 16 }}>
+        <Skeleton height={10} width={72} />
+        <Skeleton height={10} width={88} />
+      </div>
+    </div>
+  );
   if (!data?.labels?.length) return <div style={{ padding: 24, textAlign: 'center', color: C.textDim, fontSize: 12 }}>No data for this period</div>;
 
-  const chartData = data.labels.map((label, i) => ({
-    label,
-    revenue:      data.revenue[i]      ?? 0,
-    transactions: data.transactions[i] ?? 0,
-  }));
+  const isAllTime = period === 'all_time';
+  let cumSum = 0;
+  const chartData = data.labels.map((label, i) => {
+    cumSum += data.revenue[i] ?? 0;
+    return {
+      label,
+      revenue:      data.revenue[i]      ?? 0,
+      transactions: data.transactions[i] ?? 0,
+      ...(isAllTime ? { cumRevenue: cumSum } : {}),
+    };
+  });
 
   return (
     <div style={{ padding: '16px 8px 12px 0' }}>
@@ -275,6 +303,12 @@ function RevenueChart({ data, loading }) {
               <stop offset="5%"  stopColor={C.revenueColor} stopOpacity={0.15} />
               <stop offset="95%" stopColor={C.revenueColor} stopOpacity={0.01} />
             </linearGradient>
+            {isAllTime && (
+              <linearGradient id="cumGrad" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%"   stopColor={C.accent} stopOpacity={0.4} />
+                <stop offset="100%" stopColor={C.accent} stopOpacity={1}   />
+              </linearGradient>
+            )}
           </defs>
           <CartesianGrid vertical={false} stroke={C.chartGrid} strokeDasharray="0" />
           <XAxis
@@ -297,6 +331,9 @@ function RevenueChart({ data, loading }) {
             tick={{ fontSize: 10, fontWeight: 600, fill: C.textDim, fontFamily: "'Plus Jakarta Sans', sans-serif" }}
             axisLine={false} tickLine={false} width={32}
           />
+          {isAllTime && (
+            <YAxis yAxisId="cum" orientation="right" hide domain={[0, 'auto']} />
+          )}
           <Tooltip content={<RevenueChartTooltip />} cursor={{ stroke: C.chartGrid, strokeWidth: 1.5, strokeDasharray: '4 3' }} />
           <Area
             yAxisId="rev" type="monotone" dataKey="revenue"
@@ -310,17 +347,36 @@ function RevenueChart({ data, loading }) {
             maxBarSize={18}
             name="Transactions"
           />
+          {isAllTime && (
+            <Line
+              yAxisId="cum" type="monotone" dataKey="cumRevenue"
+              stroke="url(#cumGrad)" strokeWidth={2.5} fill="none"
+              dot={false} activeDot={{ r: 4, fill: C.accent, stroke: '#fff', strokeWidth: 2 }}
+              name="Cumulative"
+            />
+          )}
         </ComposedChart>
       </ResponsiveContainer>
       <div style={{ padding: '6px 20px 4px', display: 'flex', alignItems: 'center', gap: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div style={{ width: 20, height: 2.5, background: C.revenueColor, borderRadius: 2 }} />
+          <svg width="20" height="10" style={{ flexShrink: 0 }}>
+            <rect x="0" y="4" width="20" height="6" rx="2" fill={C.revenueColor} fillOpacity={0.15} />
+            <line x1="0" y1="4" x2="20" y2="4" stroke={C.revenueColor} strokeWidth="2.2" strokeLinecap="round" />
+          </svg>
           <span style={{ fontSize: 10, fontWeight: 600, color: C.textDim }}>Revenue</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <div style={{ width: 12, height: 10, background: C.txnColor, borderRadius: 2, opacity: 0.55 }} />
           <span style={{ fontSize: 10, fontWeight: 600, color: C.textDim }}>Transactions</span>
         </div>
+        {isAllTime && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <svg width="20" height="10" style={{ flexShrink: 0 }}>
+              <line x1="0" y1="5" x2="20" y2="5" stroke={C.accent} strokeWidth="2.5" strokeLinecap="round" />
+            </svg>
+            <span style={{ fontSize: 10, fontWeight: 600, color: C.textDim }}>Cumulative</span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -801,19 +857,19 @@ export default function ManagerDashboardPage() {
 
   // ── KPI definitions ─────────────────────────────────────────────────────────
   const KPI_ROW1 = [
-    { label: 'Gross Revenue',  value: fmt$(kpi.grossRevenue),   icon: AttachMoneyOutlinedIcon,   color: '#2E7D4F', iconBg: 'rgba(46,125,79,0.10)',   delta: kpi.revenueChange,   onClick: () => navigate('/manager/reports') },
-    { label: 'Net Revenue',    value: fmt$(kpi.netRevenue),     icon: TrendingUpOutlinedIcon,     color: '#0277BD', iconBg: 'rgba(2,119,189,0.10)',   delta: undefined,           onClick: () => navigate('/manager/reports') },
-    { label: 'Transactions',   value: fmtNum(kpi.transactions), icon: ReceiptLongOutlinedIcon,   color: C.primary, iconBg: 'rgba(62,39,35,0.08)',   delta: kpi.txnChange,       onClick: () => navigate('/manager/transactions') },
-    { label: 'Avg. Ticket',    value: fmt$(kpi.avgTicket),      icon: LocalAtmOutlinedIcon,       color: '#B26A00', iconBg: 'rgba(178,106,0,0.10)',   delta: kpi.avgTicketChange, onClick: undefined },
-    { label: 'Pending Actions',value: fmtNum(kpi.pendingOverrides), icon: PendingActionsOutlinedIcon, color: kpi.pendingOverrides > 0 ? C.error : C.textDim, iconBg: kpi.pendingOverrides > 0 ? 'rgba(183,28,28,0.09)' : C.tableHdr, alert: kpi.pendingOverrides > 0, onClick: () => navigate('/manager/overrides') },
+    { label: 'Gross Revenue',  mobileLabel: 'Gross Rev.',  value: fmt$(kpi.grossRevenue),      icon: AttachMoneyOutlinedIcon,    color: '#2E7D4F', iconBg: 'rgba(46,125,79,0.10)',   delta: kpi.revenueChange,   onClick: () => navigate('/manager/reports') },
+    { label: 'Net Revenue',    mobileLabel: 'Net Rev.',    value: fmt$(kpi.netRevenue),         icon: TrendingUpOutlinedIcon,      color: '#0277BD', iconBg: 'rgba(2,119,189,0.10)',   delta: undefined,           onClick: () => navigate('/manager/reports') },
+    { label: 'Transactions',   mobileLabel: 'Txns',        value: fmtNum(kpi.transactions),    icon: ReceiptLongOutlinedIcon,    color: C.primary, iconBg: 'rgba(62,39,35,0.08)',   delta: kpi.txnChange,       onClick: () => navigate('/manager/transactions') },
+    { label: 'Avg. Ticket',    mobileLabel: 'Avg Ticket',  value: fmt$(kpi.avgTicket),          icon: LocalAtmOutlinedIcon,        color: '#B26A00', iconBg: 'rgba(178,106,0,0.10)',   delta: kpi.avgTicketChange, onClick: undefined },
+    { label: 'Pending Actions',mobileLabel: 'Pending',     value: fmtNum(kpi.pendingOverrides), icon: PendingActionsOutlinedIcon, color: kpi.pendingOverrides > 0 ? C.error : C.textDim, iconBg: kpi.pendingOverrides > 0 ? 'rgba(183,28,28,0.09)' : C.tableHdr, alert: kpi.pendingOverrides > 0, onClick: () => navigate('/manager/overrides') },
   ];
 
   const KPI_ROW2 = [
-    { label: 'Refunded',     value: fmt$(kpi.refundedAmount), icon: RefundIcon,           color: C.error,   iconBg: 'rgba(183,28,28,0.08)',  delta: undefined, onClick: undefined },
-    { label: 'Discounts',    value: fmt$(kpi.discountTotal),  icon: DiscountOutlinedIcon,  color: '#7B1FA2', iconBg: 'rgba(123,31,162,0.08)',  delta: undefined, onClick: undefined },
-    { label: 'Void Sales',   value: fmtNum(kpi.voidCount),    icon: BlockOutlinedIcon,     color: C.warning, iconBg: 'rgba(178,106,0,0.10)',   delta: undefined, onClick: undefined },
-    { label: 'Active Staff', value: fmtNum(kpi.activeEmployees), icon: PeopleOutlinedIcon, color: '#00695C', iconBg: 'rgba(0,105,92,0.10)',    delta: undefined, onClick: () => navigate('/manager/scheduling') },
-    { label: 'New Customers',value: fmtNum(kpi.newCustomers), icon: PersonAddOutlinedIcon, color: '#7B1FA2', iconBg: 'rgba(123,31,162,0.08)',  delta: undefined, onClick: () => navigate('/manager/customers') },
+    { label: 'Refunded',      mobileLabel: 'Refunded',   value: fmt$(kpi.refundedAmount),      icon: RefundIcon,            color: C.error,   iconBg: 'rgba(183,28,28,0.08)',  delta: undefined, onClick: undefined },
+    { label: 'Discounts',     mobileLabel: 'Discounts',  value: fmt$(kpi.discountTotal),        icon: DiscountOutlinedIcon,  color: '#7B1FA2', iconBg: 'rgba(123,31,162,0.08)',  delta: undefined, onClick: undefined },
+    { label: 'Void Sales',    mobileLabel: 'Voids',      value: fmtNum(kpi.voidCount),          icon: BlockOutlinedIcon,     color: C.warning, iconBg: 'rgba(178,106,0,0.10)',   delta: undefined, onClick: undefined },
+    { label: 'Active Staff',  mobileLabel: 'Staff',      value: fmtNum(kpi.activeEmployees),   icon: PeopleOutlinedIcon,    color: '#00695C', iconBg: 'rgba(0,105,92,0.10)',    delta: undefined, onClick: () => navigate('/manager/scheduling') },
+    { label: 'New Customers', mobileLabel: 'New Cust.',  value: fmtNum(kpi.newCustomers),       icon: PersonAddOutlinedIcon, color: '#7B1FA2', iconBg: 'rgba(123,31,162,0.08)',  delta: undefined, onClick: () => navigate('/manager/customers') },
   ];
 
   /* ══════════════════════════════════════════════════════
@@ -877,8 +933,8 @@ export default function ManagerDashboardPage() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 16, marginBottom: 16 }}>
           {/* Revenue chart */}
           <Card>
-            <CardHeader title="Revenue & Transactions" subtitle={`Trend for selected period`} />
-            <RevenueChart data={data?.chart} loading={loading} />
+            <CardHeader title="Revenue & Transactions" subtitle="Trend for selected period" />
+            <RevenueChart data={data?.chart} loading={loading} period={period} />
           </Card>
 
           {/* Operations panel */}
@@ -1039,8 +1095,8 @@ export default function ManagerDashboardPage() {
               >
                 {pair.map((item, ri) =>
                   loading
-                    ? <KpiCardSkeleton key={ri} />
-                    : <KpiCard key={item.label} {...item} />
+                    ? <KpiCardSkeleton key={ri} compact />
+                    : <KpiCard key={item.label} {...item} compact />
                 )}
               </div>
             ));
@@ -1051,7 +1107,7 @@ export default function ManagerDashboardPage() {
       {/* Revenue chart */}
       <Card style={{ marginBottom: 14 }}>
         <CardHeader title="Revenue & Transactions" subtitle="Trend for selected period" />
-        <RevenueChart data={data?.chart} loading={loading} />
+        <RevenueChart data={data?.chart} loading={loading} period={period} />
       </Card>
 
       {/* Active shifts */}

@@ -32,6 +32,7 @@ import InfoOutlinedIcon                     from '@mui/icons-material/InfoOutlin
 import { printReceipt, downloadPDF }        from '../utils/receiptUtils';
 import useAuthStore                         from '../store/useAuthStore';
 
+import { useMediaQuery } from '@mui/material';
 import { API_URL as API } from '../config/api';
 const FONT = "'Plus Jakarta Sans', sans-serif";
 
@@ -128,6 +129,7 @@ export default function ManagerTransactionDetailPage() {
   const [data,    setData]    = useState(null);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState('');
+  const isMobile = !useMediaQuery('(min-width:1024px)');
 
   const [emailOpen,    setEmailOpen]    = useState(false);
   const [emailAddr,    setEmailAddr]    = useState('');
@@ -155,7 +157,7 @@ export default function ManagerTransactionDetailPage() {
 
   if (loading) {
     return (
-      <div style={{ padding: '20px 28px', fontFamily: FONT }}>
+      <div style={{ padding: isMobile ? '16px 14px' : '20px 28px', fontFamily: FONT }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
           <button onClick={() => navigate(-1)} style={{ width: 38, height: 38, borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <ArrowBackIcon sx={{ fontSize: 20, color: C.primary }} />
@@ -248,7 +250,7 @@ export default function ManagerTransactionDetailPage() {
     <div style={{ fontFamily: FONT, background: C.bg, minHeight: '100dvh', paddingBottom: 60 }}>
 
       {/* ── Sticky header ──────────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 28px', borderBottom: `1px solid ${C.border}`, background: C.surface, position: 'sticky', top: 0, zIndex: 50 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: isMobile ? '12px 14px' : '14px 28px', borderBottom: `1px solid ${C.border}`, background: C.surface, position: 'sticky', top: 0, zIndex: 50 }}>
         <button onClick={() => navigate(-1)}
           style={{ width: 36, height: 36, borderRadius: 9, border: `1px solid ${C.border}`, background: C.surface, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 0 #ddd0c8', flexShrink: 0 }}>
           <ArrowBackIcon sx={{ fontSize: 18, color: C.primary }} />
@@ -267,10 +269,10 @@ export default function ManagerTransactionDetailPage() {
         </span>
       </div>
 
-      <div style={{ padding: '0 28px', maxWidth: 1100, margin: '0 auto' }}>
+      <div style={{ padding: isMobile ? '0 14px' : '0 28px', maxWidth: 1100, margin: '0 auto' }}>
 
         {/* ── Summary ────────────────────────────────────────────────────── */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 24 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14, marginTop: 20 }}>
           {/* Left: transaction info */}
           <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '16px 20px' }}>
             <p style={{ margin: '0 0 12px', fontSize: 10, fontWeight: 700, color: C.primary, textTransform: 'uppercase', letterSpacing: '0.10em' }}>Transaction Info</p>
@@ -295,46 +297,73 @@ export default function ManagerTransactionDetailPage() {
 
         {/* ── Line items ─────────────────────────────────────────────────── */}
         <SectionHeader icon={ReceiptLongOutlinedIcon} title="Line Items" />
-        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 60px 110px 110px 90px 110px 110px', background: C.tableHdr, borderBottom: `1px solid ${C.border}` }}>
-            {['SKU', 'Product', 'Qty', 'Default Price', 'Selling Price', 'Discount', 'Total', 'Refunded'].map((h, i) => (
-              <div key={h} style={{ padding: '9px 12px', fontSize: 9, fontWeight: 700, color: C.primary, textTransform: 'uppercase', letterSpacing: '0.08em', textAlign: i >= 3 ? 'right' : 'left' }}>{h}</div>
-            ))}
+        {isMobile ? (
+          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden' }}>
+            {sale.items.map((item, idx) => {
+              const hasVariance = item.defaultPrice != null && Math.abs(item.defaultPrice - item.unitPrice) > 0.005;
+              return (
+                <div key={idx} style={{ padding: '12px 14px', borderBottom: idx < sale.items.length - 1 ? `1px solid ${C.border}` : 'none', background: idx % 2 ? '#FDFCFB' : C.surface }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+                    <div style={{ minWidth: 0, flex: 1, marginRight: 12 }}>
+                      <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri }}>{item.productName}</p>
+                      <p style={{ margin: '2px 0 0', fontSize: 10, fontFamily: 'monospace', color: C.textDim }}>{item.sku}</p>
+                    </div>
+                    <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: C.textPri }}>${Number(item.total).toFixed(2)}</p>
+                  </div>
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 4 }}>
+                    <span style={{ fontSize: 11, color: C.textSec }}>Qty: <strong>{item.quantity}</strong></span>
+                    <span style={{ fontSize: 11, color: hasVariance ? C.error : C.textSec }}>
+                      ${Number(item.unitPrice).toFixed(2)}{hasVariance && <span style={{ color: C.warning }}> (was ${Number(item.defaultPrice).toFixed(2)})</span>}
+                    </span>
+                    {item.discount > 0 && <span style={{ fontSize: 11, color: C.error }}>Disc −${Number(item.discount).toFixed(2)}</span>}
+                    {item.refundedAmount > 0 && <span style={{ fontSize: 11, color: C.error, fontWeight: 700 }}>Refunded ${Number(item.refundedAmount).toFixed(2)}</span>}
+                  </div>
+                </div>
+              );
+            })}
           </div>
-          {sale.items.map((item, idx) => {
-            const hasVariance = item.defaultPrice != null && Math.abs(item.defaultPrice - item.unitPrice) > 0.005;
-            return (
-              <div key={idx} style={{ display: 'grid', gridTemplateColumns: '90px 1fr 60px 110px 110px 90px 110px 110px', borderBottom: idx < sale.items.length - 1 ? `1px solid ${C.border}` : 'none', background: idx % 2 ? '#FDFCFB' : C.surface }}>
-                <div style={{ padding: '11px 12px', fontSize: 11, fontFamily: 'monospace', color: C.textSec }}>{item.sku}</div>
-                <div style={{ padding: '11px 12px', fontSize: 12, fontWeight: 600, color: C.textPri }}>{item.productName}</div>
-                <div style={{ padding: '11px 12px', fontSize: 12, fontWeight: 700, color: C.textSec, textAlign: 'center' }}>{item.quantity}</div>
-                <div style={{ padding: '11px 12px', textAlign: 'right' }}>
-                  {hasVariance
-                    ? <span style={{ fontSize: 12, fontWeight: 600, color: C.warning }}>${Number(item.defaultPrice).toFixed(2)}</span>
-                    : <span style={{ fontSize: 11, color: C.textDim }}>—</span>
-                  }
+        ) : (
+          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 60px 110px 110px 90px 110px 110px', background: C.tableHdr, borderBottom: `1px solid ${C.border}` }}>
+              {['SKU', 'Product', 'Qty', 'Default Price', 'Selling Price', 'Discount', 'Total', 'Refunded'].map((h, i) => (
+                <div key={h} style={{ padding: '9px 12px', fontSize: 9, fontWeight: 700, color: C.primary, textTransform: 'uppercase', letterSpacing: '0.08em', textAlign: i >= 3 ? 'right' : 'left' }}>{h}</div>
+              ))}
+            </div>
+            {sale.items.map((item, idx) => {
+              const hasVariance = item.defaultPrice != null && Math.abs(item.defaultPrice - item.unitPrice) > 0.005;
+              return (
+                <div key={idx} style={{ display: 'grid', gridTemplateColumns: '90px 1fr 60px 110px 110px 90px 110px 110px', borderBottom: idx < sale.items.length - 1 ? `1px solid ${C.border}` : 'none', background: idx % 2 ? '#FDFCFB' : C.surface }}>
+                  <div style={{ padding: '11px 12px', fontSize: 11, fontFamily: 'monospace', color: C.textSec }}>{item.sku}</div>
+                  <div style={{ padding: '11px 12px', fontSize: 12, fontWeight: 600, color: C.textPri }}>{item.productName}</div>
+                  <div style={{ padding: '11px 12px', fontSize: 12, fontWeight: 700, color: C.textSec, textAlign: 'center' }}>{item.quantity}</div>
+                  <div style={{ padding: '11px 12px', textAlign: 'right' }}>
+                    {hasVariance
+                      ? <span style={{ fontSize: 12, fontWeight: 600, color: C.warning }}>${Number(item.defaultPrice).toFixed(2)}</span>
+                      : <span style={{ fontSize: 11, color: C.textDim }}>—</span>
+                    }
+                  </div>
+                  <div style={{ padding: '11px 12px', textAlign: 'right' }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: hasVariance ? C.error : C.textPri }}>${Number(item.unitPrice).toFixed(2)}</span>
+                    {hasVariance && (
+                      <p style={{ margin: '1px 0 0', fontSize: 9, color: C.warning, fontWeight: 600 }}>
+                        {(Math.abs(item.defaultPrice - item.unitPrice) / item.defaultPrice * 100).toFixed(1)}% variance
+                      </p>
+                    )}
+                  </div>
+                  <div style={{ padding: '11px 12px', textAlign: 'right', fontSize: 12, color: item.discount > 0 ? C.error : C.textDim }}>
+                    {item.discount > 0 ? `−$${Number(item.discount).toFixed(2)}` : '—'}
+                  </div>
+                  <div style={{ padding: '11px 12px', textAlign: 'right', fontSize: 13, fontWeight: 700, color: C.textPri }}>
+                    ${Number(item.total).toFixed(2)}
+                  </div>
+                  <div style={{ padding: '11px 12px', textAlign: 'right', fontSize: 12, fontWeight: 600, color: item.refundedAmount > 0 ? C.error : C.textDim }}>
+                    {item.refundedAmount > 0 ? `$${Number(item.refundedAmount).toFixed(2)}` : '—'}
+                  </div>
                 </div>
-                <div style={{ padding: '11px 12px', textAlign: 'right' }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: hasVariance ? C.error : C.textPri }}>${Number(item.unitPrice).toFixed(2)}</span>
-                  {hasVariance && (
-                    <p style={{ margin: '1px 0 0', fontSize: 9, color: C.warning, fontWeight: 600 }}>
-                      {(Math.abs(item.defaultPrice - item.unitPrice) / item.defaultPrice * 100).toFixed(1)}% variance
-                    </p>
-                  )}
-                </div>
-                <div style={{ padding: '11px 12px', textAlign: 'right', fontSize: 12, color: item.discount > 0 ? C.error : C.textDim }}>
-                  {item.discount > 0 ? `−$${Number(item.discount).toFixed(2)}` : '—'}
-                </div>
-                <div style={{ padding: '11px 12px', textAlign: 'right', fontSize: 13, fontWeight: 700, color: C.textPri }}>
-                  ${Number(item.total).toFixed(2)}
-                </div>
-                <div style={{ padding: '11px 12px', textAlign: 'right', fontSize: 12, fontWeight: 600, color: item.refundedAmount > 0 ? C.error : C.textDim }}>
-                  {item.refundedAmount > 0 ? `$${Number(item.refundedAmount).toFixed(2)}` : '—'}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* ── Payment history ─────────────────────────────────────────────── */}
         <SectionHeader icon={PaymentOutlinedIcon} title="Payment History" />
@@ -344,7 +373,25 @@ export default function ManagerTransactionDetailPage() {
             <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden' }}>
               {payments.map((pmt, idx) => {
                 const isRefund = pmt.direction === 'REFUND';
-                return (
+                return isMobile ? (
+                  <div key={pmt._id} style={{ padding: '12px 14px', borderBottom: idx < payments.length - 1 ? `1px solid ${C.border}` : 'none', background: idx % 2 ? '#FDFCFB' : C.surface }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Badge label={isRefund ? '↩ Refund' : '⬆ Charge'} color={isRefund ? C.error : C.success} bg={isRefund ? 'rgba(183,28,28,0.09)' : 'rgba(46,125,79,0.09)'} />
+                        <span style={{ fontSize: 12, fontWeight: 700, color: C.textPri }}>{pmt.method}{pmt.card ? ` ···· ${pmt.card.last4}` : ''}</span>
+                      </div>
+                      <span style={{ fontSize: 14, fontWeight: 800, color: isRefund ? C.error : C.success }}>{isRefund ? '−' : '+'}${Number(pmt.amount).toFixed(2)}</span>
+                    </div>
+                    {(pmt.buyer?.name || pmt.buyer?.phone || pmt.buyer?.email) && (
+                      <div style={{ fontSize: 11, color: C.textDim, lineHeight: '17px' }}>
+                        {pmt.buyer.name && <span>{pmt.buyer.name}</span>}
+                        {pmt.buyer.phone && <span style={{ marginLeft: 8 }}>{pmt.buyer.phone}</span>}
+                        {pmt.buyer.email && <span style={{ marginLeft: 8 }}>{pmt.buyer.email}</span>}
+                      </div>
+                    )}
+                    <p style={{ margin: '3px 0 0', fontSize: 10, color: C.textDim }}>{fmtDate(pmt.createdAt)}</p>
+                  </div>
+                ) : (
                   <div key={pmt._id} style={{
                     display: 'grid', gridTemplateColumns: '100px 130px 1fr 1fr 120px',
                     padding: '12px 16px', borderBottom: idx < payments.length - 1 ? `1px solid ${C.border}` : 'none',
@@ -400,7 +447,7 @@ export default function ManagerTransactionDetailPage() {
                       </div>
                       <span style={{ fontSize: 11, color: C.textDim }}>{fmtDate(ov.createdAt)}</span>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 24px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '4px 24px' }}>
                       {ov.reason && <KV label="Reason" value={ov.reason} />}
                       {ov.employeeId && <KV label="Requested by" value={`${ov.employeeId.name} #${ov.employeeId.employeeCode}`} />}
                       {ov.approvedBy && <KV label="Approved by" value={`${ov.approvedBy.name} #${ov.approvedBy.employeeCode}`} />}
@@ -427,18 +474,28 @@ export default function ManagerTransactionDetailPage() {
           : (
             <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden' }}>
               {auditLogs.map((log, idx) => (
-                <div key={log._id} style={{
-                  display: 'grid', gridTemplateColumns: '190px 160px 1fr',
-                  padding: '11px 16px', borderBottom: idx < auditLogs.length - 1 ? `1px solid ${C.border}` : 'none',
-                  background: idx % 2 ? '#FDFCFB' : C.surface, alignItems: 'center',
-                }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: C.textPri, fontFamily: 'monospace' }}>{log.action}</span>
-                  <span style={{ fontSize: 11, color: C.textDim }}>{fmtDate(log.timestamp)}</span>
-                  <span style={{ fontSize: 11, color: C.textSec }}>
-                    {log.performedBy ? `${log.performedBy.name} · #${log.performedBy.employeeCode}` : '—'}
-                    {log.role && <span style={{ marginLeft: 6, fontSize: 9, color: C.textDim, background: C.elevated, padding: '1px 5px', borderRadius: 4 }}>{log.role}</span>}
-                  </span>
-                </div>
+                isMobile ? (
+                  <div key={log._id} style={{ padding: '10px 14px', borderBottom: idx < auditLogs.length - 1 ? `1px solid ${C.border}` : 'none', background: idx % 2 ? '#FDFCFB' : C.surface }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 2 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: C.textPri, fontFamily: 'monospace' }}>{log.action}</span>
+                      {log.role && <span style={{ fontSize: 9, color: C.textDim, background: C.elevated, padding: '1px 5px', borderRadius: 4, whiteSpace: 'nowrap' }}>{log.role}</span>}
+                    </div>
+                    <p style={{ margin: 0, fontSize: 10, color: C.textDim }}>{fmtDate(log.timestamp)}{log.performedBy ? ` · ${log.performedBy.name} #${log.performedBy.employeeCode}` : ''}</p>
+                  </div>
+                ) : (
+                  <div key={log._id} style={{
+                    display: 'grid', gridTemplateColumns: '190px 160px 1fr',
+                    padding: '11px 16px', borderBottom: idx < auditLogs.length - 1 ? `1px solid ${C.border}` : 'none',
+                    background: idx % 2 ? '#FDFCFB' : C.surface, alignItems: 'center',
+                  }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: C.textPri, fontFamily: 'monospace' }}>{log.action}</span>
+                    <span style={{ fontSize: 11, color: C.textDim }}>{fmtDate(log.timestamp)}</span>
+                    <span style={{ fontSize: 11, color: C.textSec }}>
+                      {log.performedBy ? `${log.performedBy.name} · #${log.performedBy.employeeCode}` : '—'}
+                      {log.role && <span style={{ marginLeft: 6, fontSize: 9, color: C.textDim, background: C.elevated, padding: '1px 5px', borderRadius: 4 }}>{log.role}</span>}
+                    </span>
+                  </div>
+                )
               ))}
             </div>
           )

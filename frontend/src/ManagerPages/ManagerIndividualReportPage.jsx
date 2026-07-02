@@ -81,7 +81,7 @@ function fmtDateTime(d){ return d ? `${fmtDate(d)} ${fmtTime(d)}` : '—'; }
 function initials(name){ return name?.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?'; }
 
 function Skeleton({ h = 20, w = '100%', r = 6 }) {
-  return <div style={{ height: h, width: w, borderRadius: r, background: C.elevated, animation: 'emp-pulse 1.4s ease infinite alternate' }} />;
+  return <div style={{ height: h, width: w, borderRadius: r, background: 'linear-gradient(90deg,#EDE5E0 25%,#F5F3F1 50%,#EDE5E0 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.4s infinite', flexShrink: 0 }} />;
 }
 
 function Badge({ label, color = C.textDim, bg }) {
@@ -175,9 +175,24 @@ function OverviewTab({ data, loading, isMobile }) {
 
   if (loading) return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 10 }}>{[1,2,3,4].map(i => <Skeleton key={i} h={58} r={10} />)}</div>
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 10 }}>{[1,2,3,4].map(i => <Skeleton key={i} h={58} r={10} />)}</div>
-      <Skeleton h={220} r={12} />
+      {[0, 1].map(row => (
+        <div key={row} style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 10 }}>
+          {[1,2,3,4].map(i => (
+            <div key={i} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: isMobile ? '8px 10px' : '9px 13px', display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 10 }}>
+              <Skeleton h={isMobile ? 24 : 28} w={isMobile ? 24 : 28} r={7} />
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 5 }}>
+                <Skeleton h={9} w="42%" />
+                <Skeleton h={isMobile ? 14 : 17} w="68%" />
+                <Skeleton h={9} w="50%" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ))}
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '14px 12px 12px' }}>
+        <Skeleton h={10} w={80} r={4} />
+        <div style={{ marginTop: 12 }}><Skeleton h={200} r={8} /></div>
+      </div>
     </div>
   );
   if (!k) return null;
@@ -1031,7 +1046,12 @@ export default function ManagerIndividualReportPage() {
           {isMobile ? (
             listLoading ? (
               <div style={{ display: 'flex', gap: 8, overflowX: 'auto', scrollbarWidth: 'none' }}>
-                {[1,2,3,4,5].map(i => <Skeleton key={i} h={72} w={68} r={10} />)}
+                {[1,2,3,4,5].map(i => (
+                  <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '8px 10px', borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, minWidth: 72, flexShrink: 0 }}>
+                    <Skeleton h={34} w={34} r={9} />
+                    <Skeleton h={10} w={52} r={4} />
+                  </div>
+                ))}
               </div>
             ) : filtered.length ? (
               <div style={{ overflowX: 'auto', scrollbarWidth: 'none' }}>
@@ -1061,7 +1081,15 @@ export default function ManagerIndividualReportPage() {
           ) : (
             listLoading ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {[1,2,3,4,5].map(i => <Skeleton key={i} h={52} r={10} />)}
+                {[1,2,3,4,5].map(i => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface }}>
+                    <Skeleton h={30} w={30} r={8} />
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 5 }}>
+                      <Skeleton h={12} w="58%" />
+                      <Skeleton h={10} w="38%" />
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : filtered.length ? (
               <div className="no-scrollbar" style={{ maxHeight: 'calc(100dvh - 220px)', overflowY: 'auto', paddingRight: 2 }}>
@@ -1220,7 +1248,7 @@ export default function ManagerIndividualReportPage() {
       )}
 
       <style>{`
-        @keyframes emp-pulse { from { opacity: 1; } to { opacity: 0.45; } }
+        @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
