@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
+import { useMediaQuery } from '@mui/material';
 import GroupsOutlinedIcon         from '@mui/icons-material/GroupsOutlined';
 import PeopleOutlinedIcon         from '@mui/icons-material/PeopleOutlined';
 import SearchOutlinedIcon         from '@mui/icons-material/SearchOutlined';
@@ -8,6 +9,7 @@ import RefreshOutlinedIcon        from '@mui/icons-material/RefreshOutlined';
 import KeyboardArrowDownIcon      from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon        from '@mui/icons-material/KeyboardArrowUp';
 import StarOutlinedIcon           from '@mui/icons-material/StarOutlined';
+import TrendingUpOutlinedIcon     from '@mui/icons-material/TrendingUpOutlined';
 import LinkOffOutlinedIcon        from '@mui/icons-material/LinkOffOutlined';
 import ErrorOutlineOutlinedIcon   from '@mui/icons-material/ErrorOutlineOutlined';
 import InfoOutlinedIcon           from '@mui/icons-material/InfoOutlined';
@@ -57,19 +59,35 @@ function KpiCard({ label, value, icon: Icon, color, iconBg, skeleton }) {
   return (
     <div style={{
       position: 'relative', background: C.surface, border: `1px solid ${C.border}`,
-      borderRadius: 12, padding: '16px 18px', display: 'flex', alignItems: 'flex-start',
-      gap: 14, fontFamily: FONT,
+      borderRadius: 12, padding: '14px 16px',
+      display: 'flex', alignItems: 'center', gap: 12, fontFamily: FONT,
     }}>
-      <div style={{ position: 'absolute', top: 0, left: 0, width: 20, height: 20, borderTop: `1.5px solid ${color}`, borderLeft: `1.5px solid ${color}`, borderTopLeftRadius: 10, pointerEvents: 'none' }} />
-      <div style={{ position: 'absolute', bottom: 0, right: 0, width: 20, height: 20, borderBottom: `1.5px solid ${color}`, borderRight: `1.5px solid ${color}`, borderBottomRightRadius: 10, pointerEvents: 'none' }} />
-      <div style={{ width: 40, height: 40, borderRadius: 10, background: iconBg, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Icon sx={{ fontSize: 20, color }} />
+      <div style={{ position: 'absolute', top: 0, left: 0, width: 22, height: 22, borderTop: `1.5px solid ${color}`, borderLeft: `1.5px solid ${color}`, borderTopLeftRadius: 10, pointerEvents: 'none' }} />
+      <div style={{ position: 'absolute', bottom: 0, right: 0, width: 22, height: 22, borderBottom: `1.5px solid ${color}`, borderRight: `1.5px solid ${color}`, borderBottomRightRadius: 10, pointerEvents: 'none' }} />
+      <div style={{ width: 38, height: 38, borderRadius: 10, background: iconBg, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 0 1px ${color}22` }}>
+        <Icon sx={{ fontSize: 19, color }} />
       </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ minWidth: 0, flex: 1 }}>
         {skeleton
-          ? <div style={{ height: 24, width: 60, borderRadius: 4, background: C.elevated, marginBottom: 6 }} />
-          : <p style={{ margin: 0, fontSize: 22, fontWeight: 800, color: C.textPri, letterSpacing: '-0.5px', lineHeight: '28px' }}>{value}</p>}
-        <p style={{ margin: '4px 0 0', fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</p>
+          ? <div style={{ height: 18, width: 50, borderRadius: 4, background: C.elevated, marginBottom: 6 }} />
+          : <p style={{ margin: 0, fontSize: 18, fontWeight: 800, color: C.textPri, letterSpacing: '-0.4px', lineHeight: 1 }}>{value}</p>}
+        <p style={{ margin: '4px 0 0', fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em', lineHeight: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</p>
+      </div>
+    </div>
+  );
+}
+
+function KpiCardSkeleton() {
+  return (
+    <div style={{
+      background: C.surface, border: `1px solid ${C.border}`,
+      borderRadius: 12, padding: '14px 16px',
+      display: 'flex', alignItems: 'center', gap: 12,
+    }}>
+      <div style={{ width: 38, height: 38, borderRadius: 10, background: C.elevated, flexShrink: 0 }} />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 7 }}>
+        <div style={{ height: 18, width: '65%', borderRadius: 4, background: C.elevated }} />
+        <div style={{ height: 10, width: '45%', borderRadius: 4, background: C.bg }} />
       </div>
     </div>
   );
@@ -503,6 +521,7 @@ export default function ManagerGroupsPage() {
   const token    = useAuthStore(s => s.token);
   const navigate = useNavigate();
   const qc       = useQueryClient();
+  const isMobile = !useMediaQuery('(min-width:1024px)');
   const [search,      setSearch]      = useState('');
   const [dialogOpen,  setDialogOpen]  = useState(false);
   const [editTarget,  setEditTarget]  = useState(null);   // null = create, object = edit
@@ -590,6 +609,27 @@ export default function ManagerGroupsPage() {
     ? (totalMembers / posGroups.length).toFixed(1).replace(/\.0$/, '')
     : 0;
 
+  // EMS: high performers (score ≥ 80) — POS: largest group size
+  const highPerfCount  = allEmsMembers.filter(m => (m.performanceScore ?? 0) >= 80).length;
+  const largestGroup   = posGroups.reduce((mx, g) => Math.max(mx, g.members?.length ?? 0), 0);
+
+  // ── KPI definitions ───────────────────────────────────────────────────────────
+  const KPIS = [
+    { label: 'Total Groups',   value: loading ? '—' : groups.length,    icon: GroupsOutlinedIcon,    color: C.accent,   iconBg: C.accentLt  },
+    { label: 'Total Members',  value: loading ? '—' : totalMembers,      icon: PeopleOutlinedIcon,    color: C.info,     iconBg: C.infoLt    },
+    {
+      label: syncEnabled ? 'Avg Score' : 'Avg Members',
+      value: loading ? '—' : (syncEnabled ? avgScore : avgGroupSize),
+      icon:  StarOutlinedIcon, color: C.success, iconBg: C.successLt,
+    },
+    {
+      label: syncEnabled ? 'High Performers' : 'Largest Group',
+      value: loading ? '—' : (syncEnabled ? highPerfCount : largestGroup),
+      icon:  TrendingUpOutlinedIcon,
+      color: '#0277BD', iconBg: 'rgba(2,119,189,0.10)',
+    },
+  ];
+
   // ── POS group actions ─────────────────────────────────────────────────────────
   const handleDelete = useCallback(async (id) => {
     await fetch(`${API}/api/groups/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
@@ -606,53 +646,76 @@ export default function ManagerGroupsPage() {
   const openEdit   = (g)  => { setEditTarget(g);   setDialogOpen(true); };
 
   return (
-    <div style={{ fontFamily: FONT, background: C.bg, minHeight: '100vh', padding: '24px 24px 48px' }}>
+    <div style={{ fontFamily: FONT, background: C.bg, minHeight: '100dvh', padding: isMobile ? '14px 14px 48px' : '24px 24px 48px', boxSizing: 'border-box', width: '100%', overflowX: 'hidden' }}>
+      <style>{`.groups-kpi-scroll::-webkit-scrollbar { display: none; }`}</style>
 
-      {/* Page header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ width: 42, height: 42, borderRadius: 12, background: C.accentLt, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <GroupsOutlinedIcon sx={{ fontSize: 22, color: C.accent }} />
+      {/* ── Page header ── */}
+      {isMobile ? (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 34, height: 34, borderRadius: 9, background: C.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <GroupsOutlinedIcon sx={{ fontSize: 17, color: C.accent }} />
+            </div>
+            <h1 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: C.textPri }}>Groups</h1>
           </div>
-          <div>
-            <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: C.textPri, letterSpacing: '-0.3px' }}>Groups</h1>
-            <p style={{ margin: '2px 0 0', fontSize: 12, color: C.textDim }}>
-              {syncEnabled ? 'Employee groups from staffing portal — read only' : 'Manage your POS employee groups'}
-            </p>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', gap: 8 }}>
-          {/* Refresh */}
-          <button
-            onClick={() => syncEnabled ? emsRefetch() : posRefetch()}
-            disabled={syncEnabled ? emsFetching : posFetching}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, height: 34, padding: '0 14px', background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, cursor: 'pointer', fontFamily: FONT }}
-          >
-            <RefreshOutlinedIcon sx={{ fontSize: 15, color: C.textSec, animation: (syncEnabled ? emsFetching : posFetching) ? 'spin 1s linear infinite' : 'none' }} />
-            <span style={{ fontSize: 12, fontWeight: 600, color: C.textSec }}>Refresh</span>
-          </button>
-
-          {/* Create group — only when sync is OFF */}
-          {!syncLoading && !syncEnabled && (
+          <div style={{ display: 'flex', gap: 6 }}>
             <button
-              onClick={openCreate}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, height: 34, padding: '0 16px', background: C.primary, border: 'none', borderRadius: 8, cursor: 'pointer', fontFamily: FONT }}
+              onClick={() => syncEnabled ? emsRefetch() : posRefetch()}
+              disabled={syncEnabled ? emsFetching : posFetching}
+              style={{ width: 34, height: 34, borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
             >
-              <AddOutlinedIcon sx={{ fontSize: 15, color: '#fff' }} />
-              <span style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>Create Group</span>
+              <RefreshOutlinedIcon sx={{ fontSize: 16, color: C.textSec, animation: (syncEnabled ? emsFetching : posFetching) ? 'spin 1s linear infinite' : 'none' }} />
             </button>
-          )}
+            {!syncLoading && !syncEnabled && (
+              <button
+                onClick={openCreate}
+                style={{ width: 34, height: 34, borderRadius: 8, background: C.primary, border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+              >
+                <AddOutlinedIcon sx={{ fontSize: 17, color: '#fff' }} />
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 42, height: 42, borderRadius: 12, background: C.primary, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <GroupsOutlinedIcon sx={{ fontSize: 22, color: C.accent }} />
+            </div>
+            <div>
+              <p style={{ margin: '0 0 1px', fontSize: 10, fontWeight: 600, color: C.textDim, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Manager Portal</p>
+              <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: C.textPri, letterSpacing: '-0.3px' }}>Groups</h1>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={() => syncEnabled ? emsRefetch() : posRefetch()}
+              disabled={syncEnabled ? emsFetching : posFetching}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, height: 34, padding: '0 14px', background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, cursor: 'pointer', fontFamily: FONT }}
+            >
+              <RefreshOutlinedIcon sx={{ fontSize: 15, color: C.textSec, animation: (syncEnabled ? emsFetching : posFetching) ? 'spin 1s linear infinite' : 'none' }} />
+              <span style={{ fontSize: 12, fontWeight: 600, color: C.textSec }}>Refresh</span>
+            </button>
+            {!syncLoading && !syncEnabled && (
+              <button
+                onClick={openCreate}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, height: 34, padding: '0 16px', background: C.primary, border: 'none', borderRadius: 8, cursor: 'pointer', fontFamily: FONT }}
+              >
+                <AddOutlinedIcon sx={{ fontSize: 15, color: '#fff' }} />
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>Create Group</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── EMS sync OFF: show POS UI ─────────────────────────────────────── */}
       {!syncLoading && !syncEnabled && (
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, background: 'rgba(212,163,115,0.08)', border: `1px solid rgba(212,163,115,0.35)`, borderRadius: 10, padding: '10px 14px', marginBottom: 20 }}>
-          <InfoOutlinedIcon sx={{ fontSize: 16, color: C.accent, flexShrink: 0, marginTop: '1px' }} />
-          <p style={{ margin: 0, fontSize: 12, color: C.textSec, fontWeight: 500, lineHeight: '18px', fontFamily: FONT }}>
-            <strong>POS-native groups</strong> — Staffing Betit sync is off. Groups created here are stored in the POS database and are used for group performance reports. To switch to EMS groups, enable the integration in{' '}
-            <button onClick={() => navigate('/manager/settings')} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: C.primary, fontWeight: 700, fontSize: 12, fontFamily: FONT, textDecoration: 'underline' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, background: 'rgba(212,163,115,0.08)', border: `1px solid rgba(212,163,115,0.35)`, borderRadius: 10, padding: isMobile ? '9px 12px' : '10px 14px', marginBottom: isMobile ? 12 : 20 }}>
+          <InfoOutlinedIcon sx={{ fontSize: 15, color: C.accent, flexShrink: 0, marginTop: '1px' }} />
+          <p style={{ margin: 0, fontSize: isMobile ? 11 : 12, color: C.textSec, fontWeight: 500, lineHeight: '18px', fontFamily: FONT }}>
+            <strong>POS-native groups</strong> — Staffing Betit sync is off. Groups created here are used for group performance reports. To switch to EMS groups, enable the integration in{' '}
+            <button onClick={() => navigate('/manager/settings')} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: C.primary, fontWeight: 700, fontSize: isMobile ? 11 : 12, fontFamily: FONT, textDecoration: 'underline' }}>
               Settings › Sync Data
             </button>.
           </p>
@@ -661,9 +724,9 @@ export default function ManagerGroupsPage() {
 
       {/* ── EMS sync ON: read-only notice ────────────────────────────────── */}
       {!syncLoading && syncEnabled && (
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, background: 'rgba(2,119,189,0.06)', border: '1px solid rgba(2,119,189,0.18)', borderRadius: 10, padding: '10px 14px', marginBottom: 20 }}>
-          <InfoOutlinedIcon sx={{ fontSize: 16, color: C.info, flexShrink: 0, marginTop: '1px' }} />
-          <p style={{ margin: 0, fontSize: 12, color: '#01579B', fontWeight: 500, lineHeight: '18px', fontFamily: FONT }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, background: 'rgba(2,119,189,0.06)', border: '1px solid rgba(2,119,189,0.18)', borderRadius: 10, padding: isMobile ? '9px 12px' : '10px 14px', marginBottom: isMobile ? 12 : 20 }}>
+          <InfoOutlinedIcon sx={{ fontSize: 15, color: C.info, flexShrink: 0, marginTop: '1px' }} />
+          <p style={{ margin: 0, fontSize: isMobile ? 11 : 12, color: '#01579B', fontWeight: 500, lineHeight: '18px', fontFamily: FONT }}>
             <strong>Read-only view</strong> — groups are sourced from Staffing Betit (EMS). To create or modify groups, visit the{' '}
             <a href={EMS_URL} target="_blank" rel="noopener noreferrer" style={{ color: C.info, fontWeight: 700, textDecoration: 'underline' }}>
               Staffing Betit portal
@@ -672,25 +735,53 @@ export default function ManagerGroupsPage() {
         </div>
       )}
 
-      {/* KPI row */}
-      {(syncLoading || (!syncLoading && (syncEnabled || posGroups.length >= 0))) && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 24 }}>
-          <KpiCard label="Total Groups"  value={loading ? '—' : groups.length}  icon={GroupsOutlinedIcon}  color={C.accent}  iconBg={C.accentLt}  skeleton={loading} />
-          <KpiCard label="Total Members" value={loading ? '—' : totalMembers}   icon={PeopleOutlinedIcon}  color={C.info}    iconBg={C.infoLt}    skeleton={loading} />
-          <KpiCard
-            label={syncEnabled ? 'Avg Perf Score' : 'Avg Group Size'}
-            value={loading ? '—' : (syncEnabled ? avgScore : avgGroupSize)}
-            icon={StarOutlinedIcon}
-            color={C.success}
-            iconBg={C.successLt}
-            skeleton={loading}
-          />
+      {/* KPI cards */}
+      {isMobile ? (
+        /* ── Mobile: horizontal-scroll 2×2 (dashboard pattern) ── */
+        <div
+          className="groups-kpi-scroll"
+          style={{
+            overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none',
+            WebkitOverflowScrolling: 'touch', scrollSnapType: 'x mandatory',
+            marginBottom: 12,
+          }}
+        >
+          <div style={{ display: 'flex', flexDirection: 'row', gap: 8, width: 'max-content' }}>
+            {(() => {
+              /* col width: 2 cols + 1 gap fill viewport — 14px padding each side */
+              const colW = 'calc((100vw - 36px) / 2)';
+              const items = loading
+                ? [0, 1, 2, 3].map((k) => ({ _k: k }))
+                : KPIS;
+              const cols = [];
+              for (let i = 0; i < Math.ceil(items.length / 2); i++) {
+                cols.push([items[i * 2], items[i * 2 + 1]].filter(Boolean));
+              }
+              return cols.map((pair, ci) => (
+                <div key={ci} style={{ display: 'flex', flexDirection: 'column', gap: 8, width: colW, minWidth: colW, flexShrink: 0, scrollSnapAlign: 'start' }}>
+                  {pair.map((item, ri) =>
+                    loading
+                      ? <KpiCardSkeleton key={ri} />
+                      : <KpiCard key={item.label} {...item} />
+                  )}
+                </div>
+              ));
+            })()}
+          </div>
+        </div>
+      ) : (
+        /* ── Desktop: 4-col grid ── */
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 24 }}>
+          {loading
+            ? [0,1,2,3].map(k => <KpiCardSkeleton key={k} />)
+            : KPIS.map(m => <KpiCard key={m.label} {...m} />)
+          }
         </div>
       )}
 
       {/* Search bar */}
       {!syncLoading && (
-        <div style={{ position: 'relative', marginBottom: 20, maxWidth: 380 }}>
+        <div style={{ position: 'relative', marginBottom: isMobile ? 12 : 20, maxWidth: isMobile ? '100%' : 380 }}>
           <SearchOutlinedIcon sx={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 17, color: C.textDim }} />
           <input
             value={search}
@@ -714,7 +805,7 @@ export default function ManagerGroupsPage() {
 
       {/* Loading skeletons */}
       {loading && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(280px, 1fr))', gap: isMobile ? 10 : 16 }}>
           {[0, 1, 2, 3].map(i => <SkeletonCard key={i} />)}
         </div>
       )}
@@ -745,7 +836,7 @@ export default function ManagerGroupsPage() {
               {filtered.length} of {groups.length} {groups.length === 1 ? 'group' : 'groups'} shown
             </p>
           )}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(280px, 1fr))', gap: isMobile ? 10 : 16 }}>
             {syncEnabled
               ? filtered.map(g => <EmsGroupCard key={g._id} group={g} />)
               : filtered.map(g => <PosGroupCard key={g._id} group={g} onEdit={openEdit} onDelete={handleDelete} />)

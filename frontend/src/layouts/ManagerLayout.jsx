@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useMediaQuery } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
@@ -147,6 +147,24 @@ export default function ManagerLayout() {
   const [collapsed,    setCollapsed]    = useState(false);
 
   const sidebarW = collapsed ? SIDEBAR_COLLAPSED : SIDEBAR_EXPANDED;
+
+  const headerRef   = useRef(null);
+  const [headerHeight, setHeaderHeight] = useState(57);
+
+  // Measure header height for drawer top offset
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => setHeaderHeight(entry.contentRect.height));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // Lock body scroll when drawer is open
+  useEffect(() => {
+    document.body.style.overflow = menuOpen ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [menuOpen]);
 
   const [openGroups, setOpenGroups] = useState(() => {
     const active = findActiveGroup(pathname);
@@ -442,7 +460,7 @@ export default function ManagerLayout() {
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh', background: '#F5F3F1', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
 
       {/* Top header */}
-      <header style={{ background: '#3E2723', borderBottom: '1px solid #2A1715', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+      <header ref={headerRef} style={{ position: 'relative', zIndex: 600, background: '#3E2723', borderBottom: '1px solid #2A1715', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {/* Store logo replaces the "M" initial when available */}
           <div style={{ width: 34, height: 34, borderRadius: 9, overflow: 'hidden', background: storeLogo ? 'transparent' : 'rgba(255,255,255,0.15)', border: '1.5px solid rgba(255,255,255,0.20)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -472,7 +490,7 @@ export default function ManagerLayout() {
       </main>
 
       {/* Bottom navigation */}
-      <nav style={{ position: 'fixed', bottom: 0, left: 0, right: 0, height: 70, background: '#ffffff', borderTop: '1px solid #DDD2CC', display: 'flex', alignItems: 'stretch', zIndex: 100 }}>
+      <nav style={{ position: 'fixed', bottom: 0, left: 0, right: 0, height: 70, background: '#ffffff', borderTop: '1px solid #DDD2CC', display: 'flex', alignItems: 'stretch', zIndex: 600 }}>
         {activeIndex >= 0 && (
           <span style={{ position: 'absolute', top: 0, left: `${(activeIndex / (MOBILE_NAV_ITEMS.length + 1)) * 100}%`, width: `${100 / (MOBILE_NAV_ITEMS.length + 1)}%`, display: 'flex', justifyContent: 'center', pointerEvents: 'none', transition: 'left 0.28s cubic-bezier(0.4, 0, 0.2, 1)' }}>
             <span style={{ width: 48, height: 3, borderRadius: '0 0 4px 4px', background: '#D4A373' }} />
@@ -495,14 +513,14 @@ export default function ManagerLayout() {
         </button>
       </nav>
 
-      {/* Backdrop */}
-      <div onClick={() => setMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(43,29,26,0.32)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', opacity: menuOpen ? 1 : 0, pointerEvents: menuOpen ? 'auto' : 'none', transition: 'opacity 0.3s ease' }} />
+      {/* Backdrop — above content (550) but below header+nav (600) */}
+      <div onClick={() => setMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 550, background: 'rgba(43,29,26,0.32)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', opacity: menuOpen ? 1 : 0, pointerEvents: menuOpen ? 'auto' : 'none', transition: 'opacity 0.3s ease' }} />
 
-      {/* Right-side menu drawer */}
-      <aside style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 'min(75vw, 300px)', background: '#ffffff', zIndex: 201, boxShadow: '-8px 0 28px rgba(42,23,21,0.18)', transform: menuOpen ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.32s cubic-bezier(0.32, 0.72, 0, 1)', display: 'flex', flexDirection: 'column' }}>
+      {/* Right-side menu drawer — starts below header (551 < header/nav 600) */}
+      <aside style={{ position: 'fixed', top: headerHeight, right: 0, bottom: 0, width: 'min(75vw, 300px)', background: '#ffffff', zIndex: 551, boxShadow: '-8px 0 28px rgba(42,23,21,0.18)', transform: menuOpen ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.32s cubic-bezier(0.32, 0.72, 0, 1)', display: 'flex', flexDirection: 'column' }}>
 
         {/* Drawer header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 16px', borderBottom: '1px solid #DDD2CC' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '28px 16px 18px', borderBottom: '1px solid #DDD2CC' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
             <div style={{ width: 28, height: 28, borderRadius: 8, background: '#3E2723', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <span style={{ fontSize: 12, fontWeight: 800, color: '#D4A373' }}>M</span>
@@ -535,8 +553,8 @@ export default function ManagerLayout() {
           </button>
         </div>
 
-        {/* Grouped drawer nav */}
-        <div className="mgr-nav-scroll" style={{ flex: 1, overflowY: 'auto', padding: '6px 0 8px' }}>
+        {/* Grouped drawer nav — paddingBottom clears the fixed bottom nav (70px) */}
+        <div className="mgr-nav-scroll" style={{ flex: 1, overflowY: 'auto', padding: '6px 0 78px' }}>
 
           {/* Dashboard shortcut */}
           {(() => {

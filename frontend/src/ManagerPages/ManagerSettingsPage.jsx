@@ -40,12 +40,12 @@ const C = {
 };
 
 const TABS = [
-  { key: 'biometric', label: 'Biometric',           icon: FingerprintOutlinedIcon },
-  { key: 'email',     label: 'Email Config',        icon: EmailOutlinedIcon },
-  { key: 'managers',  label: 'Manager Management',  icon: AdminPanelSettingsOutlinedIcon },
-  { key: 'inventory', label: 'Inventory',           icon: Inventory2OutlinedIcon },
-  { key: 'profile',   label: 'Profile',             icon: ManageAccountsOutlinedIcon },
-  { key: 'sync',      label: 'Sync Data',           icon: SyncOutlinedIcon },
+  { key: 'biometric', label: 'Biometric',           mobileLabel: 'Biometric', icon: FingerprintOutlinedIcon },
+  { key: 'email',     label: 'Email Config',        mobileLabel: 'Email',     icon: EmailOutlinedIcon },
+  { key: 'managers',  label: 'Manager Management',  mobileLabel: 'Managers',  icon: AdminPanelSettingsOutlinedIcon },
+  { key: 'inventory', label: 'Inventory',           mobileLabel: 'Inventory', icon: Inventory2OutlinedIcon },
+  { key: 'profile',   label: 'Profile',             mobileLabel: 'Profile',   icon: ManageAccountsOutlinedIcon },
+  { key: 'sync',      label: 'Sync Data',           mobileLabel: 'Sync',      icon: SyncOutlinedIcon },
 ];
 
 /* ── Reusable toggle switch ── */
@@ -268,7 +268,7 @@ function SyncDataTab({ token }) {
 /* ══════════════════════════════════
    TAB: Email Config
 ══════════════════════════════════ */
-function EmailConfigTab({ token }) {
+function EmailConfigTab({ token, isMobile }) {
   const authHeaders = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 
   const [form, setForm] = useState({
@@ -353,7 +353,7 @@ function EmailConfigTab({ token }) {
           SMTP Server
         </p>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr auto', gap: 12 }}>
           <EmailField label="Host" name="smtpHost" value={form.smtpHost} onChange={onChange} placeholder="smtp.resend.com" icon={DnsOutlinedIcon} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: C.textSec, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Port</span>
@@ -364,14 +364,15 @@ function EmailConfigTab({ token }) {
               placeholder="587"
               type="number"
               style={{
-                width: 72, border: `1px solid ${C.border}`, borderRadius: 8, outline: 'none',
+                width: isMobile ? '100%' : 72, boxSizing: 'border-box',
+                border: `1px solid ${C.border}`, borderRadius: 8, outline: 'none',
                 padding: '10px 10px', fontSize: 13, color: C.textPri, background: '#fff',
               }}
             />
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
           <EmailField label="Username" name="smtpUser" value={form.smtpUser} onChange={onChange} placeholder="resend" icon={PersonOutlinedIcon} />
           <EmailField label="Password / API Key" name="smtpPass" value={form.smtpPass} onChange={onChange} placeholder="re_••••••••" type="password" icon={LockOutlinedIcon} />
         </div>
@@ -702,7 +703,7 @@ function MgrFormField({ label, name, type = 'text', placeholder, icon: Icon, val
 /* ══════════════════════════════════
    TAB: Manager Management
 ══════════════════════════════════ */
-function ManagerManagementTab({ token, currentUserId }) {
+function ManagerManagementTab({ token, currentUserId, isMobile }) {
   const authHeaders = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 
   const [managers, setManagers]   = useState([]);
@@ -831,7 +832,7 @@ function ManagerManagementTab({ token, currentUserId }) {
           <p style={{ margin: '0 0 2px', fontSize: 11, fontWeight: 800, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
             New Manager Account
           </p>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
             <MgrFormField label="Full Name"     name="name"       placeholder="Jane Smith"        icon={PersonOutlinedIcon} value={form.name}       onChange={onFormChange} />
             <MgrFormField label="Email"         name="email"      placeholder="jane@company.com"  icon={EmailOutlinedIcon}  value={form.email}      onChange={onFormChange} type="email" />
             <MgrFormField label="PIN (4-digit)" name="pin"        placeholder="••••"              icon={LockOutlinedIcon}   value={form.pin}        onChange={onFormChange} type="password" />
@@ -909,107 +910,105 @@ function ManagerManagementTab({ token, currentUserId }) {
           </button>
         </div>
 
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', minWidth: 540, borderCollapse: 'separate', borderSpacing: 0 }}>
-            <thead>
-              <tr style={{ background: '#F3EDE9' }}>
-                {['Manager', 'Code', 'Role', 'Joined', 'Remove'].map((h, i) => (
-                  <th key={h} style={{
-                    padding: '9px 16px', textAlign: i === 4 ? 'right' : 'left',
-                    borderBottom: `1px solid ${C.border}`,
-                    fontSize: 10, fontWeight: 700, color: C.textDim,
-                    letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap',
-                  }}>
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {!loading && managers.length === 0 && (
-                <tr>
-                  <td colSpan={5} style={{ padding: '40px 24px', textAlign: 'center' }}>
-                    <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: C.textDim }}>No managers found</p>
-                  </td>
-                </tr>
-              )}
-              {managers.map(m => {
-                const isSelf = String(m._id) === String(currentUserId);
-                const joined = m.createdAt ? new Date(m.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
-                return (
-                  <tr
-                    key={m._id}
-                    onMouseEnter={e => e.currentTarget.style.background = C.bg}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                    style={{ transition: 'background 0.12s' }}
+        {isMobile ? (
+          /* ── Mobile: card list ── */
+          <div>
+            {!loading && managers.length === 0 && (
+              <p style={{ margin: 0, padding: '32px 16px', textAlign: 'center', fontSize: 13, fontWeight: 600, color: C.textDim }}>No managers found</p>
+            )}
+            {managers.map(m => {
+              const isSelf = String(m._id) === String(currentUserId);
+              const joined = m.createdAt ? new Date(m.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+              return (
+                <div key={m._id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderBottom: `1px solid ${C.border}` }}>
+                  <div style={{ width: 36, height: 36, borderRadius: '50%', flexShrink: 0, background: C.elevated, border: `1.5px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, color: C.primary }}>
+                    {(m.name ?? '?').charAt(0)}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2 }}>
+                      <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</p>
+                      {isSelf && <span style={{ fontSize: 9, fontWeight: 800, color: C.success, background: 'rgba(46,125,79,0.09)', border: '1px solid rgba(46,125,79,0.25)', borderRadius: 4, padding: '1px 5px', flexShrink: 0 }}>YOU</span>}
+                    </div>
+                    <p style={{ margin: '0 0 5px', fontSize: 11, color: C.textDim, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.email}</p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: C.primary, background: C.elevated, borderRadius: 4, padding: '1px 6px' }}>{m.employeeCode ?? '—'}</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: m.role === 'Admin' ? C.warning : C.textSec, background: m.role === 'Admin' ? 'rgba(178,106,0,0.09)' : C.elevated, border: `1px solid ${m.role === 'Admin' ? 'rgba(178,106,0,0.25)' : C.border}`, borderRadius: 4, padding: '1px 6px' }}>{m.role}</span>
+                      <span style={{ fontSize: 10, color: C.textDim }}>{joined}</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => { setDeleteError(''); setDeleteTarget(m); }}
+                    disabled={isSelf}
+                    title={isSelf ? "You can't remove yourself" : 'Remove manager'}
+                    style={{ width: 30, height: 30, borderRadius: 7, flexShrink: 0, border: `1px solid ${isSelf ? C.border : 'rgba(183,28,28,0.22)'}`, background: isSelf ? C.elevated : 'rgba(183,28,28,0.07)', color: isSelf ? C.textDim : C.error, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: isSelf ? 'not-allowed' : 'pointer', opacity: isSelf ? 0.35 : 1 }}
                   >
-                    <td style={{ padding: '12px 16px', borderBottom: `1px solid ${C.border}` }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div style={{
-                          width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
-                          background: C.elevated, border: `1.5px solid ${C.border}`,
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: 12, fontWeight: 800, color: C.primary, textTransform: 'uppercase',
-                        }}>
-                          {(m.name ?? '?').charAt(0)}
-                        </div>
-                        <div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri }}>{m.name}</p>
-                            {isSelf && (
-                              <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', color: C.success, background: 'rgba(46,125,79,0.09)', border: '1px solid rgba(46,125,79,0.25)', borderRadius: 4, padding: '1px 6px' }}>
-                                YOU
-                              </span>
-                            )}
-                          </div>
-                          <p style={{ margin: 0, fontSize: 11, color: C.textDim }}>{m.email}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td style={{ padding: '12px 16px', borderBottom: `1px solid ${C.border}` }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: C.primary, letterSpacing: '0.06em', background: C.elevated, borderRadius: 5, padding: '2px 7px' }}>
-                        {m.employeeCode ?? '—'}
-                      </span>
-                    </td>
-                    <td style={{ padding: '12px 16px', borderBottom: `1px solid ${C.border}` }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
-                        color: m.role === 'Admin' ? C.warning : C.textSec,
-                        background: m.role === 'Admin' ? 'rgba(178,106,0,0.09)' : C.elevated,
-                        border: `1px solid ${m.role === 'Admin' ? 'rgba(178,106,0,0.25)' : C.border}`,
-                        borderRadius: 5, padding: '2px 7px',
-                      }}>
-                        {m.role}
-                      </span>
-                    </td>
-                    <td style={{ padding: '12px 16px', borderBottom: `1px solid ${C.border}` }}>
-                      <span style={{ fontSize: 12, color: C.textDim }}>{joined}</span>
-                    </td>
-                    <td style={{ padding: '12px 16px', borderBottom: `1px solid ${C.border}`, textAlign: 'right' }}>
-                      <button
-                        onClick={() => { setDeleteError(''); setDeleteTarget(m); }}
-                        disabled={isSelf}
-                        title={isSelf ? "You can't remove yourself" : 'Remove manager'}
-                        style={{
-                          width: 30, height: 30, borderRadius: 7,
-                          border: `1px solid ${isSelf ? C.border : 'rgba(183,28,28,0.22)'}`,
-                          background: isSelf ? C.elevated : 'rgba(183,28,28,0.07)',
-                          color: isSelf ? C.textDim : C.error,
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          cursor: isSelf ? 'not-allowed' : 'pointer',
-                          opacity: isSelf ? 0.35 : 1,
-                          transition: 'opacity 0.15s',
-                          marginLeft: 'auto',
-                        }}
-                      >
-                        <DeleteOutlineOutlinedIcon sx={{ fontSize: 15 }} />
-                      </button>
+                    <DeleteOutlineOutlinedIcon sx={{ fontSize: 15 }} />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          /* ── Desktop: table ── */
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', minWidth: 540, borderCollapse: 'separate', borderSpacing: 0 }}>
+              <thead>
+                <tr style={{ background: '#F3EDE9' }}>
+                  {['Manager', 'Code', 'Role', 'Joined', 'Remove'].map((h, i) => (
+                    <th key={h} style={{ padding: '9px 16px', textAlign: i === 4 ? 'right' : 'left', borderBottom: `1px solid ${C.border}`, fontSize: 10, fontWeight: 700, color: C.textDim, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {!loading && managers.length === 0 && (
+                  <tr>
+                    <td colSpan={5} style={{ padding: '40px 24px', textAlign: 'center' }}>
+                      <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: C.textDim }}>No managers found</p>
                     </td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                )}
+                {managers.map(m => {
+                  const isSelf = String(m._id) === String(currentUserId);
+                  const joined = m.createdAt ? new Date(m.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+                  return (
+                    <tr key={m._id} onMouseEnter={e => e.currentTarget.style.background = C.bg} onMouseLeave={e => e.currentTarget.style.background = 'transparent'} style={{ transition: 'background 0.12s' }}>
+                      <td style={{ padding: '12px 16px', borderBottom: `1px solid ${C.border}` }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div style={{ width: 34, height: 34, borderRadius: '50%', flexShrink: 0, background: C.elevated, border: `1.5px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, color: C.primary, textTransform: 'uppercase' }}>
+                            {(m.name ?? '?').charAt(0)}
+                          </div>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri }}>{m.name}</p>
+                              {isSelf && <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', color: C.success, background: 'rgba(46,125,79,0.09)', border: '1px solid rgba(46,125,79,0.25)', borderRadius: 4, padding: '1px 6px' }}>YOU</span>}
+                            </div>
+                            <p style={{ margin: 0, fontSize: 11, color: C.textDim }}>{m.email}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td style={{ padding: '12px 16px', borderBottom: `1px solid ${C.border}` }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: C.primary, letterSpacing: '0.06em', background: C.elevated, borderRadius: 5, padding: '2px 7px' }}>{m.employeeCode ?? '—'}</span>
+                      </td>
+                      <td style={{ padding: '12px 16px', borderBottom: `1px solid ${C.border}` }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: m.role === 'Admin' ? C.warning : C.textSec, background: m.role === 'Admin' ? 'rgba(178,106,0,0.09)' : C.elevated, border: `1px solid ${m.role === 'Admin' ? 'rgba(178,106,0,0.25)' : C.border}`, borderRadius: 5, padding: '2px 7px' }}>{m.role}</span>
+                      </td>
+                      <td style={{ padding: '12px 16px', borderBottom: `1px solid ${C.border}` }}>
+                        <span style={{ fontSize: 12, color: C.textDim }}>{joined}</span>
+                      </td>
+                      <td style={{ padding: '12px 16px', borderBottom: `1px solid ${C.border}`, textAlign: 'right' }}>
+                        <button onClick={() => { setDeleteError(''); setDeleteTarget(m); }} disabled={isSelf} title={isSelf ? "You can't remove yourself" : 'Remove manager'} style={{ width: 30, height: 30, borderRadius: 7, border: `1px solid ${isSelf ? C.border : 'rgba(183,28,28,0.22)'}`, background: isSelf ? C.elevated : 'rgba(183,28,28,0.07)', color: isSelf ? C.textDim : C.error, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: isSelf ? 'not-allowed' : 'pointer', opacity: isSelf ? 0.35 : 1, transition: 'opacity 0.15s', marginLeft: 'auto' }}>
+                          <DeleteOutlineOutlinedIcon sx={{ fontSize: 15 }} />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       <ManagerPinDialog
@@ -2180,59 +2179,74 @@ export default function ManagerSettingsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') ?? 'biometric';
   const setActiveTab = (key) => setSearchParams({ tab: key }, { replace: true });
+  const isMobile = !useMediaQuery('(min-width:1024px)');
 
   return (
     <div style={{
-      display: 'flex', flexDirection: 'column', minHeight: 'calc(100dvh - 0px)',
-      background: C.bg, padding: '20px 20px 32px', gap: 16,
+      display: 'flex', flexDirection: 'column', minHeight: '100dvh',
+      background: C.bg, padding: isMobile ? '14px 14px 48px' : '20px 20px 32px', gap: isMobile ? 12 : 16,
       fontFamily: "'Plus Jakarta Sans', sans-serif", boxSizing: 'border-box',
+      width: '100%', overflowX: 'hidden',
     }}>
       <Toaster position="top-center" toastOptions={{ duration: 5000, style: { fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 13, fontWeight: 600 } }} />
-      {/* Header */}
-      <div>
-        <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: C.textDim, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
-          Manager Portal
-        </p>
-        <h1 style={{ margin: '3px 0 0', fontSize: 20, fontWeight: 800, color: C.textPri, letterSpacing: '-0.2px' }}>
-          Settings
-        </h1>
-        <p style={{ margin: '2px 0 0', fontSize: 12, fontWeight: 500, color: C.textSec }}>
-          Manage integrations, notifications, and system configuration
-        </p>
-      </div>
 
-      {/* Tab bar */}
-      <div style={{
-        display: 'flex',
-        borderBottom: `2px solid ${C.border}`,
-      }}>
-        {TABS.map(({ key, label, icon: Icon }) => {
-          const active = activeTab === key;
-          return (
-            <button
-              key={key}
-              onClick={() => setActiveTab(key)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                padding: '10px 18px 10px',
-                border: 'none', background: 'none', cursor: 'pointer',
-                color: active ? C.primary : C.textDim,
-                fontSize: 13, fontWeight: active ? 700 : 500,
-                borderBottom: `2px solid ${active ? C.primary : 'transparent'}`,
-                marginBottom: -2,
-                transition: 'color 0.15s, border-color 0.15s',
-              }}
-            >
-              <Icon sx={{ fontSize: 15 }} />
-              {label}
-            </button>
-          );
-        })}
+      {/* Header */}
+      {isMobile ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 34, height: 34, borderRadius: 9, background: C.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <AdminPanelSettingsOutlinedIcon sx={{ fontSize: 17, color: C.accent }} />
+          </div>
+          <h1 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: C.textPri }}>Settings</h1>
+        </div>
+      ) : (
+        <div>
+          <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: C.textDim, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Manager Portal</p>
+          <h1 style={{ margin: '3px 0 0', fontSize: 20, fontWeight: 800, color: C.textPri, letterSpacing: '-0.2px' }}>Settings</h1>
+          <p style={{ margin: '2px 0 0', fontSize: 12, fontWeight: 500, color: C.textSec }}>Manage integrations, notifications, and system configuration</p>
+        </div>
+      )}
+
+      {/* Tab bar — horizontally scrollable on mobile */}
+      <div style={{ overflowX: isMobile ? 'auto' : 'visible', scrollbarWidth: 'none', msOverflowStyle: 'none', marginBottom: -2 }}>
+        <style>{`.settings-tab-bar::-webkit-scrollbar { display: none; }`}</style>
+        <div
+          className="settings-tab-bar"
+          style={{ display: 'flex', borderBottom: `2px solid ${C.border}`, minWidth: isMobile ? 'max-content' : 'auto' }}
+        >
+          {TABS.map(({ key, label, mobileLabel, icon: Icon }) => {
+            const active = activeTab === key;
+            return (
+              <button
+                key={key}
+                onClick={() => setActiveTab(key)}
+                style={{
+                  display: 'flex',
+                  flexDirection: isMobile ? 'column' : 'row',
+                  alignItems: 'center',
+                  gap: isMobile ? 3 : 6,
+                  padding: isMobile ? '7px 16px 9px' : '10px 18px',
+                  border: 'none', background: 'none', cursor: 'pointer',
+                  color: active ? C.primary : C.textDim,
+                  fontSize: isMobile ? 10 : 13,
+                  fontWeight: active ? 700 : 500,
+                  borderBottom: `2px solid ${active ? C.primary : 'transparent'}`,
+                  marginBottom: -2,
+                  transition: 'color 0.15s, border-color 0.15s',
+                  flexShrink: 0,
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                }}
+              >
+                <Icon sx={{ fontSize: isMobile ? 16 : 15, color: active ? C.primary : C.textDim }} />
+                {isMobile ? mobileLabel : label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Tab content */}
-      {activeTab === 'email'     && <EmailConfigTab        token={token} />}
-      {activeTab === 'managers'  && <ManagerManagementTab  token={token} currentUserId={user?._id} />}
+      {activeTab === 'email'     && <EmailConfigTab        token={token} isMobile={isMobile} />}
+      {activeTab === 'managers'  && <ManagerManagementTab  token={token} currentUserId={user?._id} isMobile={isMobile} />}
       {activeTab === 'sync'      && <SyncDataTab           token={token} />}
       {activeTab === 'inventory' && <InventoryTab          token={token} />}
       {activeTab === 'profile'   && <ProfileManagementTab  token={token} />}
