@@ -1,15 +1,90 @@
 import crypto from 'crypto';
 import User from '../models/User.js';
 import PendingVerification from '../models/PendingVerification.js';
+import TrustedSession from '../models/TrustedSession.js';
 import Setting from '../models/Setting.js';
 import { verifyEmployeeInEMS } from './staffingService.js';
 import { sendVerificationEmail } from './emailService.js';
 import jwt from 'jsonwebtoken';
 
+const REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRE,
   });
+};
+
+const hashToken = (raw) => crypto.createHash('sha256').update(raw).digest('hex');
+
+/**
+ * Issue (or rotate) a refresh token for a given user+device pair.
+ * One row per (userId, deviceId) — upserted so returning devices reuse the slot.
+ * Returns the raw (unhashed) token — never stored, only transmitted once.
+ */
+const issueRefreshToken = async (userId, deviceId, deviceName = 'POS Terminal', ipAddress = '') => {
+  const raw      = crypto.randomBytes(64).toString('hex');
+  const tokenHash = hashToken(raw);
+  const expiresAt = new Date(Date.now() + REFRESH_TTL_MS);
+
+  await TrustedSession.findOneAndUpdate(
+    { userId, deviceId },
+    { $set: { tokenHash, deviceName, ipAddress, isRevoked: false, lastUsedAt: new Date(), expiresAt } },
+    { upsert: true }
+  );
+
+  return raw;
+};
+
+/**
+ * Validate a refresh token, rotate it (token rotation prevents replay attacks),
+ * and return a fresh access token + updated user data.
+ */
+const refreshSession = async (rawToken, deviceId) => {
+  if (!rawToken || !deviceId) {
+    throw Object.assign(new Error('Missing refresh credentials'), { statusCode: 401 });
+  }
+
+  const tokenHash = hashToken(rawToken);
+  const session   = await TrustedSession.findOne({ deviceId, isRevoked: false }).select('+tokenHash');
+
+  if (!session || session.tokenHash !== tokenHash || session.expiresAt < new Date()) {
+    // Potential token reuse — revoke session if it exists
+    if (session) await TrustedSession.findByIdAndUpdate(session._id, { $set: { isRevoked: true } });
+    throw Object.assign(new Error('Session expired or revoked. Please log in again.'), { statusCode: 401 });
+  }
+
+  const user = await User.findById(session.userId);
+  if (!user || !user.isActive || (user.status && user.status !== 'ACTIVE')) {
+    await TrustedSession.findByIdAndUpdate(session._id, { $set: { isRevoked: true } });
+    throw Object.assign(new Error('Account is inactive'), { statusCode: 401 });
+  }
+
+  // Rotate: issue a new refresh token and overwrite the stored hash
+  const newRaw        = crypto.randomBytes(64).toString('hex');
+  session.tokenHash   = hashToken(newRaw);
+  session.lastUsedAt  = new Date();
+  session.expiresAt   = new Date(Date.now() + REFRESH_TTL_MS);
+  await session.save();
+
+  return {
+    user:         serializeUser(user),
+    token:        generateToken(user._id),
+    refreshToken: newRaw,
+  };
+};
+
+/**
+ * Revoke a trusted session (logout / switch account).
+ * Best-effort — silently succeeds even if no matching session found.
+ */
+const revokeSession = async (rawToken, deviceId) => {
+  if (!rawToken || !deviceId) return;
+  const tokenHash = hashToken(rawToken);
+  await TrustedSession.findOneAndUpdate(
+    { deviceId, tokenHash },
+    { $set: { isRevoked: true } }
+  );
 };
 
 
@@ -271,4 +346,4 @@ const verifyEmail = async (token) => {
   return serializeUser(user, true);
 };
 
-export { loginUser, registerUser, verifyEmail };
+export { loginUser, registerUser, verifyEmail, issueRefreshToken, refreshSession, revokeSession };

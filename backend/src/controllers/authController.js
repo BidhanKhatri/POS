@@ -1,11 +1,12 @@
 import * as authService from '../services/authService.js';
 import User from '../models/User.js';
 
+const getIP = (req) =>
+  req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
+
 /**
  * POST /api/auth/verify-pin
- * Access: any authenticated user
- * Verifies the user's PIN without issuing a new token.
- * Used by the idle lock-screen to re-authenticate in place.
+ * Protected — verify the user's PIN without issuing a new token (idle lock-screen unlock).
  */
 export const verifyPin = async (req, res, next) => {
   try {
@@ -22,29 +23,78 @@ export const verifyPin = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+/**
+ * POST /api/auth/login
+ * Public — Email + PIN login.
+ * Accepts optional { deviceId, deviceName } to establish a trusted device session.
+ * Returns user data + JWT + refreshToken (if deviceId provided).
+ */
 const login = async (req, res, next) => {
   try {
-    const { email, pin } = req.body;
+    const { email, pin, deviceId, deviceName } = req.body;
     if (!email || !pin) {
       res.status(400);
       throw new Error('Please provide email and PIN');
     }
+
     const user = await authService.loginUser(email, pin);
-    res.status(200).json(user);
+
+    let refreshToken = null;
+    if (deviceId) {
+      refreshToken = await authService.issueRefreshToken(
+        user._id, deviceId,
+        deviceName || 'POS Terminal',
+        getIP(req)
+      );
+    }
+
+    res.status(200).json({ ...user, refreshToken });
   } catch (error) {
     if (error.accountStatus) {
       return res.status(403).json({ message: error.message, accountStatus: error.accountStatus });
     }
     if (error.emailFound !== undefined) {
       return res.status(401).json({
-        message: error.message,
-        emailFound: error.emailFound,
-        attempts: error.attempts ?? undefined,
+        message:     error.message,
+        emailFound:  error.emailFound,
+        attempts:    error.attempts    ?? undefined,
         lockedUntil: error.lockedUntil ?? undefined,
       });
     }
     next(error);
   }
+};
+
+/**
+ * POST /api/auth/refresh
+ * Public — exchange a refresh token for a new access token (token rotation).
+ * Body: { refreshToken, deviceId }
+ */
+export const refresh = async (req, res, next) => {
+  try {
+    const { refreshToken, deviceId } = req.body;
+    if (!refreshToken || !deviceId) {
+      return res.status(400).json({ message: 'refreshToken and deviceId are required' });
+    }
+    const result = await authService.refreshSession(refreshToken, deviceId);
+    res.json(result);
+  } catch (err) {
+    if (err.statusCode === 401) return res.status(401).json({ message: err.message });
+    next(err);
+  }
+};
+
+/**
+ * POST /api/auth/logout
+ * Public (no JWT required) — revoke a trusted device session.
+ * Body: { refreshToken, deviceId }
+ */
+export const logoutSession = async (req, res, next) => {
+  try {
+    const { refreshToken, deviceId } = req.body;
+    await authService.revokeSession(refreshToken, deviceId);
+    res.json({ success: true });
+  } catch (err) { next(err); }
 };
 
 const signup = async (req, res, next) => {

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import SplashScreen from './components/SplashScreen';
 import { SocketProvider } from './context/SocketContext';
@@ -42,6 +42,7 @@ import ManagerEmployeePage     from './ManagerPages/ManagerEmployeePage';
 import ManagerSettingsPage     from './ManagerPages/ManagerSettingsPage';
 import ManagerGroupsPage       from './ManagerPages/ManagerGroupsPage';
 import useAuthStore from './store/useAuthStore';
+import POSLockScreen from './AuthPages/POSLockScreen';
 
 function LocalAuthRoutes({ role }) {
   const isManager = role === 'Manager' || role === 'Admin';
@@ -118,27 +119,56 @@ function GuestRoutes() {
 
 function AuthGate() {
   const localUser        = useAuthStore((s) => s.user);
+  const refreshToken     = useAuthStore((s) => s.refreshToken);
+  const isLocked         = useAuthStore((s) => s.isLocked);
   const isSessionExpired = useAuthStore((s) => s.isSessionExpired);
   const logout           = useAuthStore((s) => s.logout);
+  const lock             = useAuthStore((s) => s.lock);
   const { stopLoading }  = useLoading();
 
-  // On every mount, enforce 24-hour session ceiling before rendering anything.
-  // SessionMonitor handles the ongoing hourly check once logged in.
-  const sessionExpired = localUser && isSessionExpired();
+  // Prevent any flash of app content on first render
+  const [bootDone, setBootDone] = useState(false);
+
+  const hasTrustedSession = !!refreshToken;
+  const sessionExpired    = localUser && isSessionExpired();
 
   useEffect(() => {
     if (sessionExpired) {
       logout();
+    } else if (hasTrustedSession && !isLocked) {
+      // Enforce lock screen on every app start / page refresh when a trusted
+      // device session exists — user must PIN or biometric to proceed.
+      lock();
     }
-  }, [sessionExpired, logout]);
+    // Guest path has no async data — dismiss splash immediately
+    if (!localUser && !hasTrustedSession) stopLoading();
+    setBootDone(true);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Guest users land on the login page which has no async data — dismiss immediately
-  useEffect(() => {
-    if (!localUser || sessionExpired) stopLoading();
-  }, [localUser, stopLoading, sessionExpired]);
+  // Don't render anything until the boot check is done (prevents flash)
+  if (!bootDone) return null;
 
   if (sessionExpired) return <GuestRoutes />;
-  return localUser ? <LocalAuthRoutes role={localUser.role} /> : <GuestRoutes />;
+
+  // Authenticated + locked (idle lock or returning visit) → lock screen overlay
+  if (localUser && isLocked) {
+    return (
+      <>
+        <LocalAuthRoutes role={localUser.role} />
+        <POSLockScreen />
+      </>
+    );
+  }
+
+  // Trusted session but no active user (returning visit before refresh)
+  // or after lock() was called but user object is still in store
+  if (hasTrustedSession && isLocked) return <POSLockScreen />;
+
+  // Normal authenticated session
+  if (localUser) return <LocalAuthRoutes role={localUser.role} />;
+
+  // No session at all → login
+  return <GuestRoutes />;
 }
 
 function App() {

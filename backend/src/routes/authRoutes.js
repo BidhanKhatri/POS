@@ -1,7 +1,7 @@
 import express from 'express';
 import rateLimit from 'express-rate-limit';
 const router = express.Router();
-import { login, signup, verifyEmail, verifyPin } from '../controllers/authController.js';
+import { login, signup, verifyEmail, verifyPin, refresh, logoutSession } from '../controllers/authController.js';
 import { requestOtp, verifyOtp, resetPin } from '../controllers/pinResetController.js';
 import { protect } from '../middleware/authMiddleware.js';
 
@@ -16,6 +16,8 @@ const otpLimiter = rateLimit({
 
 router.post('/login',       login);
 router.post('/signup',      signup);
+router.post('/refresh',     refresh);
+router.post('/logout',      logoutSession);
 router.get('/verify-email', verifyEmail);
 
 // Forgot PIN flow — unauthenticated, rate-limited

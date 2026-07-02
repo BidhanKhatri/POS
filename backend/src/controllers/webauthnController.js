@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import * as webauthnService from '../services/webauthnService.js';
+import { issueRefreshToken } from '../services/authService.js';
 
 const generateToken = (id) =>
   jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRE });
@@ -76,7 +77,7 @@ export const authBegin = async (req, res, next) => {
  */
 export const authVerify = async (req, res, next) => {
   try {
-    const { sessionToken, response } = req.body;
+    const { sessionToken, response, deviceId, deviceName } = req.body;
     if (!sessionToken || !response) {
       return res.status(400).json({ message: 'sessionToken and response are required.' });
     }
@@ -87,6 +88,15 @@ export const authVerify = async (req, res, next) => {
       ipAddress: getIP(req),
     });
 
+    let refreshToken = null;
+    if (deviceId) {
+      refreshToken = await issueRefreshToken(
+        user._id, deviceId,
+        deviceName || 'POS Terminal',
+        getIP(req)
+      );
+    }
+
     res.status(200).json({
       _id:          user._id,
       employeeCode: user.employeeCode,
@@ -95,6 +105,7 @@ export const authVerify = async (req, res, next) => {
       role:         user.role,
       isActive:     user.isActive,
       token:        generateToken(user._id),
+      refreshToken,
     });
   } catch (err) {
     next(err);

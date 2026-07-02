@@ -4,7 +4,7 @@ import {
   startAuthentication,
   browserSupportsWebAuthn,
 } from '@simplewebauthn/browser';
-import useAuthStore from '../store/useAuthStore';
+import useAuthStore, { getOrCreateDeviceId } from '../store/useAuthStore';
 
 import { API_URL as API } from '../config/api';
 
@@ -136,10 +136,15 @@ export function useWebAuthn() {
         throw new Error(browserErr.message || 'Biometric authentication failed.');
       }
 
-      // Step 3: Verify on server and receive JWT
+      // Step 3: Verify on server and receive JWT + refresh token
       const userData = await apiPost(
         '/api/auth/webauthn/auth/verify',
-        { sessionToken, response },
+        {
+          sessionToken,
+          response,
+          deviceId:   getOrCreateDeviceId(),
+          deviceName: navigator.userAgent.slice(0, 120),
+        },
         null
       );
 

@@ -9,7 +9,7 @@ import PersonAddAltIcon from '@mui/icons-material/PersonAddAlt';
 import FingerprintIcon from '@mui/icons-material/Fingerprint';
 import HourglassEmptyOutlinedIcon from '@mui/icons-material/HourglassEmptyOutlined';
 import BlockOutlinedIcon from '@mui/icons-material/BlockOutlined';
-import useAuthStore from '../store/useAuthStore';
+import useAuthStore, { getOrCreateDeviceId } from '../store/useAuthStore';
 import { useWebAuthn } from '../hooks/useWebAuthn';
 import { useLoading } from '../context/LoadingContext';
 import toast, { Toaster } from 'react-hot-toast';
@@ -98,7 +98,7 @@ function AccountStatusScreen({ accountStatus, message, onBack }) {
 const LoginScreen = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { lastEmail, setLastEmail, setUser, setToken, hasBiometric } = useAuthStore();
+  const { lastEmail, setLastEmail, setUser, setToken, hasBiometric, setTrustedSession } = useAuthStore();
   const { supported, authenticating, loginWithBiometric } = useWebAuthn();
   const { startLoading } = useLoading();
   const isDesktop = useMediaQuery('(min-width:1024px)');
@@ -195,10 +195,12 @@ const LoginScreen = () => {
 
     setLoading(true);
     try {
+      const deviceId   = getOrCreateDeviceId();
+      const deviceName = navigator.userAgent.slice(0, 120);
       const res = await fetch(`${API}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), pin }),
+        body: JSON.stringify({ email: email.trim(), pin, deviceId, deviceName }),
       });
       const data = await res.json();
 
@@ -227,13 +229,14 @@ const LoginScreen = () => {
         return;
       }
 
-      // Success — persist email and user in store, redirect by role
+      // Success — persist trusted session, redirect by role
       setErrorMsg('');
-      setLastEmail(email.trim());
-      setUser(data);
-      setToken(data.token);
+      setTrustedSession(data, data.token, data.refreshToken);
       startLoading();
-      navigate('/employee/terminal', { replace: true });
+      const home = (data.role === 'Manager' || data.role === 'Admin')
+        ? '/manager/dashboard'
+        : '/employee/terminal';
+      navigate(home, { replace: true });
     } catch (err) {
       // Network / parse errors — show generic message, no attempt penalty
       const msg = 'Invalid email or PIN';
@@ -251,11 +254,13 @@ const LoginScreen = () => {
     setBiometricError('');
     try {
       const data = await loginWithBiometric(email.trim() || undefined);
-      setLastEmail(data.email || email.trim());
-      setUser(data);
-      setToken(data.token);
+      const { token: bioToken, refreshToken: bioRefresh, ...userFields } = data;
+      setTrustedSession(userFields, bioToken, bioRefresh ?? null);
       startLoading();
-      navigate('/employee/terminal', { replace: true });
+      const home = (userFields.role === 'Manager' || userFields.role === 'Admin')
+        ? '/manager/dashboard'
+        : '/employee/terminal';
+      navigate(home, { replace: true });
     } catch (err) {
       setBiometricError(err.message || 'Biometric login failed. Try your PIN instead.');
     }
