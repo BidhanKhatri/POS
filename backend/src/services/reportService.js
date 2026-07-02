@@ -398,19 +398,27 @@ async function getProducts({ start, end, limit = 10, sortBy = 'revenue' }) {
     { $project: { productDoc: 0 } },
   ]);
 
-  const result = products.map((p, i) => ({
-    rank:        i + 1,
-    productId:   p._id,
-    productName: p.productName,
-    sku:         p.sku,
-    revenue:     Math.round(p.revenue     * 100) / 100,
-    netRevenue:  Math.round(p.netRevenue  * 100) / 100,
-    qtySold:     p.qtySold,
-    refundedQty: p.refundedQty,
-    refundedAmt: Math.round(p.refundedAmt * 100) / 100,
-    refundRate:  Math.round(p.refundRate  * 100) / 100,
-    txnCount:    p.txnCount,
-  }));
+  const result = products.map((p, i) => {
+    const revenue    = Math.round(p.revenue    * 100) / 100;
+    const costPrice  = p.costPrice || 0;
+    const cost       = Math.round(p.qtySold * costPrice * 100) / 100;
+    const grossProfit = Math.round((revenue - cost) * 100) / 100;
+    return {
+      rank:        i + 1,
+      productId:   p._id,
+      productName: p.productName,
+      sku:         p.sku,
+      revenue,
+      netRevenue:  Math.round(p.netRevenue  * 100) / 100,
+      qtySold:     p.qtySold,
+      refundedQty: p.refundedQty,
+      refundedAmt: Math.round(p.refundedAmt * 100) / 100,
+      refundRate:  Math.round(p.refundRate  * 100) / 100,
+      txnCount:    p.txnCount,
+      cost,
+      grossProfit,
+    };
+  });
 
   setCached(key, result, ttlFor(end));
   return result;
@@ -1139,11 +1147,15 @@ async function getEmployeeReport({ employeeId, start, end }) {
       { $match: { employeeId: empObjId, createdAt: { $gte: s, $lte: e }, paymentStatus: { $in: ['PAID', 'PARTIAL'] } } },
       { $unwind: '$items' },
       { $group: {
-        _id:     '$items.productName',
-        qty:     { $sum: '$items.quantity' },
-        revenue: { $sum: '$items.total' },
-        txnCount: { $sum: 1 },
+        _id:         '$items.productId',
+        productName: { $first: '$items.productName' },
+        qty:         { $sum: '$items.quantity' },
+        revenue:     { $sum: '$items.total' },
+        txnCount:    { $sum: 1 },
       } },
+      { $lookup: { from: 'products', localField: '_id', foreignField: '_id', as: 'productDoc' } },
+      { $addFields: { costPrice: { $ifNull: [{ $arrayElemAt: ['$productDoc.costPrice', 0] }, 0] } } },
+      { $project: { productDoc: 0 } },
       { $sort: { revenue: -1 } },
       { $limit: 10 },
     ]),
@@ -1237,7 +1249,19 @@ async function getEmployeeReport({ employeeId, start, end }) {
       shiftCount,
     },
     trend: trendAgg.map(d => ({ date: d._id, revenue: Math.round(d.revenue * 100) / 100, txnCount: d.txnCount })),
-    products: productAgg.map(d => ({ name: d._id, qty: d.qty, revenue: Math.round(d.revenue * 100) / 100, txnCount: d.txnCount })),
+    products: productAgg.map(d => {
+      const revenue = Math.round(d.revenue * 100) / 100;
+      const cost    = Math.round(d.qty * (d.costPrice || 0) * 100) / 100;
+      return {
+        name:        d.productName,
+        productId:   d._id,
+        qty:         d.qty,
+        revenue,
+        txnCount:    d.txnCount,
+        cost,
+        grossProfit: Math.round((revenue - cost) * 100) / 100,
+      };
+    }),
     payments: paymentAgg.map(d => ({ method: d._id, amount: Math.round(d.amount * 100) / 100, count: d.count })),
     transactions: transactions.map(t => ({
       id:            t._id,

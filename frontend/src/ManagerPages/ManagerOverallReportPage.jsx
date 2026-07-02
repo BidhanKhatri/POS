@@ -847,14 +847,14 @@ export default function ManagerOverallReportPage() {
         ) : (
           <>
             <div style={{ overflowX: 'auto' }}>
-              <div style={{ minWidth: 560 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '32px 1fr 80px 90px 90px 90px 80px', gap: 8, padding: '8px 20px', background: C.tableHdr, borderBottom: `1px solid ${C.border}` }}>
-                  {['#', 'Product', 'SKU', 'Qty Sold', 'Revenue', 'Refunds', 'Refund Rate'].map(h => (
+              <div style={{ minWidth: 720 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '32px 1fr 80px 90px 90px 90px 90px 80px', gap: 8, padding: '8px 20px', background: C.tableHdr, borderBottom: `1px solid ${C.border}` }}>
+                  {['#', 'Product', 'SKU', 'Qty Sold', 'Revenue', 'Cost', 'Gross Profit', 'Refund Rate'].map(h => (
                     <span key={h} style={{ fontSize: 10, fontWeight: 700, color: C.primary, textTransform: 'uppercase', letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>{h}</span>
                   ))}
                 </div>
                 {products.data?.length ? products.data.map((p, i) => (
-                  <div key={String(p.productId)} style={{ display: 'grid', gridTemplateColumns: '32px 1fr 80px 90px 90px 90px 80px', gap: 8, alignItems: 'center', padding: '12px 20px', borderBottom: i < products.data.length - 1 ? `1px solid ${C.border}` : 'none', background: i % 2 ? '#FDFCFB' : C.surface }}>
+                  <div key={String(p.productId)} style={{ display: 'grid', gridTemplateColumns: '32px 1fr 80px 90px 90px 90px 90px 80px', gap: 8, alignItems: 'center', padding: '12px 20px', borderBottom: i < products.data.length - 1 ? `1px solid ${C.border}` : 'none', background: i % 2 ? '#FDFCFB' : C.surface }}>
                     <span style={{ width: 22, height: 22, borderRadius: 6, background: i === 0 ? C.primary : C.elevated, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, color: i === 0 ? C.accent : C.textDim }}>
                       {i + 1}
                     </span>
@@ -862,7 +862,8 @@ export default function ManagerOverallReportPage() {
                     <span style={{ fontSize: 11, fontWeight: 600, color: C.textDim, fontFamily: 'monospace' }}>{p.sku}</span>
                     <span style={{ fontSize: 13, fontWeight: 600, color: C.textSec }}>{p.qtySold}</span>
                     <span style={{ fontSize: 13, fontWeight: 800, color: C.success }}>{fmt$(p.netRevenue)}</span>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: p.refundedAmt > 0 ? C.error : C.textDim }}>{fmt$(p.refundedAmt)}</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: C.textSec }}>{fmt$(p.cost ?? 0)}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: (p.grossProfit ?? 0) >= 0 ? C.success : C.error }}>{fmt$(p.grossProfit ?? 0)}</span>
                     <span style={{ fontSize: 12, fontWeight: 700, color: p.refundRate > 5 ? C.error : p.refundRate > 2 ? C.warning : C.success }}>
                       {p.refundRate.toFixed(1)}%
                     </span>

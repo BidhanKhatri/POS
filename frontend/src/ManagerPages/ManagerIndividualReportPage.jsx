@@ -436,7 +436,7 @@ function ProductsTab({ data, loading }) {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
                 <tr style={{ background: C.tableHdr }}>
-                  {['#', 'Product', 'Qty Sold', 'Transactions', 'Revenue', 'Share'].map(h => (
+                  {['#', 'Product', 'Qty Sold', 'Transactions', 'Revenue', 'Cost', 'Gross Profit', 'Share'].map(h => (
                     <th key={h} style={{ padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.07em', borderBottom: `1px solid ${C.border}` }}>{h}</th>
                   ))}
                 </tr>
@@ -449,6 +449,8 @@ function ProductsTab({ data, loading }) {
                     <td style={{ padding: '9px 14px', color: C.textSec }}>{p.qty}</td>
                     <td style={{ padding: '9px 14px', color: C.textSec }}>{p.txnCount}</td>
                     <td style={{ padding: '9px 14px', fontWeight: 700, color: C.success }}>{fmt$(p.revenue)}</td>
+                    <td style={{ padding: '9px 14px', color: C.textSec }}>{fmt$(p.cost ?? 0)}</td>
+                    <td style={{ padding: '9px 14px', fontWeight: 700, color: (p.grossProfit ?? 0) >= 0 ? C.success : C.error }}>{fmt$(p.grossProfit ?? 0)}</td>
                     <td style={{ padding: '9px 14px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                         <div style={{ flex: 1, height: 6, borderRadius: 3, background: C.elevated, overflow: 'hidden' }}>
@@ -711,8 +713,8 @@ function buildCSV(employee, kpis, transactions, products, shifts) {
     ...(transactions || []).map(t => [t.invoiceNo, fmtDateTime(t.date), t.itemCount, t.grandTotal, t.discountTotal, t.netTotal, t.paymentStatus]),
     [],
     ['Products'],
-    ['Product', 'Qty', 'Transactions', 'Revenue'],
-    ...(products || []).map(p => [p.name, p.qty, p.txnCount, p.revenue]),
+    ['Product', 'Qty', 'Transactions', 'Revenue', 'Cost', 'Gross Profit'],
+    ...(products || []).map(p => [p.name, p.qty, p.txnCount, p.revenue, p.cost ?? 0, p.grossProfit ?? 0]),
     [],
     ['Shifts'],
     ['Date', 'Clock In', 'Clock Out', 'Hours', 'Sales', 'Transactions', 'Status'],

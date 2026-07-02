@@ -31,7 +31,6 @@ export default function TerminalPage() {
   const tenderPath        = pathname.startsWith('/manager') ? '/manager/tender'         : '/employee/tender';
   const discountPath      = pathname.startsWith('/manager') ? '/manager/discount'       : '/employee/discount';
   const refundPath        = pathname.startsWith('/manager') ? '/manager/refund'         : '/employee/refund';
-  const priceVariancePath = pathname.startsWith('/manager') ? '/manager/price-variance' : '/employee/price-variance';
   const token             = useAuthStore((s) => s.token);
   const user              = useAuthStore((s) => s.user);
   const isDesktop         = useMediaQuery('(min-width:1024px)');
@@ -62,8 +61,7 @@ export default function TerminalPage() {
     const bp = location.state?.barcodeProduct;
     if (bp) {
       setCurrentProduct(bp);
-      setAmountRaw(String(Math.round(bp.price * 100)));
-      // clear the state so a back-navigation doesn't re-trigger
+      // Amount is always entered manually by the employee; do not pre-fill
       window.history.replaceState({}, '');
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -241,14 +239,6 @@ export default function TerminalPage() {
   const canCheckout   = cartItems.length > 0 && transactionType !== null;
   const isRefundMode  = transactionType === 'RF';
 
-  /* ── Variance for current line (live feedback while typing) ── */
-  const showVarianceStrip   = !!(currentProduct && currentProduct.price > 0 && amountRaw.length > 0);
-  const currentVariancePct  = showVarianceStrip
-    ? Math.abs((currentSellingPrice - currentProduct.price) / currentProduct.price) * 100
-    : 0;
-  const currentVarAbove  = showVarianceStrip && currentSellingPrice > currentProduct.price;
-  const currentVarColor  = currentVariancePct === 0 ? '#2E7D4F' : currentVarAbove ? '#B26A00' : '#B71C1C';
-
   /* ── Numpad ── */
   const pushDigit = (d) => {
     beep(880, 55, 'square', 0.10);
@@ -334,39 +324,15 @@ export default function TerminalPage() {
       return;
     }
 
-    // Fetch discount limit and price variance limit concurrently
+    // Fetch discount limit — price variance override is bypassed for value-based pricing
     let skipDiscount = false;
-    let maxPriceVariancePercent = 10;
     try {
-      const [discRes, pvRes] = await Promise.all([
-        fetch(`${API}/api/settings/discount-limit`,       { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`${API}/api/settings/price-variance-limit`, { headers: { Authorization: `Bearer ${token}` } }),
-      ]);
+      const discRes = await fetch(`${API}/api/settings/discount-limit`, { headers: { Authorization: `Bearer ${token}` } });
       if (discRes.ok) {
         const d = await discRes.json();
         skipDiscount = (d.maxDiscountPercent ?? 10) === 0;
       }
-      if (pvRes.ok) {
-        const d = await pvRes.json();
-        maxPriceVariancePercent = d.maxPriceVariancePercent ?? 10;
-      }
     } catch { /* proceed with defaults */ }
-
-    // Per-item variance check
-    const varianceItems = cartItems
-      .filter((item) => item.product.price > 0)
-      .map((item) => ({
-        ...item,
-        variancePercent: Math.abs((item.sellingPrice - item.product.price) / item.product.price) * 100,
-      }))
-      .filter((item) => item.variancePercent > maxPriceVariancePercent);
-
-    if (varianceItems.length > 0) {
-      navigate(priceVariancePath, {
-        state: { items: cartItems, varianceItems, transactionType },
-      });
-      return;
-    }
 
     navigate(skipDiscount ? tenderPath : discountPath, {
       state: {
@@ -408,7 +374,7 @@ export default function TerminalPage() {
           letterSpacing: '0.01em', lineHeight: 1, pointerEvents: 'none',
           transition: 'color 0.2s',
         }}>
-          Selling Price
+          Sale Amount
         </span>
         <AttachMoneyIcon sx={{ fontSize: 22, color: displayValue ? '#3E2723' : '#A09490', flexShrink: 0 }} />
         <span style={{
@@ -419,36 +385,6 @@ export default function TerminalPage() {
         }}>
           {displayValue || '0'}
         </span>
-      </div>
-      <div style={{
-        marginTop: 8,
-        background: showVarianceStrip
-          ? (currentVariancePct === 0 ? 'rgba(46,125,79,0.06)' : 'rgba(178,106,0,0.07)')
-          : 'rgba(160,148,144,0.05)',
-        border: `1px solid ${showVarianceStrip
-          ? (currentVariancePct === 0 ? 'rgba(46,125,79,0.20)' : 'rgba(178,106,0,0.28)')
-          : 'rgba(160,148,144,0.18)'}`,
-        borderRadius: 8, padding: '6px 12px',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-        transition: 'background 0.15s, border-color 0.15s',
-      }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-          <span style={{ fontSize: 9, fontWeight: 700, color: '#A09490', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Catalog</span>
-          <span style={{ fontSize: 13, fontWeight: 700, color: showVarianceStrip ? '#6B5B57' : '#C4B5B0', fontVariantNumeric: 'tabular-nums' }}>
-            {showVarianceStrip ? `$${currentProduct.price}` : '—'}
-          </span>
-        </div>
-        <span style={{ fontSize: 11, fontWeight: 800, color: showVarianceStrip ? currentVarColor : '#C4B5B0', letterSpacing: '0.04em' }}>
-          {showVarianceStrip
-            ? (currentVariancePct === 0 ? 'AT PRICE' : `${currentVarAbove ? '+' : '−'}${currentVariancePct.toFixed(1)}%`)
-            : '—'}
-        </span>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 1, alignItems: 'flex-end' }}>
-          <span style={{ fontSize: 9, fontWeight: 700, color: '#A09490', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Selling</span>
-          <span style={{ fontSize: 13, fontWeight: 800, color: showVarianceStrip ? '#2B1D1A' : '#C4B5B0', fontVariantNumeric: 'tabular-nums' }}>
-            {showVarianceStrip ? `$${currentSellingPrice}` : '—'}
-          </span>
-        </div>
       </div>
     </div>
   );
@@ -470,7 +406,7 @@ export default function TerminalPage() {
             </div>
           )
           : products.map((product) => {
-              const { code, name, price } = product;
+              const { code, name } = product;
               const isSelected = currentProduct?.code === code;
               return (
                 <button
@@ -484,16 +420,13 @@ export default function TerminalPage() {
                     boxShadow: isSelected
                       ? '0 4px 0 #3E2723, 0 6px 12px rgba(62,39,35,0.28), 0 0 0 1px #D4A373'
                       : '0 4px 0 #c4b8b2, 0 6px 12px rgba(0,0,0,0.06)',
+                    padding: '4px 6px',
                   }}
                   onMouseDown={(e) => { e.currentTarget.style.transform = 'translateY(4px)'; }}
                   onMouseUp={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
                   onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
                 >
-                  <span style={{ fontSize: 15, fontWeight: 800, color: isSelected ? '#fff' : '#2B1D1A', lineHeight: 1 }}>{code}</span>
-                  <span style={{ fontSize: 9, fontWeight: 500, color: isSelected ? '#fff' : '#8A7B77', marginTop: 3, letterSpacing: '0.02em', textAlign: 'center', padding: '0 2px' }}>{name}</span>
-                  {price > 0 && (
-                    <span style={{ fontSize: 9, fontWeight: 700, color: isSelected ? '#fff' : '#2E7D4F', marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>${price}</span>
-                  )}
+                  <span style={{ fontSize: 11, fontWeight: 700, color: isSelected ? '#fff' : '#2B1D1A', textAlign: 'center', lineHeight: 1.3, letterSpacing: '0.01em' }}>{name}</span>
                 </button>
               );
             })
@@ -598,41 +531,23 @@ export default function TerminalPage() {
       ) : (
         <>
           {cartItems.map((item) => {
-            const vp = item.product.price > 0
-              ? Math.abs((item.sellingPrice - item.product.price) / item.product.price) * 100
-              : 0;
-            const above = item.sellingPrice > item.product.price;
-            const vpColor = vp === 0 ? '#2E7D4F' : above ? '#B26A00' : '#B71C1C';
+            const lineTotal = item.sellingPrice;
             return (
               <div key={item.id} style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 padding: '9px 0', borderBottom: '1px solid #F0E8E3',
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0, flex: 1 }}>
-                  <span style={{
-                    padding: '2px 7px', borderRadius: 5, flexShrink: 0,
-                    background: '#3E2723', color: '#fff',
-                    fontSize: 10, fontWeight: 800, letterSpacing: '0.04em',
-                  }}>
-                    {item.product.code}
-                  </span>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#2B1D1A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {item.product.name}
-                    </div>
-                    <div style={{ fontSize: 11, color: '#A09490', fontWeight: 500, marginTop: 1 }}>
-                      {item.qty} × ${item.sellingPrice}
-                      {item.product.price > 0 && (
-                        <span style={{ marginLeft: 6, color: vpColor, fontWeight: 700 }}>
-                          {vp === 0 ? 'AT PRICE' : `${above ? '+' : '−'}${vp.toFixed(1)}%`}
-                        </span>
-                      )}
-                    </div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#2B1D1A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {item.product.name}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#A09490', fontWeight: 500, marginTop: 1 }}>
+                    1 unit
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 10 }}>
                   <span style={{ fontSize: 14, fontWeight: 800, color: '#2B1D1A', fontVariantNumeric: 'tabular-nums' }}>
-                    ${item.sellingPrice * item.qty}
+                    ${lineTotal}
                   </span>
                   <button
                     onClick={() => removeCartItem(item.id)}
@@ -1149,7 +1064,7 @@ export default function TerminalPage() {
         boxShadow: '0 4px 0 #c8bdb8, 0 6px 16px rgba(62,39,35,0.10), inset 0 1px 0 rgba(255,255,255,0.9)',
       }}>
 
-        {/* ── Selling price input field ── */}
+        {/* ── Sale amount input field ── */}
         <div style={{
           position: 'relative', background: '#ffffff',
           border: `1.5px solid ${fieldBorder}`, borderRadius: 8,
@@ -1164,7 +1079,7 @@ export default function TerminalPage() {
             letterSpacing: '0.01em', lineHeight: 1, pointerEvents: 'none',
             transition: 'color 0.2s',
           }}>
-            Selling Price
+            Sale Amount
           </span>
           <AttachMoneyIcon sx={{ fontSize: 22, color: displayValue ? '#3E2723' : '#A09490', flexShrink: 0 }} />
           <span style={{
@@ -1177,37 +1092,6 @@ export default function TerminalPage() {
           </span>
         </div>
 
-        {/* ── Live variance strip for current line ── */}
-        <div style={{
-          marginTop: 8,
-          background: showVarianceStrip
-            ? (currentVariancePct === 0 ? 'rgba(46,125,79,0.06)' : 'rgba(178,106,0,0.07)')
-            : 'rgba(160,148,144,0.05)',
-          border: `1px solid ${showVarianceStrip
-            ? (currentVariancePct === 0 ? 'rgba(46,125,79,0.20)' : 'rgba(178,106,0,0.28)')
-            : 'rgba(160,148,144,0.18)'}`,
-          borderRadius: 8, padding: '6px 12px',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-          transition: 'background 0.15s, border-color 0.15s',
-        }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            <span style={{ fontSize: 9, fontWeight: 700, color: '#A09490', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Catalog</span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: showVarianceStrip ? '#6B5B57' : '#C4B5B0', fontVariantNumeric: 'tabular-nums' }}>
-              {showVarianceStrip ? `$${currentProduct.price}` : '—'}
-            </span>
-          </div>
-          <span style={{ fontSize: 11, fontWeight: 800, color: showVarianceStrip ? currentVarColor : '#C4B5B0', letterSpacing: '0.04em' }}>
-            {showVarianceStrip
-              ? (currentVariancePct === 0 ? 'AT PRICE' : `${currentVarAbove ? '+' : '−'}${currentVariancePct.toFixed(1)}%`)
-              : '—'}
-          </span>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 1, alignItems: 'flex-end' }}>
-            <span style={{ fontSize: 9, fontWeight: 700, color: '#A09490', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Selling</span>
-            <span style={{ fontSize: 13, fontWeight: 800, color: showVarianceStrip ? '#2B1D1A' : '#C4B5B0', fontVariantNumeric: 'tabular-nums' }}>
-              {showVarianceStrip ? `$${currentSellingPrice}` : '—'}
-            </span>
-          </div>
-        </div>
       </div>
 
       {/* ══════════════════════════════════════════
@@ -1237,7 +1121,7 @@ export default function TerminalPage() {
               </div>
             )
             : products.map((product) => {
-                const { code, name, price } = product;
+                const { code, name } = product;
                 const isSelected = currentProduct?.code === code;
                 return (
                   <button
@@ -1251,16 +1135,13 @@ export default function TerminalPage() {
                       boxShadow: isSelected
                         ? '0 4px 0 #3E2723, 0 6px 12px rgba(62,39,35,0.28), 0 0 0 1px #D4A373'
                         : '0 4px 0 #c4b8b2, 0 6px 12px rgba(0,0,0,0.06)',
+                      padding: '0 4px',
                     }}
                     onMouseDown={(e) => { e.currentTarget.style.transform = 'translateY(4px)'; }}
                     onMouseUp={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
                     onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
                   >
-                    <span style={{ fontSize: 15, fontWeight: 800, color: isSelected ? '#fff' : '#2B1D1A', lineHeight: 1 }}>{code}</span>
-                    <span style={{ fontSize: 9, fontWeight: 500, color: isSelected ? '#fff' : '#8A7B77', marginTop: 3, letterSpacing: '0.02em', textAlign: 'center', padding: '0 2px' }}>{name}</span>
-                    {price > 0 && (
-                      <span style={{ fontSize: 9, fontWeight: 700, color: isSelected ? '#fff' : '#2E7D4F', marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>${price}</span>
-                    )}
+                    <span style={{ fontSize: 11, fontWeight: 700, color: isSelected ? '#fff' : '#2B1D1A', textAlign: 'center', lineHeight: 1.3 }}>{name}</span>
                   </button>
                 );
               })
@@ -1400,44 +1281,26 @@ export default function TerminalPage() {
             <>
               {/* Line items */}
               {cartItems.map((item) => {
-                const vp = item.product.price > 0
-                  ? Math.abs((item.sellingPrice - item.product.price) / item.product.price) * 100
-                  : 0;
-                const above = item.sellingPrice > item.product.price;
-                const vpColor = vp === 0 ? '#2E7D4F' : above ? '#B26A00' : '#B71C1C';
+                const lineTotal = item.sellingPrice;
                 return (
                   <div key={item.id} style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                     padding: '9px 0', borderBottom: '1px solid #F0E8E3',
                   }}>
-                    {/* Left: code badge + name */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0, flex: 1 }}>
-                      <span style={{
-                        padding: '2px 7px', borderRadius: 5, flexShrink: 0,
-                        background: '#3E2723', color: '#fff',
-                        fontSize: 10, fontWeight: 800, letterSpacing: '0.04em',
-                      }}>
-                        {item.product.code}
-                      </span>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: '#2B1D1A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {item.product.name}
-                        </div>
-                        <div style={{ fontSize: 11, color: '#A09490', fontWeight: 500, marginTop: 1 }}>
-                          {item.qty} × ${item.sellingPrice}
-                          {item.product.price > 0 && (
-                            <span style={{ marginLeft: 6, color: vpColor, fontWeight: 700 }}>
-                              {vp === 0 ? 'AT PRICE' : `${above ? '+' : '−'}${vp.toFixed(1)}%`}
-                            </span>
-                          )}
-                        </div>
+                    {/* Left: name + qty breakdown */}
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#2B1D1A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {item.product.name}
+                      </div>
+                      <div style={{ fontSize: 11, color: '#A09490', fontWeight: 500, marginTop: 1 }}>
+                        {item.qty} × ${item.sellingPrice}
                       </div>
                     </div>
 
                     {/* Right: total + remove */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 10 }}>
                       <span style={{ fontSize: 14, fontWeight: 800, color: '#2B1D1A', fontVariantNumeric: 'tabular-nums' }}>
-                        ${item.sellingPrice * item.qty}
+                        ${lineTotal}
                       </span>
                       <button
                         onClick={() => removeCartItem(item.id)}
