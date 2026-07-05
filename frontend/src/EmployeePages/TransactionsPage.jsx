@@ -30,26 +30,29 @@ const STATUS_META = {
 };
 
 const METHOD_ICON = {
-  CASH:   <AttachMoneyIcon sx={{ fontSize: 13 }} />,
-  CREDIT: <CreditCardIcon sx={{ fontSize: 13 }} />,
-  DEBIT:  <CreditCardIcon sx={{ fontSize: 13 }} />,
-  MISC:   null,
+  CASH:  <AttachMoneyIcon sx={{ fontSize: 13 }} />,
+  MOI:   <CreditCardIcon sx={{ fontSize: 13 }} />,
+  DEBIT: <CreditCardIcon sx={{ fontSize: 13 }} />,
+  MISC:  null,
 };
 
-const METHOD_LABEL = { CASH: 'Cash', CREDIT: 'Credit', DEBIT: 'Debit', MISC: 'Misc' };
+const METHOD_LABEL = { CASH: 'Cash', MOI: 'MOI', DEBIT: 'Debit', MISC: 'Misc' };
 
 // ── Quick filter chip data ──────────────────────────────────────────────────
-const DATE_CHIPS  = [
+const DATE_CHIPS_FULL = [
   { id: '',       label: 'All time' },
   { id: 'today',  label: 'Today' },
   { id: 'week',   label: 'This week' },
   { id: 'month',  label: 'This month' },
 ];
+const DATE_CHIPS_EMPLOYEE = [
+  { id: 'today',  label: 'Today' },
+];
 const METHOD_CHIPS = [
-  { id: '',       label: 'Any method' },
-  { id: 'CASH',   label: 'Cash' },
-  { id: 'CREDIT', label: 'Credit' },
-  { id: 'DEBIT',  label: 'Debit' },
+  { id: '',     label: 'Any method' },
+  { id: 'CASH', label: 'Cash' },
+  { id: 'MOI',  label: 'MOI' },
+  { id: 'DEBIT', label: 'Debit' },
 ];
 const STATUS_CHIPS = [
   { id: '',         label: 'Any status' },
@@ -332,6 +335,8 @@ export default function TransactionsPage() {
 
   const isEmpty = !loading && transactions.length === 0;
 
+  const dateChips = isPrivileged ? DATE_CHIPS_FULL : DATE_CHIPS_EMPLOYEE;
+
   return (
     <div style={{ fontFamily: FONT, paddingBottom: 80 }}>
 
@@ -396,14 +401,14 @@ export default function TransactionsPage() {
         {/* Filter chips — expand on toggle */}
         {showFilters && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingBottom: 12 }}>
-            <ChipRow chips={DATE_CHIPS}   value={dateFilter} onChange={setDateFilter} />
+            <ChipRow chips={dateChips}    value={dateFilter} onChange={setDateFilter} />
             <ChipRow chips={METHOD_CHIPS} value={method}     onChange={setMethod} />
             <ChipRow chips={STATUS_CHIPS} value={status}     onChange={setStatus} />
           </div>
         )}
-        {!showFilters && (
+        {!showFilters && isPrivileged && (
           <div style={{ paddingBottom: 10 }}>
-            <ChipRow chips={DATE_CHIPS} value={dateFilter} onChange={setDateFilter} />
+            <ChipRow chips={dateChips} value={dateFilter} onChange={setDateFilter} />
           </div>
         )}
       </div>

@@ -17,7 +17,7 @@ const C = {
 
 const PAYMENT_METHODS = [
   { id: 'CASH', label: 'Cash' },
-  { id: 'CREDIT', label: 'Credit Card' },
+  { id: 'MOI', label: 'MOI' },
   { id: 'DEBIT', label: 'Debit Card' },
   { id: 'MISC', label: 'Misc' },
 ];
@@ -200,7 +200,7 @@ export default function RefundFlowPage() {
     ? Math.round(((selectedItem.total / selectedItem.quantity) * quantity) * 100) / 100
     : 0;
 
-  const isCardTender = method === 'CREDIT' || method === 'DEBIT';
+  const isCardTender = method === 'MOI' || method === 'DEBIT';
   const methodOverridden = !!originalPayment && method !== originalPayment.method;
   const cardLast4Valid = !isCardTender || /^\d{4}$/.test(cardLast4.trim());
 

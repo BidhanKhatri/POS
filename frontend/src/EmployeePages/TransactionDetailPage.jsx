@@ -47,6 +47,11 @@ function DetailRow({ label, children, mono }) {
     </div>
   );
 }
+//in this section I will add a labael printer
+
+function ACtionButton({
+  onClick, icon: Icon, label, loading, variant = 'outline'
+}){}
 
 function ActionButton({ onClick, icon: Icon, label, loading, variant = 'outline' }) {
   const filled = variant === 'filled';

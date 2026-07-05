@@ -322,7 +322,7 @@ async function getPayments({ start, end }) {
     share:  totalAmount > 0 ? Math.round((m.amount / totalAmount) * 10000) / 100 : 0,
   }));
 
-  // Pivot daily into { date, CASH, CREDIT, DEBIT, MISC }
+  // Pivot daily into { date, CASH, MOI, DEBIT, MISC }
   const dateMap = {};
   for (const d of daily) {
     const { date, method } = d._id;

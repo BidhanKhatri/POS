@@ -79,7 +79,7 @@ const managerOverrideSchema = new mongoose.Schema({
   sku: { type: String },
   paymentMethod: {
     type: String,
-    enum: ['CASH', 'CREDIT', 'DEBIT', 'MISC'],
+    enum: ['CASH', 'MOI', 'DEBIT', 'MISC'],
   },
   // True when the employee chose a refund tender different from the original
   // payment method — a fraud-review signal for the approving manager.
@@ -110,7 +110,7 @@ const managerOverrideSchema = new mongoose.Schema({
   // approval without re-entering details, and (c) OverridesPage can reconstruct
   // the TenderPage state for orphaned approved overrides.
   saleContext: {
-    paymentMethod: { type: String, enum: ['CASH', 'CREDIT', 'DEBIT', 'MISC'] },
+    paymentMethod: { type: String, enum: ['CASH', 'MOI', 'DEBIT', 'MISC'] },
     card: {
       brand: { type: String, enum: ['VISA', 'MASTERCARD', 'AMEX', 'DISCOVER', 'OTHER'] },
       last4: { type: String, match: /^\d{4}$/ },

@@ -1,5 +1,5 @@
 const PAYMENT_METHOD_LABELS = {
-  CASH: 'Cash', CREDIT: 'Credit Card', DEBIT: 'Debit Card', MISC: 'Miscellaneous',
+  CASH: 'Cash', MOI: 'MOI', DEBIT: 'Debit Card', MISC: 'Miscellaneous',
 };
 
 export function methodLabel(method) {

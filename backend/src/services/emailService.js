@@ -21,7 +21,7 @@ function buildReceiptHtml(sale) {
     : new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
 
   const isRefund = sale.transactionType === 'RF';
-  const methodLabels = { CASH: 'Cash', CREDIT: 'Credit Card', DEBIT: 'Debit Card', MISC: 'Miscellaneous' };
+  const methodLabels = { CASH: 'Cash', MOI: 'MOI', DEBIT: 'Debit Card', MISC: 'Miscellaneous' };
   const methodLabel = methodLabels[sale.method] || sale.method || 'N/A';
   const cardRef = sale.card ? ` •••• ${sale.card.last4}` : '';
   const total = sale.grandTotal ?? sale.amount ?? 0;

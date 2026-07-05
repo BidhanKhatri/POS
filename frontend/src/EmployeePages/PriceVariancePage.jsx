@@ -19,7 +19,7 @@ const FONT = "'Plus Jakarta Sans', sans-serif";
 
 const PAYMENT_METHODS = [
   { id: 'CASH',   label: 'Cash',        icon: AttachMoneyIcon },
-  { id: 'CREDIT', label: 'Credit Card', icon: CreditCardIcon },
+  { id: 'MOI',    label: 'MOI',         icon: CreditCardIcon },
   { id: 'DEBIT',  label: 'Debit Card',  icon: PaymentIcon },
   { id: 'MISC',   label: 'Misc',        icon: MoreHorizIcon },
 ];
@@ -106,7 +106,7 @@ export default function PriceVariancePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const overrideIsCard = overridePayMethod === 'CREDIT' || overridePayMethod === 'DEBIT';
+  const overrideIsCard = overridePayMethod === 'MOI' || overridePayMethod === 'DEBIT';
   const canSubmitOverride = !!reason.trim()
     && !!overridePayMethod
     && overrideBuyerName.trim().length > 0

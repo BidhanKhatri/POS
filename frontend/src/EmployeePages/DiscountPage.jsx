@@ -19,7 +19,7 @@ const FONT = "'Plus Jakarta Sans', sans-serif";
 
 const PAYMENT_METHODS = [
   { id: 'CASH',   label: 'Cash',        icon: AttachMoneyIcon },
-  { id: 'CREDIT', label: 'Credit Card', icon: CreditCardIcon },
+  { id: 'MOI',    label: 'MOI',         icon: CreditCardIcon },
   { id: 'DEBIT',  label: 'Debit Card',  icon: PaymentIcon },
   { id: 'MISC',   label: 'Misc',        icon: MoreHorizIcon },
 ];
@@ -127,7 +127,7 @@ export default function DiscountPage() {
   const exceedsLimit = inputNum > 0 && discountPercent > maxDiscountPercent;
 
   // Override submission gate — requires reason + payment intent + buyer name
-  const overrideIsCard = overridePayMethod === 'CREDIT' || overridePayMethod === 'DEBIT';
+  const overrideIsCard = overridePayMethod === 'MOI' || overridePayMethod === 'DEBIT';
   const canSubmitOverride = !!reason.trim()
     && !!overridePayMethod
     && overrideBuyerName.trim().length > 0

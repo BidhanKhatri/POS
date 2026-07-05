@@ -1,10 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useMediaQuery } from '@mui/material';
-import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
-import PaymentIcon from '@mui/icons-material/Payment';
-import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import BlockIcon from '@mui/icons-material/Block';
@@ -22,10 +19,7 @@ import ShoppingBagOutlinedIcon from '@mui/icons-material/ShoppingBagOutlined';
 import { API_URL as API } from '../config/api';
 
 const PAYMENT_METHODS = [
-  { id: 'CASH',   label: 'Cash',        icon: AttachMoneyIcon },
-  { id: 'CREDIT', label: 'Credit Card', icon: CreditCardIcon },
-  { id: 'DEBIT',  label: 'Debit Card',  icon: PaymentIcon },
-  { id: 'MISC',   label: 'Misc',        icon: MoreHorizIcon },
+  { id: 'MOI', label: 'MOI', icon: CreditCardIcon },
 ];
 
 const CARD_BRANDS = ['VISA', 'MASTERCARD', 'AMEX', 'DISCOVER', 'OTHER'];
@@ -300,7 +294,7 @@ export default function TenderPage() {
   const [contactTouched, setContactTouched] = useState(false);
 
   const isRefund   = transactionType === 'RF';
-  const isCardTender = selectedMethod === 'CREDIT' || selectedMethod === 'DEBIT';
+  const isCardTender = selectedMethod === 'MOI';
 
   const buyerNameValid    = buyerName.trim().length > 0;
   const buyerContactValid = buyerPhone.trim().length > 0 || buyerEmail.trim().length > 0;

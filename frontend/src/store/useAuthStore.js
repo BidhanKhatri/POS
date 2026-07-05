@@ -50,12 +50,16 @@ const useAuthStore = create(
       hasBiometric: false,
       isLocked:     false,
 
+      // toDateString() of the last time the lock screen was shown — gates
+      // the boot/refresh lock so it only reappears once per day.
+      lastLockDate: null,
+
       // ── Basic setters ────────────────────────────────────────────────────────
       setUser:         (user)  => set({ user }),
       setToken:        (token) => set({ token, sessionCreatedAt: Date.now(), isLocked: false }),
       setLastEmail:    (email) => set({ lastEmail: email }),
       setHasBiometric: (val)   => set({ hasBiometric: val }),
-      lock:            ()      => set({ isLocked: true }),
+      lock:            ()      => set({ isLocked: true, lastLockDate: new Date().toDateString() }),
       unlock:          ()      => set({ isLocked: false }),
 
       isSessionExpired: () => {
@@ -124,6 +128,7 @@ const useAuthStore = create(
         user:             state.user,
         hasBiometric:     state.hasBiometric,
         isLocked:         state.isLocked,
+        lastLockDate:     state.lastLockDate,
         sessionCreatedAt: state.sessionCreatedAt,
         trustedUser:      state.trustedUser,
         refreshToken:     state.refreshToken,

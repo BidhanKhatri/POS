@@ -57,10 +57,10 @@ const STATUS_OPTS = [
 
 const METHOD_OPTS = [
   { id: '', label: 'Any method' },
-  { id: 'CASH',   label: 'Cash'   },
-  { id: 'CREDIT', label: 'Credit' },
-  { id: 'DEBIT',  label: 'Debit'  },
-  { id: 'MISC',   label: 'Misc'   },
+  { id: 'CASH',  label: 'Cash'  },
+  { id: 'MOI',   label: 'MOI'   },
+  { id: 'DEBIT', label: 'Debit' },
+  { id: 'MISC',  label: 'Misc'  },
 ];
 
 function fmt$(n) {

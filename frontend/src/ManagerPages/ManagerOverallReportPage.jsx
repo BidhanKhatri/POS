@@ -46,7 +46,7 @@ const RANGES = [
   { id: 'year',    label: 'Year'     },
 ];
 
-const METHOD_COLORS = { CASH: C.dataBlue, CREDIT: C.dataTeal, DEBIT: C.dataGreen, MISC: C.dataAmber };
+const METHOD_COLORS = { CASH: C.dataBlue, MOI: C.dataTeal, DEBIT: C.dataGreen, MISC: C.dataAmber };
 const YEAR_COLORS = [C.dataBlue, C.dataTeal, C.dataGreen, C.dataAmber, C.dataOrange, C.dataPurple];
 
 function fmt$(n) { return n == null ? '—' : `$${Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; }
@@ -806,7 +806,7 @@ export default function ManagerOverallReportPage() {
                     <BarChart data={payments.data.dailySeries} barSize={8} barCategoryGap="20%">
                       <XAxis dataKey="date" tickFormatter={formatPeriod} tick={{ fontSize: 9, fill: C.textDim }} axisLine={false} tickLine={false} dy={4} interval="preserveStartEnd" />
                       <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(237,229,224,0.4)' }} />
-                      {['CASH', 'CREDIT', 'DEBIT', 'MISC'].map(m => (
+                      {['CASH', 'MOI', 'DEBIT', 'MISC'].map(m => (
                         <Bar key={m} dataKey={m} stackId="a" fill={METHOD_COLORS[m]} radius={m === 'MISC' ? [2, 2, 0, 0] : [0, 0, 0, 0]} />
                       ))}
                     </BarChart>

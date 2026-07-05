@@ -14,7 +14,7 @@ const generateInvoiceNo = () => {
   return 'INV-' + Date.now().toString().slice(-6) + Math.floor(Math.random() * 1000);
 };
 
-const CARD_METHODS = ['CREDIT', 'DEBIT'];
+const CARD_METHODS = ['MOI', 'DEBIT'];
 
 // Builds the safe-to-persist payment payload. Buyer contact info is accepted for every
 // method so a refund can be traced back to the person. For card payments only a masked
@@ -272,7 +272,7 @@ const listTransactions = async (requestingUser, {
   page = 1,
   limit = 20,
   search = '',       // matches invoiceNo OR buyer name (via Payment join)
-  method = '',       // CASH | CREDIT | DEBIT | MISC
+  method = '',       // CASH | MOI | DEBIT | MISC
   status = '',       // PAID | PARTIAL | REFUNDED | VOIDED
   startDate = '',
   endDate = '',

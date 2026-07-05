@@ -10,7 +10,6 @@ import Inventory2OutlinedIcon        from '@mui/icons-material/Inventory2Outline
 import AdminPanelSettingsOutlinedIcon from '@mui/icons-material/AdminPanelSettingsOutlined';
 import SettingsOutlinedIcon          from '@mui/icons-material/SettingsOutlined';
 import PersonOutlineOutlinedIcon     from '@mui/icons-material/PersonOutlineOutlined';
-import PeopleOutlinedIcon            from '@mui/icons-material/PeopleOutlined';
 import QrCodeScannerOutlinedIcon     from '@mui/icons-material/QrCodeScannerOutlined';
 import LogoutOutlinedIcon            from '@mui/icons-material/LogoutOutlined';
 import LoginOutlinedIcon             from '@mui/icons-material/LoginOutlined';
@@ -36,7 +35,6 @@ const MENU_SECTIONS = [
     items: [
       { label: 'Transactions',      path: '/employee/transactions', icon: ReceiptLongOutlinedIcon         },
       { label: 'Inventory',         path: '/employee/inventory',    icon: Inventory2OutlinedIcon          },
-      { label: 'Customers',         path: '/employee/customers',    icon: PeopleOutlinedIcon              },
       { label: 'Barcode',           path: '/employee/barcode',      icon: QrCodeScannerOutlinedIcon       },
       { label: 'Overrides Request', path: '/employee/overrides',    icon: AdminPanelSettingsOutlinedIcon  },
     ],
@@ -68,7 +66,6 @@ const SIDEBAR_SECTIONS = [
     items: [
       { label: 'Shift',             path: '/employee/shift',     icon: AccessTimeOutlinedIcon          },
       { label: 'Inventory',         path: '/employee/inventory', icon: Inventory2OutlinedIcon          },
-      { label: 'Customers',         path: '/employee/customers', icon: PeopleOutlinedIcon              },
       { label: 'Barcode',           path: '/employee/barcode',   icon: QrCodeScannerOutlinedIcon       },
       { label: 'Overrides Request', path: '/employee/overrides', icon: AdminPanelSettingsOutlinedIcon  },
     ],

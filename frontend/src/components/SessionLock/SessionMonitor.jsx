@@ -2,8 +2,8 @@ import React, { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../../store/useAuthStore';
 
-const IDLE_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes of inactivity → lock
-const SESSION_TTL_MS  = 24 * 60 * 60 * 1000; // 24 hours → force logout
+const IDLE_TIMEOUT_MS  = 15 * 60 * 1000; // 15 minutes of inactivity → lock
+const SESSION_TTL_MS   = 24 * 60 * 60 * 1000; // 24 hours → force logout
 const ACTIVITY_EVENTS = ['mousedown', 'mousemove', 'keydown', 'touchstart', 'scroll', 'click'];
 
 export default function SessionMonitor() {

@@ -9,7 +9,7 @@ import Shift from '../models/Shift.js';
 import AuditLog from '../models/AuditLog.js';
 import User from '../models/User.js';
 
-const PAYMENT_METHODS = ['CASH', 'CREDIT', 'DEBIT', 'MISC'];
+const PAYMENT_METHODS = ['CASH', 'MOI', 'DEBIT', 'MISC'];
 
 // Employee-initiated, invoice-linked refund request — created PENDING, requires
 // manager PIN to act on. Every refund must reference a real sale + line item;

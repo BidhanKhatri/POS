@@ -33,8 +33,6 @@ import ManagerCustomersPage         from './ManagerPages/ManagerCustomersPage';
 import ManagerCustomerDetailPage    from './ManagerPages/ManagerCustomerDetailPage';
 import TransactionsPage        from './EmployeePages/TransactionsPage';
 import TransactionDetailPage   from './EmployeePages/TransactionDetailPage';
-import CustomerSearchPage      from './EmployeePages/CustomerSearchPage';
-import CustomerProfilePage     from './EmployeePages/CustomerProfilePage';
 import BarcodeScannerPage      from './EmployeePages/BarcodeScannerPage';
 import ManagerBarcodePage      from './ManagerPages/ManagerBarcodePage';
 import ManagerStaffingPage     from './ManagerPages/ManagerStaffingPage';
@@ -66,8 +64,6 @@ function LocalAuthRoutes({ role }) {
         <Route path="profile"       element={<ProfilePage />} />
         <Route path="transactions"      element={<TransactionsPage />} />
         <Route path="transactions/:id"  element={<TransactionDetailPage />} />
-        <Route path="customers"         element={<CustomerSearchPage />} />
-        <Route path="customers/:id"     element={<CustomerProfilePage />} />
         <Route path="barcode"           element={<BarcodeScannerPage />} />
       </Route>
 
@@ -121,6 +117,7 @@ function AuthGate() {
   const localUser        = useAuthStore((s) => s.user);
   const refreshToken     = useAuthStore((s) => s.refreshToken);
   const isLocked         = useAuthStore((s) => s.isLocked);
+  const lastLockDate     = useAuthStore((s) => s.lastLockDate);
   const isSessionExpired = useAuthStore((s) => s.isSessionExpired);
   const logout           = useAuthStore((s) => s.logout);
   const lock             = useAuthStore((s) => s.lock);
@@ -136,9 +133,13 @@ function AuthGate() {
     if (sessionExpired) {
       logout();
     } else if (hasTrustedSession && !isLocked) {
-      // Enforce lock screen on every app start / page refresh when a trusted
-      // device session exists — user must PIN or biometric to proceed.
-      lock();
+      // Re-show the lock screen on app start / refresh only once per day —
+      // not on every single refresh. Idle-triggered locking (15 min) is
+      // handled separately and continuously by SessionMonitor.
+      const today = new Date().toDateString();
+      if (lastLockDate !== today) {
+        lock();
+      }
     }
     // Guest path has no async data — dismiss splash immediately
     if (!localUser && !hasTrustedSession) stopLoading();

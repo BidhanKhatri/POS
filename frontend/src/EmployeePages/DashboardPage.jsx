@@ -3,11 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useMediaQuery } from '@mui/material';
 import GridViewOutlinedIcon          from '@mui/icons-material/GridViewOutlined';
 import PointOfSaleIcon               from '@mui/icons-material/PointOfSale';
-import ReceiptLongOutlinedIcon       from '@mui/icons-material/ReceiptLongOutlined';
-import ReplayOutlinedIcon            from '@mui/icons-material/ReplayOutlined';
 import AdminPanelSettingsOutlinedIcon from '@mui/icons-material/AdminPanelSettingsOutlined';
 import RefreshOutlinedIcon           from '@mui/icons-material/RefreshOutlined';
-import TrendingUpOutlinedIcon        from '@mui/icons-material/TrendingUpOutlined';
 import Inventory2OutlinedIcon        from '@mui/icons-material/Inventory2Outlined';
 import AttachMoneyIcon               from '@mui/icons-material/AttachMoney';
 import CreditCardIcon                from '@mui/icons-material/CreditCard';
@@ -28,8 +25,8 @@ const C = {
 const fmt  = (n) => `$${Number(n || 0).toFixed(2)}`;
 const fmtK = (n) => n >= 1000 ? `$${(n / 1000).toFixed(1)}k` : fmt(n);
 
-const METHOD_ICON = { CASH: AttachMoneyIcon, CREDIT: CreditCardIcon, DEBIT: PaymentIcon, MISC: MoreHorizIcon };
-const METHOD_COLOR = { CASH: '#2E7D4F', CREDIT: '#1565C0', DEBIT: '#6A1B9A', MISC: '#B26A00' };
+const METHOD_ICON = { CASH: AttachMoneyIcon, MOI: CreditCardIcon, DEBIT: PaymentIcon, MISC: MoreHorizIcon };
+const METHOD_COLOR = { CASH: '#2E7D4F', MOI: '#1565C0', DEBIT: '#6A1B9A', MISC: '#B26A00' };
 
 const STATUS_S = {
   PENDING:  { bg: 'rgba(178,106,0,0.10)',  color: '#B26A00' },
@@ -42,74 +39,6 @@ const TYPE_S = {
   DISCOUNT:     { label: 'Discount',       color: '#8a5a2c' },
   PRICE_CHANGE: { label: 'Price Override', color: '#1565C0' },
 };
-
-// ── Inline CSS bar chart ──────────────────────────────────────────────────────
-function BarChart({ data, valueKey = 'revenue', labelKey = 'label', color = C.primary, height = 80 }) {
-  const max = Math.max(...data.map((d) => d[valueKey]), 0.01);
-  return (
-    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height, width: '100%' }}>
-      {data.map((d, i) => {
-        const pct = (d[valueKey] / max) * 100;
-        return (
-          <div key={i} title={`${d[labelKey]}: ${fmt(d[valueKey])}`}
-            style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>
-            <div style={{
-              width: '100%', borderRadius: '3px 3px 0 0',
-              background: pct > 0 ? color : C.elevated,
-              height: `${Math.max(pct, 2)}%`,
-              transition: 'height 0.4s ease',
-              minHeight: pct > 0 ? 4 : 2,
-              opacity: pct > 0 ? 1 : 0.4,
-            }} />
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-// ── Hourly chart with time labels ─────────────────────────────────────────────
-function HourlyChart({ data }) {
-  const max  = Math.max(...data.map((d) => d.revenue), 0.01);
-  const now  = new Date().getHours();
-  // only show label every 3 hours
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 72, width: '100%' }}>
-        {data.map((d) => {
-          const pct    = (d.revenue / max) * 100;
-          const isPast = d.hour <= now;
-          const isCur  = d.hour === now;
-          return (
-            <div key={d.hour} title={`${d.hour}:00 — ${fmt(d.revenue)}`}
-              style={{ flex: 1, display: 'flex', alignItems: 'flex-end', height: '100%' }}>
-              <div style={{
-                width: '100%', borderRadius: '3px 3px 0 0',
-                background: isCur ? C.accent : isPast && pct > 0 ? C.primary : C.elevated,
-                height: `${Math.max(pct, 2)}%`,
-                minHeight: 3,
-                opacity: isPast ? 1 : 0.3,
-                transition: 'height 0.4s ease',
-              }} />
-            </div>
-          );
-        })}
-      </div>
-      {/* X-axis: every 3 hours */}
-      <div style={{ display: 'flex', width: '100%' }}>
-        {data.map((d) => (
-          <div key={d.hour} style={{ flex: 1, textAlign: 'center' }}>
-            {d.hour % 6 === 0 && (
-              <span style={{ fontSize: 9, fontWeight: 600, color: C.textDim }}>
-                {d.hour === 0 ? '12a' : d.hour < 12 ? `${d.hour}a` : d.hour === 12 ? '12p' : `${d.hour - 12}p`}
-              </span>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 // ── Section wrapper ───────────────────────────────────────────────────────────
 function Section({ title, children, action }) {
@@ -124,52 +53,9 @@ function Section({ title, children, action }) {
   );
 }
 
-// ── KPI card ──────────────────────────────────────────────────────────────────
-function KpiCard({ label, value, icon: Icon, iconBg, color, sub, compact }) {
-  const pad      = compact ? '11px 12px' : '14px 16px';
-  const iconSize = compact ? 34 : 38;
-  const iconFn   = compact ? 16 : 19;
-  const valSize  = compact ? 15 : 18;
-  const cornerW  = compact ? 16 : 22;
-  return (
-    <div style={{
-      position: 'relative', background: C.surface, border: `1px solid ${C.border}`,
-      borderRadius: 12, padding: pad,
-      display: 'flex', alignItems: 'center', gap: compact ? 10 : 12,
-      fontFamily: FONT,
-    }}>
-      <div style={{ position: 'absolute', top: 0, left: 0, width: cornerW, height: cornerW, borderTop: `1.5px solid ${color}`, borderLeft: `1.5px solid ${color}`, borderTopLeftRadius: 10, pointerEvents: 'none' }} />
-      <div style={{ position: 'absolute', bottom: 0, right: 0, width: cornerW, height: cornerW, borderBottom: `1.5px solid ${color}`, borderRight: `1.5px solid ${color}`, borderBottomRightRadius: 10, pointerEvents: 'none' }} />
-      <div style={{ width: iconSize, height: iconSize, borderRadius: 9, background: iconBg, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 0 1px ${color}22` }}>
-        <Icon sx={{ fontSize: iconFn, color }} />
-      </div>
-      <div style={{ minWidth: 0, flex: 1 }}>
-        <p style={{ margin: 0, fontSize: valSize, fontWeight: 800, color: C.textPri, letterSpacing: '-0.4px', lineHeight: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</p>
-        {sub && <p style={{ margin: '2px 0 0', fontSize: 10, fontWeight: 500, color: C.textDim, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub}</p>}
-        <p style={{ margin: compact ? '3px 0 0' : '4px 0 0', fontSize: 9, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em', lineHeight: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</p>
-      </div>
-    </div>
-  );
-}
-
 // ── Skeleton loader ───────────────────────────────────────────────────────────
 function Skeleton({ h = 16, w = '100%', r = 6 }) {
   return <div style={{ height: h, width: w, borderRadius: r, background: 'linear-gradient(90deg, #EDE5E0 25%, #F5F3F1 50%, #EDE5E0 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.4s infinite', flexShrink: 0 }} />;
-}
-
-function KpiCardSkeleton({ compact }) {
-  const pad      = compact ? '11px 12px' : '14px 16px';
-  const iconSize = compact ? 34 : 38;
-  const valH     = compact ? 15 : 18;
-  return (
-    <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: pad, display: 'flex', alignItems: 'center', gap: compact ? 10 : 12 }}>
-      <Skeleton h={iconSize} w={iconSize} r={9} />
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: compact ? 5 : 7 }}>
-        <Skeleton h={valH} w="68%" />
-        <Skeleton h={9} w="42%" />
-      </div>
-    </div>
-  );
 }
 
 export default function DashboardPage() {
@@ -202,49 +88,17 @@ export default function DashboardPage() {
 
   // ── KPI data ─────────────────────────────────────────────────────────────
   const kpi = data?.kpi;
-  const kpiCards = kpi ? [
-    { label: "Today's Revenue", value: fmtK(kpi.revenue),      icon: TrendingUpOutlinedIcon,  iconBg: 'rgba(46,125,79,0.10)',   color: C.success },
-    { label: 'Transactions',    value: kpi.transactions,        icon: ReceiptLongOutlinedIcon, iconBg: 'rgba(62,39,35,0.09)',    color: C.primary },
-    { label: 'Avg Ticket',      value: fmt(kpi.avgTicket),      icon: AttachMoneyIcon,         iconBg: 'rgba(212,163,115,0.18)', color: '#8a5a2c' },
-    { label: 'Refunds',         value: fmt(kpi.refundedAmount), icon: ReplayOutlinedIcon,      iconBg: 'rgba(183,28,28,0.09)',   color: C.error   },
-  ] : [];
-
-  // ── Derived chart peaks for summary labels ────────────────────────────────
-  const peakHour = data?.charts?.hourly?.reduce((best, h) => h.revenue > best.revenue ? h : best, { revenue: 0, hour: -1 });
-  const weekTotal = data?.charts?.weekly?.reduce((s, d) => s + d.revenue, 0) || 0;
-
-  // ── Period summary state ──────────────────────────────────────────────────
-  const [activePeriod, setActivePeriod] = useState('weekly');
-  const PERIODS = [
-    { key: 'weekly',  label: 'This Week'  },
-    { key: 'monthly', label: 'This Month' },
-    { key: 'yearly',  label: 'This Year'  },
-    { key: 'overall', label: 'All Time'   },
-  ];
 
   // ── Shared content blocks ─────────────────────────────────────────────────
   const renderPeriods = () => {
-    const p = data?.periods?.[activePeriod];
     const STAT_ROWS = [
-      { label: 'Revenue',      value: p ? fmtK(p.revenue)        : '—', color: C.success  },
-      { label: 'Transactions', value: p ? p.transactions          : '—', color: C.primary  },
-      { label: 'Avg Ticket',   value: p ? fmt(p.avgTicket)        : '—', color: '#8a5a2c'  },
-      { label: 'Refunded',     value: p ? fmt(p.refundedAmount)   : '—', color: C.error    },
+      { label: 'Revenue',      value: kpi ? fmtK(kpi.revenue)        : '—', color: C.success  },
+      { label: 'Transactions', value: kpi ? kpi.transactions          : '—', color: C.primary  },
+      { label: 'Avg Ticket',   value: kpi ? fmt(kpi.avgTicket)        : '—', color: '#8a5a2c'  },
+      { label: 'Refunded',     value: kpi ? fmt(kpi.refundedAmount)   : '—', color: C.error    },
     ];
     return (
       <Section title="Sales Summary">
-        {/* Period tabs */}
-        <div style={{ display: 'flex', gap: 6, marginBottom: 12, overflowX: 'auto', paddingBottom: 2 }}>
-          {PERIODS.map(({ key, label }) => {
-            const active = activePeriod === key;
-            return (
-              <button key={key} onClick={() => setActivePeriod(key)} style={{ padding: '6px 14px', borderRadius: 20, flexShrink: 0, border: active ? `1.5px solid ${C.primary}` : `1px solid ${C.border}`, background: active ? C.primary : C.surface, color: active ? '#fff' : C.textSec, fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', cursor: 'pointer', transition: 'all 0.15s' }}>
-                {label}
-              </button>
-            );
-          })}
-        </div>
-
         {/* Stats grid */}
         <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
@@ -268,67 +122,6 @@ export default function DashboardPage() {
       </Section>
     );
   };
-
-  const renderKpis = () => (
-    <Section title="Today at a Glance">
-      <div style={{ display: 'grid', gridTemplateColumns: isDesktop ? 'repeat(4,1fr)' : 'repeat(2,1fr)', gap: isDesktop ? 12 : 8 }}>
-        {loading
-          ? Array.from({ length: 4 }).map((_, i) => <KpiCardSkeleton key={i} compact={!isDesktop} />)
-          : kpiCards.map((c, i) => <KpiCard key={i} {...c} compact={!isDesktop} />)
-        }
-      </div>
-    </Section>
-  );
-
-  const renderCharts = () => (
-    <Section title="Performance">
-      <div style={{ display: 'grid', gridTemplateColumns: isDesktop ? '1fr 1fr' : '1fr', gap: 12 }}>
-
-        {/* Hourly */}
-        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '14px 16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <div>
-              <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: C.textPri }}>Hourly Sales</p>
-              <p style={{ margin: 0, fontSize: 10, fontWeight: 500, color: C.textDim }}>Today · {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
-            </div>
-            {!loading && peakHour?.hour >= 0 && peakHour.revenue > 0 && (
-              <span style={{ fontSize: 10, fontWeight: 700, color: C.success, background: 'rgba(46,125,79,0.10)', padding: '3px 8px', borderRadius: 20 }}>
-                Peak {peakHour.hour}:00
-              </span>
-            )}
-          </div>
-          {loading ? <Skeleton h={80} r={8} /> : <HourlyChart data={data.charts.hourly} />}
-        </div>
-
-        {/* Weekly */}
-        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '14px 16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <div>
-              <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: C.textPri }}>7-Day Trend</p>
-              <p style={{ margin: 0, fontSize: 10, fontWeight: 500, color: C.textDim }}>Last 7 days</p>
-            </div>
-            {!loading && weekTotal > 0 && (
-              <span style={{ fontSize: 11, fontWeight: 800, color: C.primary }}>{fmtK(weekTotal)}</span>
-            )}
-          </div>
-          {loading ? <Skeleton h={80} r={8} /> : (
-            <>
-              <BarChart data={data.charts.weekly} valueKey="revenue" labelKey="label" color={C.primary} height={72} />
-              <div style={{ display: 'flex', marginTop: 6 }}>
-                {data.charts.weekly.map((d, i) => (
-                  <div key={i} style={{ flex: 1, textAlign: 'center' }}>
-                    <span style={{ fontSize: 9, fontWeight: 600, color: C.textDim }}>
-                      {new Date(d.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'narrow' })}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-    </Section>
-  );
 
   const renderActivity = () => (
     <Section title="Recent Activity" action={
@@ -530,11 +323,9 @@ export default function DashboardPage() {
       {isDesktop ? (
         // ── Desktop: two-column content layout ───────────────────────────────
         <>
-          {renderKpis()}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 20, alignItems: 'start' }}>
             <div>
               {renderPeriods()}
-              {renderCharts()}
               {renderActivity()}
               {renderInsights()}
             </div>
@@ -565,7 +356,6 @@ export default function DashboardPage() {
       ) : (
         // ── Mobile: stacked ───────────────────────────────────────────────────
         <>
-          {renderKpis()}
           {renderPeriods()}
           {!loading && kpi?.pendingApprovals > 0 && (
             <div style={{ background: 'rgba(178,106,0,0.06)', border: '1px solid rgba(178,106,0,0.28)', borderRadius: 12, padding: '12px 14px', marginBottom: 20 }}>
@@ -581,7 +371,6 @@ export default function DashboardPage() {
               </div>
             </div>
           )}
-          {renderCharts()}
           {renderActivity()}
           {renderInsights()}
         </>
