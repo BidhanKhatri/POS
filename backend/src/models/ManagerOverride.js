@@ -43,7 +43,7 @@ const managerOverrideSchema = new mongoose.Schema({
   discountType:   { type: String, enum: ['PERCENTAGE', 'FIXED'] },
   discountValue:  { type: Number },   // raw input: % or $ entered by employee
   discountAmount: { type: Number },   // computed dollar value to be deducted
-  discountLimit:  { type: Number },   // maxDiscountPercent in force at request time
+  discountLimit:  { type: Number },   // discount override threshold % in force at request time
 
   // ── Price-change-specific fields ──
   defaultPrice:    { type: Number },  // catalog price at override submission time
@@ -70,6 +70,23 @@ const managerOverrideSchema = new mongoose.Schema({
   requestedQty: { type: Number },
   amount: {
     type: Number,
+    min: 0,
+  },
+  // ── Refund tip (optional) ──
+  // Original `amount` above is always the full item-value refund and is what
+  // drives item/Sale refund-accounting and revenue reports — untouched by tip.
+  // `tipAmount` is carved out of the payout at the employee's discretion (e.g.
+  // customer declines part of the refund); `finalRefundAmount` is the actual
+  // cash/card amount returned to the customer (amount - tipAmount), stored
+  // explicitly for an immutable audit trail.
+  tipAmount: {
+    type: Number,
+    default: 0,
+    min: 0,
+  },
+  finalRefundAmount: {
+    type: Number,
+    min: 0,
   },
   productId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -95,11 +112,10 @@ const managerOverrideSchema = new mongoose.Schema({
   },
   buyer: {
     name: { type: String, trim: true },
-    phone: { type: String, trim: true },
-    email: { type: String, trim: true },
   },
   // Masked card reference only — never the full PAN/CVV/expiry.
   card: {
+    cardType: { type: String, enum: ['CREDIT', 'DEBIT'] },
     brand: { type: String, enum: ['VISA', 'MASTERCARD', 'AMEX', 'DISCOVER', 'OTHER'] },
     last4: { type: String, match: /^\d{4}$/ },
   },
@@ -112,13 +128,12 @@ const managerOverrideSchema = new mongoose.Schema({
   saleContext: {
     paymentMethod: { type: String, enum: ['CASH', 'MOI', 'DEBIT', 'MISC'] },
     card: {
+      cardType: { type: String, enum: ['CREDIT', 'DEBIT'] },
       brand: { type: String, enum: ['VISA', 'MASTERCARD', 'AMEX', 'DISCOVER', 'OTHER'] },
       last4: { type: String, match: /^\d{4}$/ },
     },
     buyer: {
       name:  { type: String, trim: true },
-      phone: { type: String, trim: true },
-      email: { type: String, trim: true },
     },
   },
 

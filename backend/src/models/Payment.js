@@ -14,6 +14,7 @@ const paymentSchema = new mongoose.Schema({
   amount: {
     type: Number,
     required: true,
+    min: 0,
   },
   referenceNo: {
     type: String,
@@ -35,15 +36,32 @@ const paymentSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Payment',
   },
+  // ── Refund tip (REFUND-direction payments only) ──
+  // `amount` above always stays the original refund value (what the returned
+  // item is worth) — untouched by tip, so it keeps driving Sale/item refund
+  // accounting and revenue reports exactly as before. The tip is carved out
+  // of the payout to the customer and tracked here purely for cash
+  // reconciliation and reporting; it is never counted as revenue.
+  tipAmount: {
+    type: Number,
+    default: 0,
+    min: 0,
+  },
+  // amount - tipAmount — what actually went back to the customer. Stored
+  // explicitly (not just derived) so the audit trail is immutable even if
+  // the calculation ever changes.
+  finalRefundAmount: {
+    type: Number,
+    min: 0,
+  },
   buyer: {
     name: { type: String, trim: true },
-    phone: { type: String, trim: true },
-    email: { type: String, trim: true },
   },
-  // Card payments store only a masked reference (brand + last 4) returned by the
-  // terminal/processor. The full PAN, CVV, and expiry must NEVER be persisted —
+  // Card payments store only a masked reference (type + brand + last 4) returned by
+  // the terminal/processor. The full PAN, CVV, and expiry must NEVER be persisted —
   // storing raw cardholder data here would violate PCI-DSS.
   card: {
+    cardType: { type: String, enum: ['CREDIT', 'DEBIT'] },
     brand: { type: String, enum: ['VISA', 'MASTERCARD', 'AMEX', 'DISCOVER', 'OTHER'] },
     last4: { type: String, match: /^\d{4}$/ },
   },

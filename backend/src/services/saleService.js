@@ -8,21 +8,25 @@ import AuditLog from '../models/AuditLog.js';
 import ManagerOverride from '../models/ManagerOverride.js';
 import User from '../models/User.js';
 import Setting from '../models/Setting.js';
-import { upsertCustomerFromBuyer } from './customerService.js';
+import { DISCOUNT_OVERRIDE_THRESHOLD_PERCENT } from '../config/discountPolicy.js';
 
 const generateInvoiceNo = () => {
   return 'INV-' + Date.now().toString().slice(-6) + Math.floor(Math.random() * 1000);
 };
 
 const CARD_METHODS = ['MOI', 'DEBIT'];
+const CARD_TYPES = ['CREDIT', 'DEBIT'];
 
-// Builds the safe-to-persist payment payload. Buyer contact info is accepted for every
-// method so a refund can be traced back to the person. For card payments only a masked
-// reference (brand + last 4) is accepted — raw PAN/CVV/expiry are never read or stored,
-// even if a caller sends them, to stay clear of PCI-DSS cardholder-data scope.
+// Builds the safe-to-persist payment payload. For card payments only a masked
+// reference (card type + brand + last 4) is accepted — raw PAN/CVV/expiry are
+// never read or stored, even if a caller sends them, to stay clear of
+// PCI-DSS cardholder-data scope.
 const buildPaymentRecord = (saleId, p) => {
   if (!p.buyer || !p.buyer.name || !p.buyer.name.trim()) {
     throw new Error('Buyer name is required for every payment');
+  }
+  if (p.amount == null || Number.isNaN(Number(p.amount)) || Number(p.amount) < 0) {
+    throw new Error('Payment amount cannot be negative');
   }
 
   const record = {
@@ -33,8 +37,6 @@ const buildPaymentRecord = (saleId, p) => {
     status: 'SUCCESS',
     buyer: {
       name: p.buyer.name.trim(),
-      phone: p.buyer.phone ? p.buyer.phone.trim() : undefined,
-      email: p.buyer.email ? p.buyer.email.trim() : undefined,
     },
   };
 
@@ -43,7 +45,10 @@ const buildPaymentRecord = (saleId, p) => {
     if (!/^\d{4}$/.test(last4)) {
       throw new Error(`A valid 4-digit card last4 is required for ${p.method} payments`);
     }
-    record.card = { brand: p.card.brand || 'OTHER', last4 };
+    if (!p.card || !CARD_TYPES.includes(p.card.cardType)) {
+      throw new Error(`A valid card type (CREDIT or DEBIT) is required for ${p.method} payments`);
+    }
+    record.card = { cardType: p.card.cardType, brand: p.card.brand || 'OTHER', last4 };
   }
 
   return record;
@@ -79,7 +84,13 @@ const processSale = async (employeeId, shiftId, items, payments, discountTotal =
       // Variable-price items (e.g. lottery/fuel) pass unitPrice from the dollar-entry pad;
       // catalog sales fall back to the product's stored price.
       const unitPrice = item.unitPrice != null ? item.unitPrice : product.price;
+      if (unitPrice < 0) {
+        throw new Error(`Unit price for ${product.name} cannot be negative`);
+      }
       const total = (unitPrice * item.quantity) - (item.discount || 0);
+      if (total < 0) {
+        throw new Error(`Discount for ${product.name} cannot exceed its line total`);
+      }
       subtotal += total;
 
       saleItems.push({
@@ -109,8 +120,19 @@ const processSale = async (employeeId, shiftId, items, payments, discountTotal =
       }
     }
 
+    // Discounts are otherwise unlimited, but anything at/above the threshold must
+    // have gone through a manager-approved override — a direct sale can't carry
+    // one on its own, even if a caller crafts the request by hand.
+    const discountPercent = subtotal > 0 ? (discountTotal / subtotal) * 100 : 0;
+    if (!discountOverrideId && discountPercent >= DISCOUNT_OVERRIDE_THRESHOLD_PERCENT) {
+      throw new Error(`Discounts of ${DISCOUNT_OVERRIDE_THRESHOLD_PERCENT}% or more require a manager-approved override`);
+    }
+
     const taxTotal = 0; // Simplified for now
     const grandTotal = subtotal - discountTotal + taxTotal;
+    if (grandTotal < 0) {
+      throw new Error('Discount total cannot exceed the sale subtotal');
+    }
 
     // 2. Validate payments match grandTotal
     const paymentTotal = payments.reduce((sum, p) => sum + p.amount, 0);
@@ -188,18 +210,6 @@ const processSale = async (employeeId, shiftId, items, payments, discountTotal =
     await session.commitTransaction();
     session.endSession();
 
-    // Auto-link customer from buyer info — runs outside the transaction so a
-    // failure here never rolls back the sale.
-    try {
-      const primaryBuyer = payments[0]?.buyer;
-      if (primaryBuyer?.name?.trim()) {
-        const customerId = await upsertCustomerFromBuyer(primaryBuyer);
-        if (customerId) await Sale.findByIdAndUpdate(sale._id, { customerId });
-      }
-    } catch (e) {
-      console.warn('[customer-link] processSale skipped:', e.message);
-    }
-
     return sale;
   } catch (error) {
     await session.abortTransaction();
@@ -208,18 +218,15 @@ const processSale = async (employeeId, shiftId, items, payments, discountTotal =
   }
 };
 
-// Invoice lookup for the refund flow — search by invoice number or buyer phone
-// (buyer contact lives on Payment, not Sale, so phone search joins through it).
-// productName/amount are the context carried over from the terminal (what was
-// typed/picked before pressing "Refund Product") — matched against the same
-// line item via $elemMatch so the search narrows to sales that actually
-// contain that product at that price, not just any sale with either fact.
-const searchSales = async (employeeId, { invoiceNo, buyerPhone, productName, amount }) => {
+// Invoice lookup for the refund flow — search by invoice number or the masked
+// card reference (last 4 digits, from Payment.card.last4 — never the full PAN).
+// productName/amount narrow the search to a specific line item when provided.
+const searchSales = async (employeeId, { invoiceNo, cardLast4, productName, amount }) => {
   let saleIds = null;
 
-  if (buyerPhone && buyerPhone.trim()) {
+  if (cardLast4 && cardLast4.trim()) {
     const payments = await Payment.find({
-      'buyer.phone': { $regex: buyerPhone.trim(), $options: 'i' },
+      'card.last4': cardLast4.trim(),
     }).select('saleId');
     saleIds = payments.map((p) => p.saleId);
     if (saleIds.length === 0) return [];
@@ -457,17 +464,6 @@ const completeSale = async (employeeId, saleId, shiftId) => {
 
     await session.commitTransaction();
     session.endSession();
-
-    // Auto-link customer from buyer info on the existing payment record.
-    try {
-      const payment = await Payment.findOne({ saleId: sale._id, direction: 'CHARGE' });
-      if (payment?.buyer?.name?.trim()) {
-        const customerId = await upsertCustomerFromBuyer(payment.buyer);
-        if (customerId) await Sale.findByIdAndUpdate(sale._id, { customerId });
-      }
-    } catch (e) {
-      console.warn('[customer-link] completeSale skipped:', e.message);
-    }
 
     return sale;
   } catch (error) {

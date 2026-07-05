@@ -83,6 +83,9 @@ async function getSummary({ start, end, compareStart, compareEnd }) {
         _id: null,
         grossRevenue:   { $sum: '$grandTotal' },
         refundedAmount: { $sum: '$refundedAmount' },
+        // Tips are never revenue — summed separately and never folded into
+        // grossRevenue/netRevenue below.
+        tipTotal:       { $sum: '$tipTotal' },
         discountTotal:  { $sum: '$discountTotal' },
         taxTotal:       { $sum: '$taxTotal' },
         txnCount:       { $sum: 1 },
@@ -152,8 +155,8 @@ async function getSummary({ start, end, compareStart, compareEnd }) {
 
   const midDaySale = midDaySaleArr[0] || null;
 
-  const cur  = currentRaw[0]  || { grossRevenue: 0, netRevenue: 0, refundedAmount: 0, discountTotal: 0, taxTotal: 0, txnCount: 0, avgTicket: 0, itemsSold: 0, itemsPerTxn: 0 };
-  const pri  = priorRaw[0]   || { grossRevenue: 0, netRevenue: 0, refundedAmount: 0, discountTotal: 0, taxTotal: 0, txnCount: 0, avgTicket: 0, itemsSold: 0, itemsPerTxn: 0 };
+  const cur  = currentRaw[0]  || { grossRevenue: 0, netRevenue: 0, refundedAmount: 0, tipTotal: 0, discountTotal: 0, taxTotal: 0, txnCount: 0, avgTicket: 0, itemsSold: 0, itemsPerTxn: 0 };
+  const pri  = priorRaw[0]   || { grossRevenue: 0, netRevenue: 0, refundedAmount: 0, tipTotal: 0, discountTotal: 0, taxTotal: 0, txnCount: 0, avgTicket: 0, itemsSold: 0, itemsPerTxn: 0 };
 
   const curRefunds = currentRefundCounts[0]?.count || 0;
   const priRefunds = priorRefundCounts[0]?.count   || 0;
@@ -163,6 +166,8 @@ async function getSummary({ start, end, compareStart, compareEnd }) {
       grossRevenue:   Math.round(cur.grossRevenue   * 100) / 100,
       netRevenue:     Math.round(cur.netRevenue     * 100) / 100,
       refundedAmount: Math.round(cur.refundedAmount * 100) / 100,
+      // Refund tips — reported separately, never part of revenue/sales.
+      tipTotal:       Math.round((cur.tipTotal || 0) * 100) / 100,
       discountTotal:  Math.round(cur.discountTotal  * 100) / 100,
       taxTotal:       Math.round(cur.taxTotal       * 100) / 100,
       txnCount:       cur.txnCount,
@@ -180,6 +185,7 @@ async function getSummary({ start, end, compareStart, compareEnd }) {
       grossRevenue:   Math.round(pri.grossRevenue   * 100) / 100,
       netRevenue:     Math.round(pri.netRevenue     * 100) / 100,
       refundedAmount: Math.round(pri.refundedAmount * 100) / 100,
+      tipTotal:       Math.round((pri.tipTotal || 0) * 100) / 100,
       discountTotal:  Math.round(pri.discountTotal  * 100) / 100,
       taxTotal:       Math.round(pri.taxTotal       * 100) / 100,
       txnCount:       pri.txnCount,
@@ -192,6 +198,7 @@ async function getSummary({ start, end, compareStart, compareEnd }) {
       txnCount:       delta(cur.txnCount,       pri.txnCount),
       avgTicket:      delta(cur.avgTicket,      pri.avgTicket),
       refundedAmount: delta(cur.refundedAmount, pri.refundedAmount),
+      tipTotal:       delta(cur.tipTotal,       pri.tipTotal),
       refundRate:     delta(cur.refundCount,    priRefunds),
       taxTotal:       delta(cur.taxTotal,       pri.taxTotal),
     } : null,
@@ -446,6 +453,7 @@ async function getCashiers({ start, end }) {
           _id: '$employeeId',
           revenue:        { $sum: { $cond: [{ $ne: ['$paymentStatus', 'VOIDED'] }, '$grandTotal', 0] } },
           refundedAmount: { $sum: '$refundedAmount' },
+          tipTotal:       { $sum: '$tipTotal' },
           txnCount:       { $sum: { $cond: [{ $ne: ['$paymentStatus', 'VOIDED'] }, 1, 0] } },
           voidCount:      { $sum: { $cond: [{ $eq: ['$paymentStatus', 'VOIDED'] }, 1, 0] } },
           discountTotal:  { $sum: '$discountTotal' },
@@ -525,6 +533,7 @@ async function getCashiers({ start, end }) {
       revenue:         Math.round(s.revenue         * 100) / 100,
       netRevenue:      Math.round(netRevenue         * 100) / 100,
       refundedAmount:  Math.round(s.refundedAmount  * 100) / 100,
+      tipTotal:        Math.round((s.tipTotal || 0) * 100) / 100,
       discountTotal:   Math.round(s.discountTotal   * 100) / 100,
       txnCount:        s.txnCount,
       voidCount:       s.voidCount,
@@ -557,7 +566,7 @@ async function getRefunds({ start, end }) {
 
   const { start: s, end: e } = parseRange(start, end);
 
-  const [byReason, byProduct, byEmployee, recent] = await Promise.all([
+  const [byReason, byProduct, byEmployee, recent, totalsRaw] = await Promise.all([
     ManagerOverride.aggregate([
       {
         $match: {
@@ -571,6 +580,7 @@ async function getRefunds({ start, end }) {
           _id:    '$reason',
           count:  { $sum: 1 },
           amount: { $sum: '$amount' },
+          tipAmount: { $sum: '$tipAmount' },
         },
       },
       { $sort: { count: -1 } },
@@ -590,6 +600,7 @@ async function getRefunds({ start, end }) {
           sku:         { $first: '$sku' },
           count:       { $sum: 1 },
           amount:      { $sum: '$amount' },
+          tipAmount:   { $sum: '$tipAmount' },
           totalQty:    { $sum: '$requestedQty' },
         },
       },
@@ -609,6 +620,7 @@ async function getRefunds({ start, end }) {
           _id:    '$employeeId',
           count:  { $sum: 1 },
           amount: { $sum: '$amount' },
+          tipAmount: { $sum: '$tipAmount' },
         },
       },
       { $sort: { count: -1 } },
@@ -639,9 +651,36 @@ async function getRefunds({ start, end }) {
       .populate('employeeId', 'name employeeCode')
       .populate('approvedBy', 'name employeeCode')
       .lean(),
+    // Overall refund tip totals — Tips are never revenue, reported separately.
+    ManagerOverride.aggregate([
+      {
+        $match: {
+          createdAt: { $gte: s, $lte: e },
+          actionType: 'REFUND',
+          status: 'APPROVED',
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          count:             { $sum: 1 },
+          totalAmount:       { $sum: '$amount' },
+          totalTips:         { $sum: '$tipAmount' },
+          totalFinalRefund:  { $sum: { $ifNull: ['$finalRefundAmount', '$amount'] } },
+        },
+      },
+    ]),
   ]);
 
-  const result = { byReason, byProduct, byEmployee, recent };
+  const t = totalsRaw[0] || { count: 0, totalAmount: 0, totalTips: 0, totalFinalRefund: 0 };
+  const totals = {
+    count:            t.count,
+    totalAmount:      Math.round(t.totalAmount      * 100) / 100,
+    totalTips:        Math.round(t.totalTips        * 100) / 100,
+    totalFinalRefund: Math.round(t.totalFinalRefund * 100) / 100,
+  };
+
+  const result = { byReason, byProduct, byEmployee, recent, totals };
   setCached(key, result, ttlFor(end));
   return result;
 }
@@ -724,7 +763,7 @@ async function getShiftGroups({ start, end }) {
     Object.entries(GROUPS).map(async ([key, meta]) => {
       const empIds = [...groupMap[key]].map(id => new mongoose.Types.ObjectId(id));
       if (empIds.length === 0) {
-        return { id: key, ...meta, members: [], stats: { revenue: 0, txnCount: 0, avgTicket: 0, hoursWorked: 0 }, weekly: [], topProducts: [] };
+        return { id: key, ...meta, members: [], stats: { revenue: 0, txnCount: 0, avgTicket: 0, hoursWorked: 0, tipTotal: 0 }, weekly: [], topProducts: [] };
       }
 
       const [salesAgg, shiftAgg, topProducts] = await Promise.all([
@@ -741,6 +780,7 @@ async function getShiftGroups({ start, end }) {
               _id: null,
               revenue:  { $sum: '$grandTotal' },
               refunded: { $sum: '$refundedAmount' },
+              tips:     { $sum: '$tipTotal' },
               txnCount: { $sum: 1 },
             },
           },
@@ -785,7 +825,7 @@ async function getShiftGroups({ start, end }) {
         ]),
       ]);
 
-      const sa  = salesAgg[0]  || { revenue: 0, refunded: 0, txnCount: 0 };
+      const sa  = salesAgg[0]  || { revenue: 0, refunded: 0, tips: 0, txnCount: 0 };
       const sha = shiftAgg[0]  || { totalMinutes: 0 };
       const net = sa.revenue - sa.refunded;
       const hours = Math.round((sha.totalMinutes / 60) * 10) / 10;
@@ -854,6 +894,7 @@ async function getShiftGroups({ start, end }) {
           txnCount:    sa.txnCount,
           avgTicket:   sa.txnCount > 0 ? Math.round((net / sa.txnCount) * 100) / 100 : 0,
           hoursWorked: hours,
+          tipTotal:    Math.round((sa.tips || 0) * 100) / 100,
         },
         topProducts: topProducts.map(p => ({
           productName: p.productName,
@@ -1124,6 +1165,7 @@ async function getEmployeeReport({ employeeId, start, end }) {
         _id: null,
         revenue:        { $sum: { $cond: [{ $ne: ['$paymentStatus', 'VOIDED'] }, '$grandTotal', 0] } },
         refundedAmount: { $sum: '$refundedAmount' },
+        tipTotal:       { $sum: '$tipTotal' },
         discountTotal:  { $sum: '$discountTotal' },
         txnCount:       { $sum: { $cond: [{ $ne: ['$paymentStatus', 'VOIDED'] }, 1, 0] } },
         voidCount:      { $sum: { $cond: [{ $eq: ['$paymentStatus', 'VOIDED'] }, 1, 0] } },
@@ -1189,7 +1231,7 @@ async function getEmployeeReport({ employeeId, start, end }) {
     Sale.find({ employeeId: empObjId, createdAt: { $gte: s, $lte: e } })
       .sort({ createdAt: -1 })
       .limit(50)
-      .select('invoiceNo createdAt grandTotal refundedAmount paymentStatus status items discountTotal')
+      .select('invoiceNo createdAt grandTotal refundedAmount tipTotal paymentStatus status items discountTotal')
       .lean(),
 
     // Audit / activity log (overrides)
@@ -1207,7 +1249,7 @@ async function getEmployeeReport({ employeeId, start, end }) {
 
   if (!employee) throw Object.assign(new Error('Employee not found'), { status: 404 });
 
-  const kpiRaw = salesAgg[0] || { revenue: 0, refundedAmount: 0, discountTotal: 0, txnCount: 0, voidCount: 0, itemsSold: 0 };
+  const kpiRaw = salesAgg[0] || { revenue: 0, refundedAmount: 0, tipTotal: 0, discountTotal: 0, txnCount: 0, voidCount: 0, itemsSold: 0 };
   const netRevenue = kpiRaw.revenue - kpiRaw.refundedAmount;
 
   // Override counts
@@ -1234,6 +1276,7 @@ async function getEmployeeReport({ employeeId, start, end }) {
       revenue:         Math.round(kpiRaw.revenue         * 100) / 100,
       netRevenue:      Math.round(netRevenue              * 100) / 100,
       refundedAmount:  Math.round(kpiRaw.refundedAmount  * 100) / 100,
+      tipTotal:        Math.round((kpiRaw.tipTotal || 0) * 100) / 100,
       discountTotal:   Math.round(kpiRaw.discountTotal   * 100) / 100,
       txnCount:        kpiRaw.txnCount,
       voidCount:       kpiRaw.voidCount,
@@ -1269,6 +1312,7 @@ async function getEmployeeReport({ employeeId, start, end }) {
       date:          t.createdAt,
       grandTotal:    Math.round(t.grandTotal    * 100) / 100,
       refundedAmount:Math.round((t.refundedAmount || 0) * 100) / 100,
+      tipTotal:      Math.round((t.tipTotal || 0) * 100) / 100,
       discountTotal: Math.round((t.discountTotal || 0) * 100) / 100,
       netTotal:      Math.round((t.grandTotal - (t.refundedAmount || 0)) * 100) / 100,
       paymentStatus: t.paymentStatus,
@@ -1282,6 +1326,12 @@ async function getEmployeeReport({ employeeId, start, end }) {
       status:     o.status,
       reason:     o.reason,
       approvedBy: o.approvedBy?.name || null,
+      // Refund-only tip audit fields — undefined/no-op for other override types.
+      ...(o.actionType === 'REFUND' && {
+        amount:            o.amount,
+        tipAmount:         o.tipAmount || 0,
+        finalRefundAmount: o.finalRefundAmount ?? o.amount,
+      }),
     })),
     shifts: shifts.map(sh => ({
       id:        sh._id,

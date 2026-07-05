@@ -10,8 +10,6 @@ import BiometricOnboardingPage from './AuthPages/BiometricOnboardingPage';
 import EmployeeLayout from './layouts/EmployeeLayout';
 import TerminalPage from './EmployeePages/TerminalPage';
 import TenderPage from './EmployeePages/TenderPage';
-import RefundFlowPage from './EmployeePages/RefundFlowPage';
-import DiscountPage from './EmployeePages/DiscountPage';
 import PriceVariancePage from './EmployeePages/PriceVariancePage';
 import ShiftPage from './EmployeePages/ShiftPage';
 import DashboardPage from './EmployeePages/DashboardPage';
@@ -53,9 +51,7 @@ function LocalAuthRoutes({ role }) {
         <Route index element={<Navigate to="terminal" replace />} />
         <Route path="terminal"  element={<TerminalPage />} />
         <Route path="tender"    element={<TenderPage />} />
-        <Route path="discount"        element={<DiscountPage />} />
         <Route path="price-variance"  element={<PriceVariancePage />} />
-        <Route path="refund"          element={<RefundFlowPage />} />
         <Route path="shift"     element={<ShiftPage />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="inventory" element={<InventoryPage />} />
@@ -75,7 +71,6 @@ function LocalAuthRoutes({ role }) {
         <Route path="reports/overall"    element={<ManagerOverallReportPage />} />
         <Route path="reports/individual" element={<ManagerIndividualReportPage />} />
         <Route path="reports/group"      element={<ManagerGroupReportPage />} />
-        <Route path="discount"       element={<DiscountPage />} />
         <Route path="price-variance" element={<PriceVariancePage />} />
         <Route path="shift"          element={<ManagerShiftPage />} />
         <Route path="overrides" element={<ManagerOverridePage />} />

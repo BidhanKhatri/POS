@@ -37,12 +37,12 @@ const processSale = async (req, res, next) => {
 
 const searchSales = async (req, res, next) => {
   try {
-    const { invoiceNo, buyerPhone, productName, amount } = req.query;
-    if (!invoiceNo && !buyerPhone && !productName && !amount) {
+    const { invoiceNo, cardLast4, productName, amount } = req.query;
+    if (!invoiceNo && !cardLast4 && !productName && !amount) {
       res.status(400);
-      throw new Error('Provide an invoice number, buyer phone, product, or amount to search');
+      throw new Error('Provide an invoice number or card last 4 digits to search');
     }
-    const sales = await saleService.searchSales(req.user._id, { invoiceNo, buyerPhone, productName, amount });
+    const sales = await saleService.searchSales(req.user._id, { invoiceNo, cardLast4, productName, amount });
     res.status(200).json(sales);
   } catch (error) {
     next(error);

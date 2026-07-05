@@ -9,6 +9,7 @@ import {
 import { jsPDF }                     from 'jspdf';
 import GroupsOutlinedIcon            from '@mui/icons-material/GroupsOutlined';
 import AttachMoneyOutlinedIcon       from '@mui/icons-material/AttachMoneyOutlined';
+import PaidOutlinedIcon              from '@mui/icons-material/PaidOutlined';
 import ReceiptLongOutlinedIcon       from '@mui/icons-material/ReceiptLongOutlined';
 import SpeedOutlinedIcon             from '@mui/icons-material/SpeedOutlined';
 import TrendingUpOutlinedIcon        from '@mui/icons-material/TrendingUpOutlined';
@@ -592,6 +593,7 @@ function GroupDetailScreen({ groupId, groupStats, detailData, detailLoading, tre
     { label:'Rev / Hour',   value:`${fmt$(s.revenuePerHour)}/hr`,        icon:SpeedOutlinedIcon,           color:C.primaryLt, iconBg:C.elevated     },
     { label:'Refund Rate',  value:`${fmtNum(s.refundRate,1)}%`,          icon:AssignmentReturnOutlinedIcon,color:C.warning,   iconBg:C.warningLt    },
     { label:'Attendance',   value:`${fmtNum(s.attendanceRate,0)}%`,      icon:EventAvailableOutlinedIcon,  color:C.success,   iconBg:C.successLt    },
+    { label:'Total Tips',   value:fmt$(s.tipTotal),                      icon:PaidOutlinedIcon,            color:C.accent,    iconBg:C.accentLt     },
   ] : [];
 
   return (
@@ -1148,6 +1150,7 @@ export default function ManagerGroupReportPage() {
               { label:'Rev / Hour',    value:totals?`${fmt$(totals.revenuePerHour)}/hr`:'—', icon:SpeedOutlinedIcon,         color:C.primaryLt, iconBg:C.elevated        },
               { label:'Active Groups', value:fmtNum(totals?.totalGroups),                 icon:GroupsOutlinedIcon,           color:C.dataBlue,  iconBg:`${C.dataBlue}18` },
               { label:'Avg Refund',    value:avgRefund,                                   icon:AssignmentReturnOutlinedIcon, color:C.warning,   iconBg:C.warningLt       },
+              { label:'Total Tips',    value:fmt$(totals?.tipTotal),                      icon:PaidOutlinedIcon,             color:C.accent,    iconBg:C.accentLt        },
             ];
             if (isMobile) {
               const colW = 'calc((100vw - 36px) / 2)';

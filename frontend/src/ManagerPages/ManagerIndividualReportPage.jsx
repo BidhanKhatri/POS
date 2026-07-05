@@ -19,6 +19,7 @@ import EmojiEventsOutlinedIcon  from '@mui/icons-material/EmojiEventsOutlined';
 import AdminPanelSettingsOutlinedIcon from '@mui/icons-material/AdminPanelSettingsOutlined';
 import Inventory2OutlinedIcon   from '@mui/icons-material/Inventory2Outlined';
 import PaymentsOutlinedIcon     from '@mui/icons-material/PaymentsOutlined';
+import PaidOutlinedIcon         from '@mui/icons-material/PaidOutlined';
 import TrendingUpOutlinedIcon   from '@mui/icons-material/TrendingUpOutlined';
 import WorkHistoryOutlinedIcon  from '@mui/icons-material/WorkHistoryOutlined';
 import HistoryOutlinedIcon      from '@mui/icons-material/HistoryOutlined';
@@ -207,11 +208,12 @@ function OverviewTab({ data, loading, isMobile }) {
         <KpiCard label="Refunded"       value={fmt$(k.refundedAmount)} sub={`${k.refundCount} approved`}        icon={ReplayOutlinedIcon}      color={k.refundRate > 10 ? C.error : C.warning} alert={k.refundRate > 10} isMobile={isMobile} />
       </div>
       {/* KPI row 2 */}
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(5, 1fr)', gap: 10 }}>
         <KpiCard label="Voids"          value={k.voidCount ?? 0}       sub={`${(k.voidRate ?? 0).toFixed(1)}% rate`}  icon={BlockOutlinedIcon}      color={k.voidRate > 3 ? C.error : C.textDim} alert={k.voidRate > 3} isMobile={isMobile} />
         <KpiCard label="Overrides"      value={k.overrideCount ?? 0}   sub="Total requests"                           icon={AdminPanelSettingsOutlinedIcon} color={C.warning} isMobile={isMobile} />
         <KpiCard label="Hours Worked"   value={fmtH(k.hoursWorked)}    sub={`${k.shiftCount} shift(s)`}               icon={AccessTimeOutlinedIcon} color={C.textSec} isMobile={isMobile} />
         <KpiCard label="Rev / Hour"     value={fmt$(k.revenuePerHour)} sub={`${k.txnPerHour ?? 0} txns/hr`}          icon={SpeedOutlinedIcon}      color={C.accent}  isMobile={isMobile} />
+        <KpiCard label="Total Tips"     value={fmt$(k.tipTotal)}       sub="Refund tips · not revenue"               icon={PaidOutlinedIcon}       color={C.accent}  isMobile={isMobile} />
       </div>
 
       {/* Sales trend + radar */}
@@ -700,6 +702,7 @@ function buildCSV(employee, kpis, transactions, products, shifts) {
     ['Net Revenue', kpis?.netRevenue ?? ''],
     ['Gross Revenue', kpis?.revenue ?? ''],
     ['Refunded Amount', kpis?.refundedAmount ?? ''],
+    ['Total Tips (not revenue)', kpis?.tipTotal ?? ''],
     ['Transactions', kpis?.txnCount ?? ''],
     ['Void Count', kpis?.voidCount ?? ''],
     ['Void Rate %', kpis?.voidRate ?? ''],

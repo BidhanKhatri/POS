@@ -16,6 +16,7 @@ import TrendingUpOutlinedIcon   from '@mui/icons-material/TrendingUpOutlined';
 import PaymentsOutlinedIcon     from '@mui/icons-material/PaymentsOutlined';
 import AssessmentOutlinedIcon   from '@mui/icons-material/AssessmentOutlined';
 import ReceiptOutlinedIcon      from '@mui/icons-material/ReceiptOutlined';
+import PaidOutlinedIcon         from '@mui/icons-material/PaidOutlined';
 import DownloadOutlinedIcon     from '@mui/icons-material/DownloadOutlined';
 import RefreshOutlinedIcon      from '@mui/icons-material/RefreshOutlined';
 import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined';
@@ -697,7 +698,7 @@ export default function ManagerOverallReportPage() {
 
       {/* KPI Cards */}
       {summary.isLoading ? <LoadingKpis isMobile={isMobile} /> : (
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: isMobile ? 8 : 14, marginBottom: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(5, 1fr)', gap: isMobile ? 8 : 14, marginBottom: 20 }}>
           <KpiCard
             label={isMobile ? 'Net Rev' : 'Net Revenue'}
             value={fmt$(cur?.netRevenue)}
@@ -721,6 +722,12 @@ export default function ManagerOverallReportPage() {
             value={fmt$(cur?.taxTotal)}
             sub={isMobile ? `Disc ${fmt$(cur?.discountTotal)}` : `Discounts ${fmt$(cur?.discountTotal)}`}
             icon={ReceiptOutlinedIcon} color={C.warning} iconBg="rgba(178,106,0,0.10)" delta={deltas?.taxTotal} isMobile={isMobile}
+          />
+          <KpiCard
+            label={isMobile ? 'Tips' : 'Total Tips'}
+            value={fmt$(cur?.tipTotal)}
+            sub="Refund tips · not revenue"
+            icon={PaidOutlinedIcon} color={C.accent} iconBg="rgba(212,163,115,0.16)" delta={deltas?.tipTotal} isMobile={isMobile}
           />
         </div>
       )}
@@ -973,6 +980,10 @@ export default function ManagerOverallReportPage() {
               <div>
                 <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Total Refunds</p>
                 <p style={{ margin: '2px 0 0', fontSize: 15, fontWeight: 800, color: C.error }}>{cashiers.data.reduce((s, e) => s + e.approvedRefunds, 0)}</p>
+              </div>
+              <div>
+                <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Total Tips</p>
+                <p style={{ margin: '2px 0 0', fontSize: 15, fontWeight: 800, color: C.accent }}>{fmt$(cashiers.data.reduce((s, e) => s + (e.tipTotal || 0), 0))}</p>
               </div>
             </div>
           </>

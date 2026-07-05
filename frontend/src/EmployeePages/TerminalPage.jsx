@@ -7,9 +7,12 @@ import ShoppingCartCheckoutIcon from '@mui/icons-material/ShoppingCartCheckout';
 import SwapHorizRoundedIcon from '@mui/icons-material/SwapHorizRounded';
 import CloseIcon from '@mui/icons-material/Close';
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
+import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined';
 import CornerCard from '../components/CornerCard/CornerCard';
 import useAuthStore from '../store/useAuthStore';
 import { useLoading } from '../context/LoadingContext';
+import { useSocketEvent } from '../context/SocketContext';
+import { EVENTS } from '../socket/events';
 
 import { API_URL as API } from '../config/api';
 
@@ -29,8 +32,6 @@ export default function TerminalPage() {
   const location          = useLocation();
   const { pathname }      = location;
   const tenderPath        = pathname.startsWith('/manager') ? '/manager/tender'         : '/employee/tender';
-  const discountPath      = pathname.startsWith('/manager') ? '/manager/discount'       : '/employee/discount';
-  const refundPath        = pathname.startsWith('/manager') ? '/manager/refund'         : '/employee/refund';
   const token             = useAuthStore((s) => s.token);
   const user              = useAuthStore((s) => s.user);
   const isDesktop         = useMediaQuery('(min-width:1024px)');
@@ -41,6 +42,11 @@ export default function TerminalPage() {
   const [gateLoading,  setGateLoading]  = useState(true);
   const [todayShifts,  setTodayShifts]  = useState(null); // null = loading, array = today+yesterday shifts
   const [schedLoading, setSchedLoading] = useState(true);
+
+  // Pushed by the backend's shift-ending-soon cron (socket, not polled) once
+  // the employee's OPEN shift is within 15 minutes of its scheduled end.
+  const [shiftEndingWarning, setShiftEndingWarning] = useState(null); // { minutesLeft } | null
+  useSocketEvent(EVENTS.SHIFT_ENDING_SOON, (payload) => setShiftEndingWarning(payload));
 
   // ── Cart state ──
   const [cartItems, setCartItems]       = useState([]); // [{id, product, sellingPrice, qty}]
@@ -189,6 +195,7 @@ export default function TerminalPage() {
   /* ── Lock background scroll when gate overlay is active ── */
   const gateActive = user?.role === 'Employee' &&
     (gateLoading || schedLoading || noScheduleToday || shiftEnded || isStaleShift || !gateShift);
+
   useEffect(() => {
     const main = document.querySelector('main');
     if (gateActive) {
@@ -316,30 +323,22 @@ export default function TerminalPage() {
     setTimeout(() => beep(1046, 110, 'sine', 0.10), 75);
 
     if (isRefundMode) {
-      // Refund flow is per-item — pass the first cart item
+      // Refund flow is per-item and now lives inline on the Tender page —
+      // it locates the original invoice and gets manager PIN authorization
+      // right there instead of hopping to a separate refund page.
       const first = cartItems[0];
-      navigate(refundPath, {
+      navigate(tenderPath, {
         state: { amount: first.sellingPrice, product: first.product, transactionType },
       });
       return;
     }
 
-    // Fetch discount limit — price variance override is bypassed for value-based pricing
-    let skipDiscount = false;
-    try {
-      const discRes = await fetch(`${API}/api/settings/discount-limit`, { headers: { Authorization: `Bearer ${token}` } });
-      if (discRes.ok) {
-        const d = await discRes.json();
-        skipDiscount = (d.maxDiscountPercent ?? 10) === 0;
-      }
-    } catch { /* proceed with defaults */ }
-
-    navigate(skipDiscount ? tenderPath : discountPath, {
+    // Discount entry now lives inline on the Tender page itself.
+    navigate(tenderPath, {
       state: {
         amount: cartSubtotal,
         items: cartItems,
         transactionType,
-        ...(skipDiscount && { discount: null }),
       },
     });
   };
@@ -623,6 +622,32 @@ export default function TerminalPage() {
     </div>
   ) : null;
 
+  // ── Shift-ending-soon warning — persistent banner (not an auto-dismissing
+  // toast) pushed live via socket, since the employee may not refresh the page. ──
+  const renderShiftEndingBanner = () => shiftEndingWarning && !gateActive ? (
+    <div style={{
+      position: 'fixed', top: isDesktop ? 16 : 12, left: '50%', transform: 'translateX(-50%)',
+      zIndex: 1100, display: 'flex', alignItems: 'center', gap: 10,
+      padding: '10px 16px', borderRadius: 12,
+      background: 'rgba(178,106,0,0.12)', border: '1px solid rgba(178,106,0,0.35)',
+      backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
+      boxShadow: '0 6px 18px rgba(178,106,0,0.14)',
+      maxWidth: 'calc(100vw - 32px)',
+    }}>
+      <WarningAmberOutlinedIcon sx={{ fontSize: 18, color: '#B26A00', flexShrink: 0 }} />
+      <span style={{ fontSize: 13, fontWeight: 700, color: '#7A4600', whiteSpace: 'nowrap' }}>
+        Your shift ends in {shiftEndingWarning.minutesLeft} minute{shiftEndingWarning.minutesLeft === 1 ? '' : 's'} — you won't be able to start new sales after that.
+      </span>
+      <button onClick={() => setShiftEndingWarning(null)} style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        width: 22, height: 22, borderRadius: 6, border: 'none', background: 'transparent',
+        color: '#B26A00', cursor: 'pointer', flexShrink: 0,
+      }}>
+        <CloseIcon sx={{ fontSize: 15 }} />
+      </button>
+    </div>
+  ) : null;
+
   // ── Shift gate overlay (Employee only) — renders as a blur layer over the terminal ──
   const renderGateOverlay = () => {
     if (!gateActive) return null;
@@ -893,6 +918,7 @@ export default function TerminalPage() {
       }}>
         {renderGateOverlay()}
         {renderToast()}
+        {renderShiftEndingBanner()}
 
         {/* ── Left panel: price display + products + numpad ── */}
         <div style={{
@@ -1036,6 +1062,7 @@ export default function TerminalPage() {
   return (
     <div style={{ padding: '14px 12px 20px', maxWidth: 480, margin: '0 auto', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
       {renderGateOverlay()}
+      {renderShiftEndingBanner()}
 
       {/* ── Toast ── */}
       {toast && (

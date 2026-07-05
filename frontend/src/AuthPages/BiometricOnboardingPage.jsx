@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useMediaQuery } from '@mui/material';
 import FingerprintIcon from '@mui/icons-material/Fingerprint';
 import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined';
 import BackspaceOutlinedIcon from '@mui/icons-material/BackspaceOutlined';
@@ -103,10 +104,43 @@ function SkipLink({ onSkip }) {
   );
 }
 
+/* ─────────── Shared frame ───────────
+   Desktop: centers the step content as a modal card over a dimmed backdrop.
+   Mobile: unchanged — full-screen layout, no backdrop/card. */
+function StepFrame({ children }) {
+  const isDesktop = useMediaQuery('(min-width:1024px)');
+
+  if (isDesktop) {
+    return (
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 1300,
+        background: 'rgba(43,29,26,0.55)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 24,
+      }}>
+        <div style={{
+          width: '100%', maxWidth: 440, maxHeight: '90vh', overflowY: 'auto',
+          background: C.bg, borderRadius: 20,
+          boxShadow: '0 24px 64px rgba(0,0,0,0.35), 0 0 0 1px rgba(0,0,0,0.06)',
+          padding: '40px 36px', fontFamily: FONT,
+        }}>
+          {children}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background font-sans flex flex-col items-center justify-center px-5 py-10">
+      {children}
+    </div>
+  );
+}
+
 /* ─────────── Step 1: Prompt ─────────── */
 function PromptStep({ onSetUp, onSkip }) {
   return (
-    <div className="min-h-screen bg-background font-sans flex flex-col items-center justify-center px-5 py-10">
+    <StepFrame>
       <div className="w-full max-w-sm flex flex-col items-center gap-7 text-center">
         <div style={{
           width: 92, height: 92, borderRadius: 26,
@@ -151,7 +185,7 @@ function PromptStep({ onSetUp, onSkip }) {
           <SkipLink onSkip={onSkip} />
         </div>
       </div>
-    </div>
+    </StepFrame>
   );
 }
 
@@ -184,7 +218,7 @@ function LoginStep({ email, setEmail, pin, setPin, onLogin, loading, error, onSk
   };
 
   return (
-    <div className="min-h-screen bg-background font-sans flex flex-col items-center justify-center px-5 py-8">
+    <StepFrame>
       <div className="w-full max-w-sm flex flex-col gap-5">
         <div className="text-center">
           <div style={{
@@ -253,14 +287,14 @@ function LoginStep({ email, setEmail, pin, setPin, onLogin, loading, error, onSk
 
         <SkipLink onSkip={onSkip} />
       </div>
-    </div>
+    </StepFrame>
   );
 }
 
 /* ─────────── Step 3: Register ─────────── */
 function RegisterStep({ onRegister, registering, error, onSkip }) {
   return (
-    <div className="min-h-screen bg-background font-sans flex flex-col items-center justify-center px-5 py-10">
+    <StepFrame>
       <div className="w-full max-w-sm flex flex-col items-center gap-6 text-center">
         <div style={{
           width: 96, height: 96, borderRadius: 26,
@@ -303,14 +337,14 @@ function RegisterStep({ onRegister, registering, error, onSkip }) {
           </div>
         )}
       </div>
-    </div>
+    </StepFrame>
   );
 }
 
 /* ─────────── Step 4: Done ─────────── */
 function DoneStep() {
   return (
-    <div className="min-h-screen bg-background font-sans flex flex-col items-center justify-center px-5 py-10">
+    <StepFrame>
       <div className="w-full max-w-sm flex flex-col items-center gap-6 text-center">
         <div style={{
           width: 92, height: 92, borderRadius: 26,
@@ -329,7 +363,7 @@ function DoneStep() {
           </p>
         </div>
       </div>
-    </div>
+    </StepFrame>
   );
 }
 

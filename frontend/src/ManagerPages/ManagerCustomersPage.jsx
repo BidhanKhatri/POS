@@ -4,7 +4,6 @@ import { useMediaQuery } from '@mui/material';
 import SearchOutlinedIcon         from '@mui/icons-material/SearchOutlined';
 import CloseOutlinedIcon          from '@mui/icons-material/CloseOutlined';
 import RefreshOutlinedIcon        from '@mui/icons-material/RefreshOutlined';
-import SyncOutlinedIcon           from '@mui/icons-material/SyncOutlined';
 import InfoOutlinedIcon           from '@mui/icons-material/InfoOutlined';
 import PeopleOutlinedIcon         from '@mui/icons-material/PeopleOutlined';
 import PersonAddOutlinedIcon      from '@mui/icons-material/PersonAddOutlined';
@@ -93,9 +92,6 @@ export default function ManagerCustomersPage() {
 
   const [topOpen, setTopOpen] = useState(false);
 
-  const [backfilling, setBackfilling] = useState(false);
-  const [backfillMsg, setBackfillMsg] = useState('');
-
   const debounce = useRef(null);
   const headers = { Authorization: `Bearer ${token}` };
 
@@ -143,17 +139,6 @@ export default function ManagerCustomersPage() {
 
   const goPage = pg => { if (pg >= 1 && pg <= pages && pg !== page) loadRows(pg); };
 
-  const runBackfill = async () => {
-    setBackfilling(true); setBackfillMsg('');
-    try {
-      const r = await fetch(`${API}/api/customers/backfill`, { method: 'POST', headers });
-      const d = await r.json();
-      setBackfillMsg(r.ok ? `Done — ${d.linked} sales linked to customers.` : d.message);
-      if (r.ok) { loadRows(1); loadAnalytics(); }
-    } catch (e) { setBackfillMsg(e.message); }
-    finally { setBackfilling(false); }
-  };
-
   const COLS = '1fr 130px 90px 110px 110px 90px 110px';
 
   const kpiCards = [
@@ -185,11 +170,6 @@ export default function ManagerCustomersPage() {
               style={{ width: 34, height: 34, borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
               <RefreshOutlinedIcon sx={{ fontSize: 16, color: C.textSec }} />
             </button>
-            <button onClick={runBackfill} disabled={backfilling}
-              title="Link all past sales to customer records"
-              style={{ width: 34, height: 34, borderRadius: 8, border: `1px solid ${C.border}`, background: backfilling ? C.elevated : C.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: backfilling ? 'default' : 'pointer' }}>
-              <SyncOutlinedIcon sx={{ fontSize: 16, color: backfilling ? C.textDim : C.accent, animation: backfilling ? 'spin 1s linear infinite' : 'none' }} />
-            </button>
           </div>
         </div>
       ) : (
@@ -211,12 +191,6 @@ export default function ManagerCustomersPage() {
               style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 13px', borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, fontSize: 12, fontWeight: 600, color: C.textSec, cursor: 'pointer', fontFamily: FONT }}>
               <RefreshOutlinedIcon sx={{ fontSize: 15 }} /> Refresh
             </button>
-            <button onClick={runBackfill} disabled={backfilling}
-              title="Link all past sales to customer records"
-              style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 14px', borderRadius: 8, border: `1px solid ${C.border}`, background: backfilling ? C.elevated : C.surface, fontSize: 12, fontWeight: 700, color: backfilling ? C.textDim : C.primary, cursor: backfilling ? 'default' : 'pointer', fontFamily: FONT }}>
-              <SyncOutlinedIcon sx={{ fontSize: 15, animation: backfilling ? 'spin 1s linear infinite' : 'none' }} />
-              {backfilling ? 'Linking…' : 'Link Past Sales'}
-            </button>
           </div>
         </div>
       )}
@@ -225,8 +199,7 @@ export default function ManagerCustomersPage() {
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, background: 'rgba(2,119,189,0.06)', border: '1px solid rgba(2,119,189,0.18)', borderRadius: 10, padding: '10px 14px', marginBottom: isMobile ? 12 : 18 }}>
         <InfoOutlinedIcon sx={{ fontSize: 16, color: C.info, flexShrink: 0, marginTop: '1px' }} />
         <p style={{ margin: 0, fontSize: isMobile ? 11 : 12, color: '#01579B', fontWeight: 500, lineHeight: '18px' }}>
-          Customers are <strong>automatically created</strong> from buyer details entered during each sale.
-          {backfillMsg && <><br /><span style={{ fontWeight: 700 }}>{backfillMsg}</span></>}
+          Customer records shown here are managed manually.
         </p>
       </div>
 

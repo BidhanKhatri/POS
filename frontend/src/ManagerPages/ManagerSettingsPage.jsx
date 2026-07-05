@@ -1036,41 +1036,6 @@ function InventoryTab({ token }) {
   const [toggling, setToggling]               = useState(false);
   const [saved, setSaved]                     = useState(false);
 
-  // Discount limit state
-  const [discCurrent, setDiscCurrent] = useState(null);
-  const [discInput, setDiscInput]     = useState('');
-  const [discSaving, setDiscSaving]   = useState(false);
-  const [discSaved, setDiscSaved]     = useState(false);
-  const [discErr, setDiscErr]         = useState('');
-
-  useEffect(() => {
-    fetch(`${API}/api/settings/discount-limit`, { headers: authHeaders })
-      .then(r => r.json())
-      .then(d => { const v = d.maxDiscountPercent ?? 10; setDiscCurrent(v); setDiscInput(String(v)); })
-      .catch(() => {});
-  }, [token]);
-
-  const handleDiscSave = async () => {
-    const val = parseFloat(discInput);
-    if (isNaN(val) || val < 0 || val > 100) { setDiscErr('Enter a value between 0 and 100.'); return; }
-    setDiscSaving(true); setDiscErr(''); setDiscSaved(false);
-    try {
-      const res = await fetch(`${API}/api/settings/discount-limit`, {
-        method: 'PATCH', headers: authHeaders,
-        body: JSON.stringify({ maxDiscountPercent: val }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Save failed');
-      setDiscCurrent(data.maxDiscountPercent ?? val);
-      setDiscInput(String(data.maxDiscountPercent ?? val));
-      setDiscSaved(true);
-      setTimeout(() => setDiscSaved(false), 3000);
-    } catch (e) { setDiscErr(e.message); }
-    finally { setDiscSaving(false); }
-  };
-
-  const discDirty = discCurrent !== null && parseFloat(discInput) !== discCurrent;
-
   useEffect(() => {
     setLoading(true);
     fetch(`${API}/api/settings/stock-tracking`, { headers: authHeaders })
@@ -1152,63 +1117,6 @@ function InventoryTab({ token }) {
           <span style={{ fontSize: 12, fontWeight: 600, color: C.success }}>Setting saved successfully.</span>
         </div>
       )}
-
-      {/* Discount Rules */}
-      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden' }}>
-        <div style={{ background: '#FAF7F5', borderBottom: `1px solid ${C.border}`, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 7 }}>
-          <KeyOutlinedIcon sx={{ fontSize: 15, color: C.primary }} />
-          <span style={{ fontSize: 11, fontWeight: 700, color: C.textSec, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-            Discount Rules
-          </span>
-        </div>
-        <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <div style={{ flex: '1 1 180px', minWidth: 0 }}>
-            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri }}>Max Employee Discount</p>
-            <p style={{ margin: '3px 0 0', fontSize: 11, fontWeight: 500, color: C.textSec, lineHeight: '16px' }}>
-              Discounts above this limit require a manager override approval before the sale proceeds.
-            </p>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-            <div style={{ position: 'relative' }}>
-              <input
-                type="number" min="0" max="100" step="0.5"
-                value={discInput}
-                onChange={e => { setDiscInput(e.target.value); setDiscErr(''); setDiscSaved(false); }}
-                style={{
-                  width: 76, padding: '8px 26px 8px 10px', borderRadius: 8,
-                  border: `1.5px solid ${discErr ? C.error : discDirty ? C.primary : C.border}`,
-                  fontSize: 15, fontWeight: 800, color: C.textPri,
-                  background: '#fff', outline: 'none', boxSizing: 'border-box',
-                  fontFamily: "'Plus Jakarta Sans', sans-serif", transition: 'border-color 0.15s',
-                }}
-              />
-              <span style={{ position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)', fontSize: 13, fontWeight: 700, color: C.textDim, pointerEvents: 'none' }}>%</span>
-            </div>
-            <button
-              onClick={handleDiscSave}
-              disabled={discSaving || !discDirty}
-              style={{
-                padding: '8px 14px', borderRadius: 8, border: 'none',
-                background: discSaved ? C.success : discDirty ? C.primary : C.border,
-                color: '#fff', fontSize: 13, fontWeight: 700,
-                cursor: discSaving || !discDirty ? 'not-allowed' : 'pointer',
-                opacity: discSaving ? 0.7 : 1,
-                display: 'flex', alignItems: 'center', gap: 5,
-                fontFamily: "'Plus Jakarta Sans', sans-serif", transition: 'background 0.2s', whiteSpace: 'nowrap',
-              }}
-            >
-              {discSaved
-                ? <><CheckCircleOutlineIcon sx={{ fontSize: 15 }} /> Saved</>
-                : discSaving ? 'Saving…' : 'Save'}
-            </button>
-          </div>
-          {(discErr || discSaved) && (
-            <p style={{ margin: 0, width: '100%', fontSize: 11, fontWeight: 600, color: discErr ? C.error : C.success }}>
-              {discErr || `Discount limit updated to ${discCurrent}%`}
-            </p>
-          )}
-        </div>
-      </div>
 
       <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '16px 18px' }}>
         <p style={{ margin: '0 0 10px', fontSize: 12, fontWeight: 800, color: C.textPri, textTransform: 'uppercase', letterSpacing: '0.08em' }}>

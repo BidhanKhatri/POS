@@ -4,6 +4,7 @@ export const EVENTS = {
   OVERRIDE_RESOLVED:  'override:resolved',
   TRANSACTION_NEW:    'transaction:new',
   SHIFT_UPDATE:       'shift:update',
+  SHIFT_ENDING_SOON:  'shift:endingsoon',
   INVENTORY_LOWSTOCK: 'inventory:lowstock',
   BARCODE_STOCK_SYNC: 'barcode:stocksync',
   NOTIFICATION:       'notification',

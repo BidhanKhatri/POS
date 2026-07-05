@@ -265,64 +265,6 @@ const getCustomerAnalytics = async ({ startDate = '', endDate = '' } = {}) => {
   };
 };
 
-// ── Auto-upsert a customer from Payment.buyer data ────────────────────────────
-// Called after every sale commits (processSale / completeSale).
-// Phone is the primary identity key; email is the fallback.
-// If neither is present we cannot deduplicate reliably, so we skip.
-const upsertCustomerFromBuyer = async (buyer) => {
-  if (!buyer || !buyer.name?.trim()) return null;
-
-  const name  = buyer.name.trim();
-  const phone = buyer.phone?.trim()  || null;
-  const email = buyer.email?.trim()?.toLowerCase() || null;
-
-  const filter = phone  ? { phone,  isActive: true }
-    :            email  ? { email,  isActive: true }
-    :                     null;
-
-  if (!filter) return null; // No unique key available
-
-  const setData = { name };
-  if (phone) setData.phone = phone;
-  if (email) setData.email = email;
-
-  const customer = await Customer.findOneAndUpdate(
-    filter,
-    { $set: setData },
-    { upsert: true, new: true, setDefaultsOnInsert: true },
-  );
-  return customer._id;
-};
-
-// ── One-time backfill: link existing sales to customers ───────────────────────
-// Iterates all completed sales without a customerId, finds their Payment.buyer,
-// and creates/links Customer records. Safe to run multiple times (idempotent).
-const backfillCustomersFromPayments = async () => {
-  let processed = 0;
-  let linked    = 0;
-
-  const cursor = Sale.find({
-    customerId: { $exists: false },
-    $or: [{ status: 'COMPLETED' }, { status: { $exists: false } }],
-  }).select('_id').lean().cursor();
-
-  for await (const { _id } of cursor) {
-    processed++;
-    try {
-      const payment = await Payment.findOne({ saleId: _id, direction: 'CHARGE' });
-      if (payment?.buyer?.name?.trim()) {
-        const customerId = await upsertCustomerFromBuyer(payment.buyer);
-        if (customerId) {
-          await Sale.findByIdAndUpdate(_id, { customerId });
-          linked++;
-        }
-      }
-    } catch { /* skip problem rows, keep going */ }
-  }
-
-  return { processed, linked };
-};
-
 const updateCustomer = async (customerId, { name, phone, email, notes }) => {
   const data = {};
   if (name  !== undefined) data.name  = name.trim();
@@ -354,5 +296,4 @@ export {
   listCustomers, searchCustomers, getCustomerDetail,
   getCustomerPurchases, getCustomerRefunds, getCustomerAnalytics,
   updateCustomer, deleteCustomer,
-  upsertCustomerFromBuyer, backfillCustomersFromPayments,
 };

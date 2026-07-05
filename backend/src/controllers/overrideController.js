@@ -59,10 +59,10 @@ const getOverrideById = async (req, res, next) => {
 const createRefundRequest = async (req, res, next) => {
   try {
     const {
-      saleId, saleItemId, quantity, paymentMethod, buyer, card, reason, buyerVerified, idempotencyKey,
+      saleId, saleItemId, quantity, paymentMethod, buyer, card, reason, buyerVerified, idempotencyKey, tipAmount,
     } = req.body;
     const override = await overrideService.createRefundRequest(req.user._id, {
-      saleId, saleItemId, quantity, paymentMethod, buyer, card, reason, buyerVerified, idempotencyKey,
+      saleId, saleItemId, quantity, paymentMethod, buyer, card, reason, buyerVerified, idempotencyKey, tipAmount,
     });
     res.status(201).json(override);
     emit(ROOMS.MANAGERS, EVENTS.OVERRIDE_NEW, {

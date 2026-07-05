@@ -291,6 +291,7 @@ export default function ManagerTransactionDetailPage() {
             {(sale.taxTotal > 0) && <KV label="Tax" value={`$${Number(sale.taxTotal).toFixed(2)}`} />}
             <KV label="Grand Total" value={<span style={{ fontSize: 15, fontWeight: 800 }}>${Number(sale.grandTotal).toFixed(2)}</span>} />
             {sale.refundedAmount > 0 && <KV label="Refunded" value={<span style={{ color: C.error, fontWeight: 700 }}>${Number(sale.refundedAmount).toFixed(2)}</span>} />}
+            {sale.tipTotal > 0 && <KV label="Refund Tips" value={<span style={{ color: C.warning, fontWeight: 700 }}>${Number(sale.tipTotal).toFixed(2)}</span>} />}
             <KV label="Net" value={<span style={{ color: C.success, fontWeight: 800 }}>${(sale.grandTotal - (sale.refundedAmount || 0)).toFixed(2)}</span>} />
           </div>
         </div>
@@ -373,20 +374,25 @@ export default function ManagerTransactionDetailPage() {
             <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden' }}>
               {payments.map((pmt, idx) => {
                 const isRefund = pmt.direction === 'REFUND';
+                const hasTip = isRefund && (pmt.tipAmount || 0) > 0;
+                const payout = hasTip ? (pmt.finalRefundAmount ?? (pmt.amount - pmt.tipAmount)) : pmt.amount;
                 return isMobile ? (
                   <div key={pmt._id} style={{ padding: '12px 14px', borderBottom: idx < payments.length - 1 ? `1px solid ${C.border}` : 'none', background: idx % 2 ? '#FDFCFB' : C.surface }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <Badge label={isRefund ? '↩ Refund' : '⬆ Charge'} color={isRefund ? C.error : C.success} bg={isRefund ? 'rgba(183,28,28,0.09)' : 'rgba(46,125,79,0.09)'} />
-                        <span style={{ fontSize: 12, fontWeight: 700, color: C.textPri }}>{pmt.method}{pmt.card ? ` ···· ${pmt.card.last4}` : ''}</span>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: C.textPri }}>{pmt.method}{pmt.card ? ` (${pmt.card.cardType}) ${pmt.card.brand} ···· ${pmt.card.last4}` : ''}</span>
                       </div>
-                      <span style={{ fontSize: 14, fontWeight: 800, color: isRefund ? C.error : C.success }}>{isRefund ? '−' : '+'}${Number(pmt.amount).toFixed(2)}</span>
+                      <span style={{ fontSize: 14, fontWeight: 800, color: isRefund ? C.error : C.success }}>{isRefund ? '−' : '+'}${Number(payout).toFixed(2)}</span>
                     </div>
-                    {(pmt.buyer?.name || pmt.buyer?.phone || pmt.buyer?.email) && (
+                    {hasTip && (
+                      <p style={{ margin: '0 0 4px', fontSize: 10, fontWeight: 700, color: C.warning }}>
+                        Original ${Number(pmt.amount).toFixed(2)} − Tip ${Number(pmt.tipAmount).toFixed(2)}
+                      </p>
+                    )}
+                    {pmt.buyer?.name && (
                       <div style={{ fontSize: 11, color: C.textDim, lineHeight: '17px' }}>
-                        {pmt.buyer.name && <span>{pmt.buyer.name}</span>}
-                        {pmt.buyer.phone && <span style={{ marginLeft: 8 }}>{pmt.buyer.phone}</span>}
-                        {pmt.buyer.email && <span style={{ marginLeft: 8 }}>{pmt.buyer.email}</span>}
+                        <span>{pmt.buyer.name}</span>
                       </div>
                     )}
                     <p style={{ margin: '3px 0 0', fontSize: 10, color: C.textDim }}>{fmtDate(pmt.createdAt)}</p>
@@ -408,20 +414,26 @@ export default function ManagerTransactionDetailPage() {
                       <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: C.textPri }}>
                         {pmt.method}{pmt.card ? ` ···· ${pmt.card.last4}` : ''}
                       </p>
-                      {pmt.card?.brand && <p style={{ margin: '1px 0 0', fontSize: 10, color: C.textDim }}>{pmt.card.brand}</p>}
+                      {pmt.card?.brand && <p style={{ margin: '1px 0 0', fontSize: 10, color: C.textDim }}>{pmt.card.cardType ? `${pmt.card.cardType} · ` : ''}{pmt.card.brand}</p>}
                     </div>
                     <div>
                       {pmt.buyer?.name && <p style={{ margin: 0, fontSize: 12, color: C.textSec, fontWeight: 600 }}>{pmt.buyer.name}</p>}
-                      {pmt.buyer?.phone && <p style={{ margin: '1px 0 0', fontSize: 10, color: C.textDim }}>{pmt.buyer.phone}</p>}
                     </div>
                     <div>
-                      {pmt.buyer?.email && <p style={{ margin: 0, fontSize: 11, color: C.textDim }}>{pmt.buyer.email}</p>}
                       <p style={{ margin: 0, fontSize: 10, color: C.textDim, marginTop: 1 }}>{fmtDate(pmt.createdAt)}</p>
+                      {hasTip && (
+                        <p style={{ margin: '1px 0 0', fontSize: 10, fontWeight: 700, color: C.warning }}>
+                          Tip −${Number(pmt.tipAmount).toFixed(2)}
+                        </p>
+                      )}
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <span style={{ fontSize: 14, fontWeight: 800, color: isRefund ? C.error : C.success }}>
-                        {isRefund ? '−' : '+'}${Number(pmt.amount).toFixed(2)}
+                        {isRefund ? '−' : '+'}${Number(payout).toFixed(2)}
                       </span>
+                      {hasTip && (
+                        <p style={{ margin: '1px 0 0', fontSize: 10, color: C.textDim }}>of ${Number(pmt.amount).toFixed(2)}</p>
+                      )}
                     </div>
                   </div>
                 );

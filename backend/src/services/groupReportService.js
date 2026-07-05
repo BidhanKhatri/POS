@@ -44,7 +44,7 @@ function r2(n) { return Math.round((n ?? 0) * 100) / 100; }
  * Returns { grossRevenue, refundedAmount, netRevenue, txnCount, avgTicket }.
  */
 async function salesAgg(empIds, start, end) {
-  if (!empIds.length) return { grossRevenue: 0, refundedAmount: 0, netRevenue: 0, txnCount: 0, avgTicket: 0 };
+  if (!empIds.length) return { grossRevenue: 0, refundedAmount: 0, tipTotal: 0, netRevenue: 0, txnCount: 0, avgTicket: 0 };
 
   const [row] = await Sale.aggregate([
     {
@@ -59,6 +59,8 @@ async function salesAgg(empIds, start, end) {
         _id:            null,
         grossRevenue:   { $sum: '$grandTotal' },
         refundedAmount: { $sum: '$refundedAmount' },
+        // Refund tips — never revenue, aggregated and reported separately.
+        tipTotal:       { $sum: '$tipTotal' },
         txnCount:       { $sum: 1 },
       },
     },
@@ -76,10 +78,11 @@ async function salesAgg(empIds, start, end) {
     },
   ]);
 
-  if (!row) return { grossRevenue: 0, refundedAmount: 0, netRevenue: 0, txnCount: 0, avgTicket: 0 };
+  if (!row) return { grossRevenue: 0, refundedAmount: 0, tipTotal: 0, netRevenue: 0, txnCount: 0, avgTicket: 0 };
   return {
     grossRevenue:   r2(row.grossRevenue),
     refundedAmount: r2(row.refundedAmount),
+    tipTotal:       r2(row.tipTotal),
     netRevenue:     r2(row.netRevenue),
     txnCount:       row.txnCount,
     avgTicket:      r2(row.avgTicket),
@@ -165,6 +168,7 @@ async function computeGroupStats(group, start, end) {
     return {
       revenue:        0,
       refundedAmount: 0,
+      tipTotal:       0,
       txnCount:       0,
       avgTicket:      0,
       hoursWorked:    0,
@@ -191,6 +195,7 @@ async function computeGroupStats(group, start, end) {
   return {
     revenue:        sales.netRevenue,
     refundedAmount: sales.refundedAmount,
+    tipTotal:       sales.tipTotal,
     txnCount:       sales.txnCount,
     avgTicket:      sales.avgTicket,
     hoursWorked:    hours,
@@ -240,6 +245,7 @@ export async function getGroupsSummary({ start, end }) {
 
   const totals = {
     revenue:        totalSales.netRevenue,
+    tipTotal:       totalSales.tipTotal,
     txnCount:       totalSales.txnCount,
     avgTicket:      totalSales.avgTicket,
     revenuePerHour: totalHours > 0 ? r2(totalSales.netRevenue / totalHours) : 0,
@@ -283,6 +289,7 @@ export async function getGroupDetail({ groupId, start, end }) {
           _id:            '$employeeId',
           grossRevenue:   { $sum: { $cond: [{ $ne: ['$paymentStatus', 'VOIDED'] }, '$grandTotal', 0] } },
           refundedAmount: { $sum: '$refundedAmount' },
+          tipTotal:       { $sum: '$tipTotal' },
           txnCount:       { $sum: { $cond: [{ $ne: ['$paymentStatus', 'VOIDED'] }, 1, 0] } },
           voidCount:      { $sum: { $cond: [{ $eq: ['$paymentStatus', 'VOIDED'] }, 1, 0] } },
         },
@@ -324,7 +331,7 @@ export async function getGroupDetail({ groupId, start, end }) {
 
   const members = userDocs.map(u => {
     const sid   = String(u._id);
-    const s_    = salesMap[sid]   || { grossRevenue: 0, refundedAmount: 0, txnCount: 0, voidCount: 0 };
+    const s_    = salesMap[sid]   || { grossRevenue: 0, refundedAmount: 0, tipTotal: 0, txnCount: 0, voidCount: 0 };
     const sh_   = shiftsMap[sid]  || { totalMinutes: 0, shiftCount: 0 };
     const rf_   = refundsMap[sid] || { refunds: 0 };
     const net   = r2(s_.grossRevenue - s_.refundedAmount);
@@ -336,6 +343,7 @@ export async function getGroupDetail({ groupId, start, end }) {
       code:           u.employeeCode,
       role:           u.role,
       netRevenue:     net,
+      tipTotal:       r2(s_.tipTotal || 0),
       txnCount:       s_.txnCount,
       avgTicket:      s_.txnCount > 0 ? r2(net / s_.txnCount) : 0,
       hoursWorked:    hours,
@@ -446,12 +454,13 @@ export async function exportGroupsCSV({ start, end }) {
   const { groups } = await getGroupsSummary({ start, end });
 
   const lines = [
-    'Group,Members,Revenue,Refunded,Transactions,Avg Ticket,Hours Worked,Rev/Hour,Refund Rate %,Attendance Rate %',
+    'Group,Members,Revenue,Refunded,Tips (not revenue),Transactions,Avg Ticket,Hours Worked,Rev/Hour,Refund Rate %,Attendance Rate %',
     ...groups.map(g => [
       `"${g.groupName}"`,
       g.stats.memberCount,
       g.stats.revenue,
       g.stats.refundedAmount,
+      g.stats.tipTotal,
       g.stats.txnCount,
       g.stats.avgTicket,
       g.stats.hoursWorked,

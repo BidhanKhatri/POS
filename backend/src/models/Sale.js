@@ -103,6 +103,14 @@ const saleSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
+  // Sale-level rollup of tips given back to the customer on refunds against
+  // this sale — kept in sync on refund approval, mirroring refundedAmount.
+  // Tips are never revenue/sales and must stay out of grossRevenue/netRevenue
+  // math; they are reported as their own separate figure.
+  tipTotal: {
+    type: Number,
+    default: 0,
+  },
 }, {
   timestamps: true,
 });

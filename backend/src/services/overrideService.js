@@ -8,6 +8,7 @@ import InventoryMovement from '../models/InventoryMovement.js';
 import Shift from '../models/Shift.js';
 import AuditLog from '../models/AuditLog.js';
 import User from '../models/User.js';
+import { DISCOUNT_OVERRIDE_THRESHOLD_PERCENT } from '../config/discountPolicy.js';
 
 const PAYMENT_METHODS = ['CASH', 'MOI', 'DEBIT', 'MISC'];
 
@@ -15,13 +16,18 @@ const PAYMENT_METHODS = ['CASH', 'MOI', 'DEBIT', 'MISC'];
 // manager PIN to act on. Every refund must reference a real sale + line item;
 // there is no "freestanding amount" path.
 const createRefundRequest = async (employeeId, {
-  saleId, saleItemId, quantity, paymentMethod, buyer, card, reason, buyerVerified, idempotencyKey,
+  saleId, saleItemId, quantity, paymentMethod, buyer, card, reason, buyerVerified, idempotencyKey, tipAmount,
 }) => {
   if (!saleId || !saleItemId) throw new Error('A sale and sale item must be selected for a refund');
   const qty = Number(quantity);
   if (!qty || qty <= 0) throw new Error('A valid refund quantity is required');
   if (!PAYMENT_METHODS.includes(paymentMethod)) throw new Error('A valid refund method is required');
   if (!buyer || !buyer.name || !buyer.name.trim()) throw new Error('Buyer name is required for a refund request');
+
+  // Tip is optional and never trusted from the client alone — re-validated
+  // below once the refundable amount is known.
+  const tip = tipAmount != null ? Number(tipAmount) : 0;
+  if (Number.isNaN(tip) || tip < 0) throw new Error('Tip amount must be zero or greater');
 
   const sale = await Sale.findById(saleId);
   if (!sale) throw new Error('Original sale not found');
@@ -41,6 +47,14 @@ const createRefundRequest = async (employeeId, {
 
   // Proportional amount so partial refunds split discounts/totals fairly.
   const amount = Math.round(((item.total / item.quantity) * qty) * 100) / 100;
+  if (amount < 0) {
+    throw new Error('Refund amount cannot be negative');
+  }
+
+  if (tip > amount) {
+    throw new Error('Tip cannot exceed the refundable amount');
+  }
+  const finalRefundAmount = Math.round((amount - tip) * 100) / 100;
 
   const originalPayment = await Payment.findOne({ saleId: sale._id, direction: { $ne: 'REFUND' } });
   const methodOverridden = !!originalPayment && originalPayment.method !== paymentMethod;
@@ -62,6 +76,8 @@ const createRefundRequest = async (employeeId, {
       invoiceNo: sale.invoiceNo,
       requestedQty: qty,
       amount,
+      tipAmount: tip,
+      finalRefundAmount,
       productId: item.productId,
       productName: item.productName,
       sku: item.sku,
@@ -70,10 +86,8 @@ const createRefundRequest = async (employeeId, {
       buyerVerified: !!buyerVerified,
       buyer: {
         name: buyer.name.trim(),
-        phone: buyer.phone || undefined,
-        email: buyer.email || undefined,
       },
-      card: card && card.last4 ? { brand: card.brand || 'OTHER', last4: card.last4 } : undefined,
+      card: card && card.last4 ? { cardType: card.cardType, brand: card.brand || 'OTHER', last4: card.last4 } : undefined,
       idempotencyKey: idempotencyKey || undefined,
     });
   } catch (error) {
@@ -326,6 +340,10 @@ const approveOverride = async (overrideId, managerId, pin) => {
     item.refundedQty += override.requestedQty;
     item.refundedAmount += override.amount;
     sale.refundedAmount += override.amount;
+    // Tip is tracked separately from refundedAmount — it's never revenue and
+    // must not affect the refunded-value accounting above (over-refund guard,
+    // netRevenue reporting, etc.), only its own reporting rollup.
+    sale.tipTotal += override.tipAmount || 0;
     sale.paymentStatus = sale.refundedAmount >= sale.grandTotal ? 'REFUNDED' : 'PARTIAL';
     await sale.save({ session });
 
@@ -345,6 +363,8 @@ const approveOverride = async (overrideId, managerId, pin) => {
       saleId: sale._id,
       method: override.paymentMethod,
       amount: override.amount,
+      tipAmount: override.tipAmount || 0,
+      finalRefundAmount: override.finalRefundAmount ?? override.amount,
       status: 'REFUNDED',
       direction: 'REFUND',
       reversedPaymentId: override.originalPaymentId,
@@ -371,7 +391,13 @@ const approveOverride = async (overrideId, managerId, pin) => {
       action: 'REFUND_APPROVED',
       entity: 'ManagerOverride',
       entityId: override._id,
-      afterData: { invoiceNo: sale.invoiceNo, amount: override.amount, qty: override.requestedQty },
+      afterData: {
+        invoiceNo: sale.invoiceNo,
+        amount: override.amount,
+        tipAmount: override.tipAmount || 0,
+        finalRefundAmount: override.finalRefundAmount ?? override.amount,
+        qty: override.requestedQty,
+      },
       performedBy: managerId,
       role: 'Manager',
     }], { session });
@@ -437,8 +463,7 @@ const createDiscountOverride = async (employeeId, {
   if (discountAmount >= amount) throw new Error('Discount cannot equal or exceed the sale amount');
   if (!reason || !reason.trim()) throw new Error('A reason is required for a discount override');
 
-  const setting = await Setting.findById('global');
-  const discountLimit = setting?.maxDiscountPercent ?? 10;
+  const discountLimit = DISCOUNT_OVERRIDE_THRESHOLD_PERCENT;
 
   let saleItems, subtotal, grandTotal;
 
@@ -557,6 +582,9 @@ const createPriceChangeOverride = async (employeeId, {
   let primaryProductId, primaryProductName, primarySku, primaryDefaultPrice, primarySellingPrice, primaryVariancePct;
 
   if (items && items.length > 0) {
+    if (items.some((i) => i.sellingPrice == null || i.sellingPrice < 0)) {
+      throw new Error('Selling price is invalid');
+    }
     // Multi-item: create sale with all cart items
     saleItems = items.map((i) => ({
       productId:    i.product?.productId || i.productId,

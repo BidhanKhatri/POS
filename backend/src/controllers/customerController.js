@@ -2,15 +2,6 @@ import * as svc from '../services/customerService.js';
 import Customer from '../models/Customer.js';
 import { uploadBuffer, deleteFile } from '../services/imagekitService.js';
 
-export const backfill = async (req, res) => {
-  try {
-    const result = await svc.backfillCustomersFromPayments();
-    res.json({ message: `Backfill complete. Processed: ${result.processed}, Linked: ${result.linked}`, ...result });
-  } catch (e) {
-    res.status(500).json({ message: e.message });
-  }
-};
-
 const send = (res, fn) => fn.then(d => res.json(d)).catch(e => {
   const status = e.message.includes('not found') ? 404
     : e.message.includes('already exists') || e.message.includes('required') ? 400

@@ -9,6 +9,7 @@ export const EVENTS = {
 
   // Shift
   SHIFT_UPDATE:      'shift:update',       // → managers room
+  SHIFT_ENDING_SOON: 'shift:endingsoon',  // → employee:{id} room
 
   // Inventory
   INVENTORY_LOWSTOCK: 'inventory:lowstock', // → managers room

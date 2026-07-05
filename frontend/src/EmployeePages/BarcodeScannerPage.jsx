@@ -50,7 +50,6 @@ export default function BarcodeScannerPage() {
 
   // Derive paths based on whether we're in manager or employee context
   const isManager       = location.pathname.startsWith('/manager');
-  const discountPath    = isManager ? '/manager/discount'        : '/employee/discount';
   const tenderPath      = isManager ? '/manager/tender'          : '/employee/tender';
   const priceVarPath    = isManager ? '/manager/price-variance'  : '/employee/price-variance';
 
@@ -275,13 +274,9 @@ export default function BarcodeScannerPage() {
     if (!canCheckout) return;
     setCheckingOut(true);
     try {
-      const [discRes, pvRes] = await Promise.all([
-        fetch(`${API}/api/settings/discount-limit`,       { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`${API}/api/settings/price-variance-limit`, { headers: { Authorization: `Bearer ${token}` } }),
-      ]);
-      let skipDiscount = false, maxVariance = 10;
-      if (discRes.ok) { const d = await discRes.json(); skipDiscount = (d.maxDiscountPercent ?? 10) === 0; }
-      if (pvRes.ok)   { const d = await pvRes.json();   maxVariance  = d.maxPriceVariancePercent ?? 10; }
+      let maxVariance = 10;
+      const pvRes = await fetch(`${API}/api/settings/price-variance-limit`, { headers: { Authorization: `Bearer ${token}` } });
+      if (pvRes.ok) { const d = await pvRes.json(); maxVariance = d.maxPriceVariancePercent ?? 10; }
 
       // Variance check (all items are at catalog price, so typically 0% — but guard anyway)
       const varianceItems = cartItems
@@ -294,12 +289,11 @@ export default function BarcodeScannerPage() {
         return;
       }
 
-      navigate(skipDiscount ? tenderPath : discountPath, {
-        state: { amount: cartSubtotal, items: cartItems, transactionType, ...(skipDiscount && { discount: null }) },
-      });
+      // Discount entry now lives inline on the Tender page itself.
+      navigate(tenderPath, { state: { amount: cartSubtotal, items: cartItems, transactionType } });
     } catch {
-      // Proceed to discount page with defaults on settings fetch failure
-      navigate(discountPath, { state: { amount: cartSubtotal, items: cartItems, transactionType } });
+      // Proceed to Tender with defaults on settings fetch failure
+      navigate(tenderPath, { state: { amount: cartSubtotal, items: cartItems, transactionType } });
     } finally {
       setCheckingOut(false);
     }

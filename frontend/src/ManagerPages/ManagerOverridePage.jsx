@@ -113,6 +113,7 @@ function PinDialog({ open, override, error, submitting, onClose, onConfirm, mode
   const meta       = TYPE_META[override?.actionType] || TYPE_META.REFUND;
   const isDiscount = override?.actionType === 'DISCOUNT';
   const isRefund   = override?.actionType === 'REFUND';
+  const hasTip     = isRefund && (override?.tipAmount || 0) > 0;
   const originalPrice = isDiscount ? (override?.amount || 0) + (override?.discountAmount || 0) : (override?.amount || 0);
   const amountDisplay = isDiscount
     ? `${formatMoney(originalPrice)} → ${formatMoney(override?.amount)}`
@@ -229,7 +230,7 @@ function PinDialog({ open, override, error, submitting, onClose, onConfirm, mode
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
               <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px' }}>
                 <p style={{ margin: '0 0 1px', fontSize: 10, fontWeight: 600, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                  {isDiscount ? 'Original' : 'Amount'}
+                  {isDiscount ? 'Original' : hasTip ? 'Original Refund' : 'Amount'}
                 </p>
                 <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: C.textPri, letterSpacing: '-0.3px' }}>
                   {formatMoney(originalPrice)}
@@ -243,7 +244,23 @@ function PinDialog({ open, override, error, submitting, onClose, onConfirm, mode
                   </p>
                 </div>
               )}
+              {hasTip && (
+                <div style={{ background: `${C.warning}0D`, border: `1px solid ${C.warning}40`, borderRadius: 10, padding: '10px 14px' }}>
+                  <p style={{ margin: '0 0 1px', fontSize: 10, fontWeight: 600, color: C.warning, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Tip</p>
+                  <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: C.warning, letterSpacing: '-0.3px' }}>
+                    −{formatMoney(override.tipAmount)}
+                  </p>
+                </div>
+              )}
             </div>
+            {hasTip && (
+              <div style={{ background: `${C.success}0D`, border: `1px solid ${C.success}40`, borderRadius: 10, padding: '10px 14px', marginTop: 8 }}>
+                <p style={{ margin: '0 0 1px', fontSize: 10, fontWeight: 600, color: C.success, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Final Refund</p>
+                <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: C.success, letterSpacing: '-0.3px' }}>
+                  {formatMoney(override.finalRefundAmount ?? (override.amount - override.tipAmount))}
+                </p>
+              </div>
+            )}
           </div>
 
           {/* PIN dots */}
@@ -359,6 +376,13 @@ function OverrideCard({ item, onAuthorize, onDeny, denying, isDesktop }) {
         { label: 'Variance',       value: `${item.sellingPrice > item.defaultPrice ? '+' : '−'}${Number(item.variancePercent || 0).toFixed(1)}%`, errorColor: false },
         { label: 'Selling Price',  value: formatMoney(item.sellingPrice),  accent: true },
       ]
+    : item.tipAmount > 0
+    ? [
+        { label: 'Original Refund', value: formatMoney(item.amount),                                                                          errorColor: false },
+        { label: 'Tip',             value: `−${formatMoney(item.tipAmount)}`,                                                                  errorColor: false },
+        { label: 'Final Refund',    value: formatMoney(item.finalRefundAmount ?? (item.amount - item.tipAmount)),                              accent: true      },
+        { label: 'Item',            value: `${item.productName || ''}${item.sku ? ` (${item.sku})` : ''}${item.requestedQty ? ` ×${item.requestedQty}` : ''}` },
+      ]
     : [
         { label: 'Amount', value: formatMoney(item.amount), errorColor: true },
         { label: 'Item',   value: `${item.productName || ''}${item.sku ? ` (${item.sku})` : ''}${item.requestedQty ? ` ×${item.requestedQty}` : ''}` },
@@ -443,13 +467,11 @@ function OverrideCard({ item, onAuthorize, onDeny, denying, isDesktop }) {
               <div style={{ display: 'flex', flexDirection: isDesktop ? 'row' : 'column', flexWrap: 'wrap', gap: isDesktop ? 16 : 3 }}>
                 <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: C.textSec }}>
                   Buyer: <strong style={{ color: C.textPri }}>{item.saleContext.buyer.name}</strong>
-                  {item.saleContext.buyer.phone ? <span style={{ color: C.textDim }}> · {item.saleContext.buyer.phone}</span> : null}
-                  {item.saleContext.buyer.email ? <span style={{ color: C.textDim }}> · {item.saleContext.buyer.email}</span> : null}
                 </p>
                 {item.saleContext.paymentMethod && (
                   <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: C.textSec }}>
                     Payment: <strong style={{ color: C.textPri }}>{item.saleContext.paymentMethod}</strong>
-                    {item.saleContext.card?.last4 ? <span style={{ color: C.textDim }}> •••• {item.saleContext.card.last4}</span> : null}
+                    {item.saleContext.card?.last4 ? <span style={{ color: C.textDim }}> ({item.saleContext.card.cardType}) {item.saleContext.card.brand} •••• {item.saleContext.card.last4}</span> : null}
                   </p>
                 )}
               </div>
@@ -458,8 +480,8 @@ function OverrideCard({ item, onAuthorize, onDeny, denying, isDesktop }) {
         ) : !isVoid ? (
           <>
             <div style={{ marginTop: 8, display: 'flex', flexDirection: isDesktop ? 'row' : 'column', flexWrap: 'wrap', gap: isDesktop ? 16 : 3 }}>
-              <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: C.textSec }}>Buyer: <strong style={{ color: C.textPri }}>{item.buyer?.name || '—'}</strong>{item.buyer?.phone ? ` · ${item.buyer.phone}` : ''}</p>
-              <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: C.textSec }}>Refund via: <strong style={{ color: C.textPri }}>{item.paymentMethod}</strong>{item.card?.last4 ? ` •••• ${item.card.last4}` : ''}</p>
+              <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: C.textSec }}>Buyer: <strong style={{ color: C.textPri }}>{item.buyer?.name || '—'}</strong></p>
+              <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: C.textSec }}>Refund via: <strong style={{ color: C.textPri }}>{item.paymentMethod}</strong>{item.card?.last4 ? ` (${item.card.cardType}) ${item.card.brand} •••• ${item.card.last4}` : ''}</p>
             </div>
             {(item.methodOverridden || !item.buyerVerified) && (
               <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>

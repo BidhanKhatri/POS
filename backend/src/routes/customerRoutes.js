@@ -1,6 +1,6 @@
 import express from 'express';
 import { protect, managerOrAdmin } from '../middleware/authMiddleware.js';
-import { list, search, analytics, detail, purchases, refunds, update, remove, backfill, uploadCustomerImage, deleteCustomerImage } from '../controllers/customerController.js';
+import { list, search, analytics, detail, purchases, refunds, update, remove, uploadCustomerImage, deleteCustomerImage } from '../controllers/customerController.js';
 import { imageUpload } from '../middleware/uploadMiddleware.js';
 
 const router = express.Router();
@@ -9,8 +9,6 @@ const router = express.Router();
 router.get('/search',    protect,                search);
 router.get('/analytics', protect, managerOrAdmin, analytics);
 router.get('/',          protect,                list);
-// Backfill: links all historical sales to auto-created customer records
-router.post('/backfill', protect, managerOrAdmin, backfill);
 
 // Sub-resource routes
 router.get('/:id/purchases', protect, purchases);

@@ -49,9 +49,8 @@ export function printReceipt(sale) {
 <div class="row"><span>Date</span><span>${dateStr}</span></div>
 <div class="divider"></div>
 ${productLine ? `<div class="row"><span>Product</span><span class="bold">${productLine}</span></div>` : ''}
-<div class="row"><span>Payment</span><span>${label}${sale.card ? ' ••' + sale.card.last4 : ''}</span></div>
+<div class="row"><span>Payment</span><span>${label}${sale.card ? ` (${sale.card.cardType}) ${sale.card.brand} ••` + sale.card.last4 : ''}</span></div>
 ${sale.buyer?.name ? `<div class="row"><span>Buyer</span><span>${sale.buyer.name}</span></div>` : ''}
-${sale.buyer?.phone ? `<div class="row"><span>Phone</span><span>${sale.buyer.phone}</span></div>` : ''}
 <div class="divider"></div>
 <div class="center" style="font-size:10px;margin-top:4px">Thank you for your purchase!</div>
 <div class="center" style="font-size:10px">Keep this receipt for your records.</div>
@@ -148,10 +147,8 @@ export async function downloadPDF(sale) {
   };
 
   if (productLine)     detailRow('Product', productLine);
-  detailRow('Payment Method', `${label}${sale.card ? `  ····  ${sale.card.last4}` : ''}`);
+  detailRow('Payment Method', `${label}${sale.card ? `  (${sale.card.cardType}) ${sale.card.brand}  ····  ${sale.card.last4}` : ''}`);
   if (sale.buyer?.name)  detailRow('Buyer', sale.buyer.name);
-  if (sale.buyer?.phone) detailRow('Phone', sale.buyer.phone);
-  if (sale.buyer?.email) detailRow('Email', sale.buyer.email);
 
   y += 4;
   solidLine(y);

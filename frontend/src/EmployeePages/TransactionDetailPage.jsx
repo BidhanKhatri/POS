@@ -310,6 +310,7 @@ export default function TransactionDetailPage() {
             {sale.refundedAmount > 0 && (
               <span style={{ fontSize: 10, fontWeight: 700, color: C.textSec }}>
                 Refunded ${Number(sale.refundedAmount).toFixed(2)}
+                {sale.tipTotal > 0 && ` (Tip $${Number(sale.tipTotal).toFixed(2)})`}
               </span>
             )}
           </div>
@@ -356,11 +357,9 @@ export default function TransactionDetailPage() {
               <>
                 <DetailRow label="Payment">
                   {methodLabel(primaryPayment.method)}
-                  {primaryPayment.card ? ` •••• ${primaryPayment.card.last4}` : ''}
+                  {primaryPayment.card ? ` (${primaryPayment.card.cardType}) ${primaryPayment.card.brand} •••• ${primaryPayment.card.last4}` : ''}
                 </DetailRow>
                 {primaryPayment.buyer?.name  && <DetailRow label="Buyer">{primaryPayment.buyer.name}</DetailRow>}
-                {primaryPayment.buyer?.phone && <DetailRow label="Phone">{primaryPayment.buyer.phone}</DetailRow>}
-                {primaryPayment.buyer?.email && <DetailRow label="Email">{primaryPayment.buyer.email}</DetailRow>}
               </>
             )}
 

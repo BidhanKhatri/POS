@@ -23,7 +23,7 @@ function buildReceiptHtml(sale) {
   const isRefund = sale.transactionType === 'RF';
   const methodLabels = { CASH: 'Cash', MOI: 'MOI', DEBIT: 'Debit Card', MISC: 'Miscellaneous' };
   const methodLabel = methodLabels[sale.method] || sale.method || 'N/A';
-  const cardRef = sale.card ? ` •••• ${sale.card.last4}` : '';
+  const cardRef = sale.card ? ` (${sale.card.cardType}) ${sale.card.brand} •••• ${sale.card.last4}` : '';
   const total = sale.grandTotal ?? sale.amount ?? 0;
 
   return `<!DOCTYPE html>
@@ -89,12 +89,6 @@ function buildReceiptHtml(sale) {
       <div class="row">
         <span class="row-label">Buyer</span>
         <span class="row-value">${sale.buyer.name}</span>
-      </div>` : ''}
-
-      ${sale.buyer?.phone ? `
-      <div class="row">
-        <span class="row-label">Phone</span>
-        <span class="row-value">${sale.buyer.phone}</span>
       </div>` : ''}
 
       <div class="row">

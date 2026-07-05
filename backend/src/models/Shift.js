@@ -60,6 +60,10 @@ const shiftSchema = new mongoose.Schema({
   // ── Clock-out metadata ────────────────────────────────────────────────────
   clockOutReason: { type: String, default: null },
   earlyClockOut:  { type: Boolean, default: false },
+
+  // Set once the "shift ending soon" cron has pushed its socket warning for
+  // this shift — prevents re-notifying the employee every minute the cron runs.
+  endingSoonNotifiedAt: { type: Date, default: null },
 }, {
   timestamps: true,
 });
