@@ -1348,6 +1348,12 @@ async function getEmployeeReport({ employeeId, start, end }) {
   };
 }
 
+// Clears the in-memory report cache — used by Database Management's
+// "Dashboard Cache" action. Purely additive; no existing caller is affected.
+function clearCache() {
+  _cache.clear();
+}
+
 export {
   getSummary,
   getTrend,
@@ -1361,4 +1367,5 @@ export {
   getInsights,
   exportCSV,
   getEmployeeReport,
+  clearCache,
 };

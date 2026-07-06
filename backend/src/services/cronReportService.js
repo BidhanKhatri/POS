@@ -4,7 +4,7 @@
  *   1. Idempotency check (skip if already sent for this period)
  *   2. Parallel aggregation via reportService
  *   3. HTML build via reportEmailService
- *   4. Admin recipient lookup from User collection
+ *   4. Recipient lookup from the manager-configured Email Recipients list
  *   5. Email delivery via emailService
  *   6. ReportLog persistence
  *   7. Retry with exponential backoff on failure
@@ -19,9 +19,9 @@ import {
   getRefunds,
 } from './reportService.js';
 import { getPosGroupsSummary } from './posGroupReportService.js';
-import { buildReportHtml } from './reportEmailService.js';
+import { buildReportHtml, buildReportText } from './reportEmailService.js';
 import { sendReportEmail } from './emailService.js';
-import User from '../models/User.js';
+import Setting from '../models/Setting.js';
 import ReportLog from '../models/ReportLog.js';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -29,6 +29,9 @@ import ReportLog from '../models/ReportLog.js';
 const MAX_RETRIES    = 3;
 // Exponential backoff: 1 min → 5 min → 15 min
 const RETRY_DELAYS   = [60_000, 300_000, 900_000];
+
+// Shared POS inbox — used whenever no manager has configured recipients yet.
+const DEFAULT_REPORT_RECIPIENTS = ['staffingbetit@gmail.com'];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -43,15 +46,12 @@ function reportSubject(type, label) {
   }[type] ?? `Sales Report — ${label}`;
 }
 
-// Returns all active Admin + Manager users that have an email address.
-async function getAdminRecipients() {
-  return User.find({
-    role: { $in: ['Admin', 'Manager'] },
-    isActive: true,
-    email: { $exists: true, $ne: '' },
-  })
-    .select('email name role')
-    .lean();
+// Returns the manager-configured report recipient email addresses,
+// falling back to the shared POS inbox if none have been set.
+async function getReportRecipients() {
+  const doc = await Setting.findById('global').select('reportRecipients').lean();
+  const emails = doc?.reportRecipients?.length ? doc.reportRecipients : DEFAULT_REPORT_RECIPIENTS;
+  return emails.map((email) => ({ email }));
 }
 
 // ─── Core orchestrator ────────────────────────────────────────────────────────
@@ -117,10 +117,10 @@ export async function generateAndSendReport({
       ]);
       const groups = groupsData?.groups ?? [];
 
-      // ── 2. Get admin recipients ──
-      const recipients = await getAdminRecipients();
+      // ── 2. Get configured report recipients ──
+      const recipients = await getReportRecipients();
       if (recipients.length === 0) {
-        console.warn(`[CRON] ${type}: No admin recipients with email — skipping send`);
+        console.warn(`[CRON] ${type}: No report recipients configured — skipping send`);
         log.status     = 'SUCCESS';  // not a retry-able error
         log.sentAt     = new Date();
         log.recipients = [];
@@ -128,13 +128,14 @@ export async function generateAndSendReport({
         return;
       }
 
-      // ── 3. Build HTML ──
+      // ── 3. Build HTML + plain-text alternative ──
       const html    = buildReportHtml({ type, label, start, end, summary, payments, products, cashiers, refunds, trend, groups });
+      const text    = buildReportText({ type, label, start, end, summary, payments, products, cashiers, refunds, trend, groups });
       const subject = reportSubject(type, label);
 
       // ── 4. Send to every admin ──
       await Promise.all(
-        recipients.map((r) => sendReportEmail({ to: r.email, subject, html }))
+        recipients.map((r) => sendReportEmail({ to: r.email, subject, html, text }))
       );
 
       // ── 5. Mark success ──

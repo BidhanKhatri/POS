@@ -21,7 +21,7 @@ import {
   getProducts, getCashiers, getRefunds,
 } from '../services/reportService.js';
 import { getPosGroupsSummary } from '../services/posGroupReportService.js';
-import { buildReportHtml } from '../services/reportEmailService.js';
+import { buildReportHtml, buildReportText } from '../services/reportEmailService.js';
 import { sendReportEmail  } from '../services/emailService.js';
 
 const TEST_RECIPIENT = 'khatribidhan9@gmail.com';
@@ -80,11 +80,12 @@ async function main() {
   console.log(`       Products     : ${products.length}`);
   console.log(`       Cashiers     : ${cashiers.length}`);
 
-  const html    = buildReportHtml({ type: 'DAILY', label: `${label} (TEST — Today)`, start, end, summary, payments, products, cashiers, refunds, trend, groups });
-  const subject = `[TEST] Daily Sales Report — ${label} (Today)`;
+  const html    = buildReportHtml({ type: 'DAILY', label, start, end, summary, payments, products, cashiers, refunds, trend, groups });
+  const text    = buildReportText({ type: 'DAILY', label, start, end, summary, payments, products, cashiers, refunds, trend, groups });
+  const subject = `Daily Sales Report — ${label}`;
 
   console.log(`\n[TEST] Sending to ${TEST_RECIPIENT}…`);
-  await sendReportEmail({ to: TEST_RECIPIENT, subject, html });
+  await sendReportEmail({ to: TEST_RECIPIENT, subject, html, text });
   console.log(`[TEST] ✓ Done. Compare this email against /manager/reports/overall → "Today" preset.`);
 
   await mongoose.disconnect();

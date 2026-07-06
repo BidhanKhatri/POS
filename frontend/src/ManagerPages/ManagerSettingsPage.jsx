@@ -6,8 +6,6 @@ import EmailOutlinedIcon             from '@mui/icons-material/EmailOutlined';
 import CheckCircleOutlineIcon        from '@mui/icons-material/CheckCircleOutlined';
 import InfoOutlinedIcon              from '@mui/icons-material/InfoOutlined';
 import WarningAmberOutlinedIcon      from '@mui/icons-material/WarningAmberOutlined';
-import SendOutlinedIcon              from '@mui/icons-material/SendOutlined';
-import DnsOutlinedIcon               from '@mui/icons-material/DnsOutlined';
 import LockOutlinedIcon              from '@mui/icons-material/LockOutlined';
 import PersonOutlinedIcon            from '@mui/icons-material/PersonOutlined';
 import AdminPanelSettingsOutlinedIcon from '@mui/icons-material/AdminPanelSettingsOutlined';
@@ -23,11 +21,13 @@ import ManageAccountsOutlinedIcon    from '@mui/icons-material/ManageAccountsOut
 import LocationOnOutlinedIcon        from '@mui/icons-material/LocationOnOutlined';
 import MarkEmailReadOutlinedIcon     from '@mui/icons-material/MarkEmailReadOutlined';
 import StorefrontOutlinedIcon        from '@mui/icons-material/StorefrontOutlined';
+import StorageOutlinedIcon           from '@mui/icons-material/StorageOutlined';
 import toast, { Toaster }           from 'react-hot-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import useAuthStore from '../store/useAuthStore';
 import BiometricSetup from '../components/BiometricSetup/BiometricSetup';
 import ImageUploader from '../components/ImageUploader/ImageUploader';
+import DatabaseManagementTab from './DatabaseManagementTab';
 
 import { API_URL as API } from '../config/api';
 
@@ -41,11 +41,12 @@ const C = {
 
 const TABS = [
   { key: 'biometric', label: 'Biometric',           mobileLabel: 'Biometric', icon: FingerprintOutlinedIcon },
-  { key: 'email',     label: 'Email Config',        mobileLabel: 'Email',     icon: EmailOutlinedIcon },
+  { key: 'email',     label: 'Email Recipients',    mobileLabel: 'Email',     icon: EmailOutlinedIcon },
   { key: 'managers',  label: 'Manager Management',  mobileLabel: 'Managers',  icon: AdminPanelSettingsOutlinedIcon },
   { key: 'inventory', label: 'Inventory',           mobileLabel: 'Inventory', icon: Inventory2OutlinedIcon },
   { key: 'profile',   label: 'Profile',             mobileLabel: 'Profile',   icon: ManageAccountsOutlinedIcon },
   { key: 'sync',      label: 'Sync Data',           mobileLabel: 'Sync',      icon: SyncOutlinedIcon },
+  { key: 'database',  label: 'Database Management', mobileLabel: 'Database',  icon: StorageOutlinedIcon },
 ];
 
 /* ── Reusable toggle switch ── */
@@ -266,45 +267,40 @@ function SyncDataTab({ token }) {
 }
 
 /* ══════════════════════════════════
-   TAB: Email Config
+   TAB: Email Recipients
 ══════════════════════════════════ */
-function EmailConfigTab({ token, isMobile }) {
+const DEFAULT_REPORT_RECIPIENT = 'staffingbetit@gmail.com';
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function EmailRecipientsTab({ token, isMobile }) {
   const authHeaders = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 
-  const [form, setForm] = useState({
-    smtpHost: '', smtpPort: '587', smtpSecure: false,
-    smtpUser: '', smtpPass: '', smtpFrom: '',
-  });
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving]   = useState(false);
-  const [testing, setTesting] = useState(false);
-  const [msg, setMsg]         = useState(null); // { type: 'success'|'error', text }
+  const [recipients, setRecipients] = useState([]);
+  const [newEmail, setNewEmail]     = useState('');
+  const [fieldError, setFieldError] = useState('');
+  const [loading, setLoading]       = useState(true);
+  const [saving, setSaving]         = useState(false);
+  const [msg, setMsg]               = useState(null); // { type: 'success'|'error', text }
 
   useEffect(() => {
     setLoading(true);
-    fetch(`${API}/api/settings/email-config`, { headers: authHeaders })
+    fetch(`${API}/api/settings/report-recipients`, { headers: authHeaders })
       .then(r => r.json())
-      .then(d => {
-        if (d.config) setForm(prev => ({ ...prev, ...d.config }));
-      })
-      .catch(() => {})
+      .then(d => setRecipients(d.recipients?.length ? d.recipients : [DEFAULT_REPORT_RECIPIENT]))
+      .catch(() => setRecipients([DEFAULT_REPORT_RECIPIENT]))
       .finally(() => setLoading(false));
   }, [token]);
 
-  const onChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setForm(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
-  };
-
-  const handleSave = async () => {
+  const save = async (nextRecipients) => {
     setSaving(true); setMsg(null);
     try {
-      const res = await fetch(`${API}/api/settings/email-config`, {
-        method: 'PATCH', headers: authHeaders, body: JSON.stringify(form),
+      const res = await fetch(`${API}/api/settings/report-recipients`, {
+        method: 'PATCH', headers: authHeaders, body: JSON.stringify({ recipients: nextRecipients }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Save failed');
-      setMsg({ type: 'success', text: 'Email configuration saved.' });
+      setRecipients(data.recipients);
+      setMsg({ type: 'success', text: 'Email recipients updated.' });
     } catch (err) {
       setMsg({ type: 'error', text: err.message });
     } finally {
@@ -313,27 +309,26 @@ function EmailConfigTab({ token, isMobile }) {
     }
   };
 
-  const handleTest = async () => {
-    setTesting(true); setMsg(null);
-    try {
-      const res = await fetch(`${API}/api/settings/email-config/test`, {
-        method: 'POST', headers: authHeaders,
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Test failed');
-      setMsg({ type: 'success', text: 'Test email sent! Check your inbox.' });
-    } catch (err) {
-      setMsg({ type: 'error', text: err.message });
-    } finally {
-      setTesting(false);
-      setTimeout(() => setMsg(null), 5000);
-    }
+  const handleAdd = () => {
+    const email = newEmail.trim().toLowerCase();
+    setFieldError('');
+    if (!email) return;
+    if (!EMAIL_RE.test(email)) { setFieldError('Enter a valid email address.'); return; }
+    if (recipients.includes(email)) { setFieldError('This email is already in the list.'); return; }
+    const next = [...recipients, email];
+    setNewEmail('');
+    save(next);
+  };
+
+  const handleRemove = (email) => {
+    const next = recipients.filter((e) => e !== email);
+    save(next.length ? next : [DEFAULT_REPORT_RECIPIENT]);
   };
 
   if (loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', padding: '40px 0' }}>
-        <span style={{ fontSize: 13, color: C.textDim }}>Loading configuration…</span>
+        <span style={{ fontSize: 13, color: C.textDim }}>Loading recipients…</span>
       </div>
     );
   }
@@ -341,54 +336,83 @@ function EmailConfigTab({ token, isMobile }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <InfoBanner>
-        Configure the SMTP server used to send verification emails, receipts, and scheduled reports.
-        These values map to the <strong>SMTP_*</strong> environment variables in the backend — saving here
-        updates the live settings without a server restart.
+        Every email address below receives the daily sales report automatically. If you remove all of them,
+        reports fall back to the shared POS inbox <strong>{DEFAULT_REPORT_RECIPIENT}</strong>.
       </InfoBanner>
 
-      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '20px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-        {/* Section label */}
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '20px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
         <p style={{ margin: 0, fontSize: 11, fontWeight: 800, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-          SMTP Server
+          Email Recipients
         </p>
 
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr auto', gap: 12 }}>
-          <EmailField label="Host" name="smtpHost" value={form.smtpHost} onChange={onChange} placeholder="smtp.resend.com" icon={DnsOutlinedIcon} />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: C.textSec, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Port</span>
-            <input
-              name="smtpPort"
-              value={form.smtpPort}
-              onChange={onChange}
-              placeholder="587"
-              type="number"
-              style={{
-                width: isMobile ? '100%' : 72, boxSizing: 'border-box',
-                border: `1px solid ${C.border}`, borderRadius: 8, outline: 'none',
-                padding: '10px 10px', fontSize: 13, color: C.textPri, background: '#fff',
-              }}
+        {/* Add new email */}
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 10 }}>
+          <div style={{ flex: 1 }}>
+            <EmailField
+              label="Add Recipient"
+              name="newEmail"
+              value={newEmail}
+              onChange={(e) => { setNewEmail(e.target.value); setFieldError(''); }}
+              placeholder="manager@gmail.com"
+              icon={EmailOutlinedIcon}
             />
           </div>
+          <button
+            onClick={handleAdd}
+            disabled={saving || !newEmail.trim()}
+            style={{
+              alignSelf: isMobile ? 'stretch' : 'flex-end',
+              minHeight: 42, padding: '0 18px', background: C.primary, color: '#fff',
+              border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700,
+              cursor: (saving || !newEmail.trim()) ? 'not-allowed' : 'pointer',
+              opacity: (saving || !newEmail.trim()) ? 0.6 : 1,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+            }}
+          >
+            <AddOutlinedIcon sx={{ fontSize: 16 }} />
+            Add
+          </button>
         </div>
+        {fieldError && (
+          <p style={{ margin: 0, fontSize: 11.5, fontWeight: 600, color: C.error }}>{fieldError}</p>
+        )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
-          <EmailField label="Username" name="smtpUser" value={form.smtpUser} onChange={onChange} placeholder="resend" icon={PersonOutlinedIcon} />
-          <EmailField label="Password / API Key" name="smtpPass" value={form.smtpPass} onChange={onChange} placeholder="re_••••••••" type="password" icon={LockOutlinedIcon} />
-        </div>
-
-        <EmailField label="From Address" name="smtpFrom" value={form.smtpFrom} onChange={onChange} placeholder="POS System <noreply@yourdomain.com>" icon={EmailOutlinedIcon} />
-
-        {/* TLS toggle row */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', background: C.elevated, borderRadius: 8 }}>
-          <div>
-            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri }}>Use TLS / SSL</p>
-            <p style={{ margin: '2px 0 0', fontSize: 11, color: C.textSec }}>Enable for port 465. Leave off for port 587 (STARTTLS).</p>
-          </div>
-          <Toggle
-            enabled={form.smtpSecure}
-            onToggle={() => setForm(prev => ({ ...prev, smtpSecure: !prev.smtpSecure }))}
-          />
+        {/* Recipient list */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {recipients.map((email) => {
+            const isDefault = email === DEFAULT_REPORT_RECIPIENT;
+            return (
+              <div
+                key={email}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '10px 14px', background: C.elevated, borderRadius: 8, gap: 10,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
+                  <MarkEmailReadOutlinedIcon sx={{ fontSize: 16, color: C.textDim, flexShrink: 0 }} />
+                  <span style={{ fontSize: 13, fontWeight: 600, color: C.textPri, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {email}
+                  </span>
+                  {isDefault && (
+                    <span style={{ fontSize: 9.5, fontWeight: 800, color: C.textDim, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 20, padding: '2px 8px', flexShrink: 0, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                      Shared Inbox
+                    </span>
+                  )}
+                </div>
+                <button
+                  onClick={() => handleRemove(email)}
+                  disabled={saving}
+                  style={{
+                    background: 'none', border: 'none', cursor: saving ? 'not-allowed' : 'pointer',
+                    padding: 4, display: 'flex', alignItems: 'center', flexShrink: 0, opacity: saving ? 0.5 : 1,
+                  }}
+                >
+                  <DeleteOutlineOutlinedIcon sx={{ fontSize: 16, color: C.error }} />
+                </button>
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -408,37 +432,6 @@ function EmailConfigTab({ token, isMobile }) {
           </span>
         </div>
       )}
-
-      {/* Actions */}
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          style={{
-            flex: 1, minHeight: 44, background: C.primary, color: '#fff',
-            border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700,
-            cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.6 : 1,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-          }}
-        >
-          <CheckCircleOutlineIcon sx={{ fontSize: 16 }} />
-          {saving ? 'Saving…' : 'Save Configuration'}
-        </button>
-        <button
-          onClick={handleTest}
-          disabled={testing || !form.smtpHost}
-          style={{
-            flex: 1, minHeight: 44, background: C.surface, color: C.primary,
-            border: `1.5px solid ${C.border}`, borderRadius: 8, fontSize: 13, fontWeight: 700,
-            cursor: (testing || !form.smtpHost) ? 'not-allowed' : 'pointer',
-            opacity: (testing || !form.smtpHost) ? 0.5 : 1,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-          }}
-        >
-          <SendOutlinedIcon sx={{ fontSize: 15 }} />
-          {testing ? 'Sending…' : 'Send Test Email'}
-        </button>
-      </div>
     </div>
   );
 }
@@ -2153,11 +2146,12 @@ export default function ManagerSettingsPage() {
       </div>
 
       {/* Tab content */}
-      {activeTab === 'email'     && <EmailConfigTab        token={token} isMobile={isMobile} />}
+      {activeTab === 'email'     && <EmailRecipientsTab    token={token} isMobile={isMobile} />}
       {activeTab === 'managers'  && <ManagerManagementTab  token={token} currentUserId={user?._id} isMobile={isMobile} />}
       {activeTab === 'sync'      && <SyncDataTab           token={token} />}
       {activeTab === 'inventory' && <InventoryTab          token={token} />}
       {activeTab === 'profile'   && <ProfileManagementTab  token={token} />}
+      {activeTab === 'database'  && <DatabaseManagementTab token={token} isMobile={isMobile} />}
       {activeTab === 'biometric' && (
         <div style={{
           background: C.surface, border: `1px solid ${C.border}`,

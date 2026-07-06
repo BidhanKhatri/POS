@@ -830,7 +830,7 @@ export default function ManagerIndividualReportPage() {
 
   const initialPreset = useMemo(() => {
     const p = new URLSearchParams(locationSearch).get('preset');
-    return p && VALID_RANGES.has(p) ? p : 'today';
+    return p && VALID_RANGES.has(p) ? p : 'overall';
   }, [locationSearch]);
 
   const initialEmployeeId = useMemo(() => {

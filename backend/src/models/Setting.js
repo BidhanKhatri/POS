@@ -7,6 +7,9 @@ const settingSchema = new mongoose.Schema({
   maxPriceVariancePercent: { type: Number, default: 10, min: 0, max: 100 },
   syncStaffingBetit:       { type: Boolean, default: false },
   stockTrackingEnabled:    { type: Boolean, default: true  },
+  // Recipients for the scheduled sales report emails (daily/weekly/monthly/yearly).
+  // Defaults to the shared POS inbox when the manager hasn't configured any yet.
+  reportRecipients: { type: [String], default: ['staffingbetit@gmail.com'] },
   storeLogo: {
     url:      { type: String, default: null },
     fileId:   { type: String, default: null },

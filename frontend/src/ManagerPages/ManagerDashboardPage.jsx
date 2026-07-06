@@ -13,6 +13,9 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
+  PieChart,
+  Pie,
+  Cell,
 } from 'recharts';
 import SpaceDashboardOutlinedIcon  from '@mui/icons-material/SpaceDashboardOutlined';
 import AttachMoneyOutlinedIcon     from '@mui/icons-material/AttachMoneyOutlined';
@@ -30,7 +33,6 @@ import InventoryOutlinedIcon       from '@mui/icons-material/InventoryOutlined';
 import GroupsOutlinedIcon          from '@mui/icons-material/GroupsOutlined';
 import AssessmentOutlinedIcon      from '@mui/icons-material/AssessmentOutlined';
 import CalendarTodayOutlinedIcon   from '@mui/icons-material/CalendarTodayOutlined';
-import PersonSearchOutlinedIcon    from '@mui/icons-material/PersonSearchOutlined';
 import RefreshOutlinedIcon         from '@mui/icons-material/RefreshOutlined';
 import ArrowUpwardIcon             from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon           from '@mui/icons-material/ArrowDownward';
@@ -61,7 +63,11 @@ const C = {
   revenueColor: '#3E2723',
   txnColor:     '#D4A373',
   chartGrid:    '#EDE5E0',
+  dataBlue: '#4C78A8', dataTeal: '#72B7B2', dataGreen: '#54A24B',
+  dataAmber: '#EECA3B', dataOrange: '#F58518', dataPurple: '#B279A2',
 };
+
+const YEAR_COLORS = [C.dataBlue, C.dataTeal, C.dataGreen, C.dataAmber, C.dataOrange, C.dataPurple];
 
 const fmt$ = (n) =>
   n === undefined || n === null ? '—' :
@@ -255,6 +261,27 @@ function KpiCardSkeleton({ compact }) {
 }
 
 // ── Revenue chart ─────────────────────────────────────────────────────────────
+function RevenuePieTooltip({ active, payload }) {
+  if (!active || !payload?.length) return null;
+  const p = payload[0];
+  return (
+    <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: '8px 13px', boxShadow: '0 4px 16px rgba(62,39,35,0.10)' }}>
+      <p style={{ margin: '0 0 2px', fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{p.name}</p>
+      <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: p.payload.color }}>{fmt$(p.value)}</p>
+      <p style={{ margin: '1px 0 0', fontSize: 10, color: C.textDim }}>{p.payload.share}% of total</p>
+    </div>
+  );
+}
+
+function RevenueDonutLabel({ cx, cy, total }) {
+  return (
+    <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fontFamily="'Plus Jakarta Sans', sans-serif">
+      <tspan x={cx} dy="-8" fontSize="10" fontWeight="700" fill={C.textDim} letterSpacing="1">TOTAL</tspan>
+      <tspan x={cx} dy="20" fontSize="15" fontWeight="800" fill={C.textPri}>{fmt$(total)}</tspan>
+    </text>
+  );
+}
+
 function RevenueChartTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
   return (
@@ -270,7 +297,7 @@ function RevenueChartTooltip({ active, payload, label }) {
   );
 }
 
-function RevenueChart({ data, loading, period }) {
+function RevenueChart({ data, loading, period, isMobile }) {
   if (loading) return (
     <div style={{ padding: '16px 18px 14px' }}>
       <Skeleton height={230} borderRadius={8} />
@@ -294,7 +321,17 @@ function RevenueChart({ data, loading, period }) {
     };
   });
 
-  return (
+  const totalRevenue = data.revenue.reduce((s, v) => s + (v ?? 0), 0) || 0;
+  const pieData = isAllTime
+    ? data.labels.map((label, i) => ({
+        name:  label,
+        value: data.revenue[i] ?? 0,
+        color: YEAR_COLORS[i % YEAR_COLORS.length],
+        share: ((totalRevenue ? (data.revenue[i] ?? 0) / totalRevenue : 0) * 100).toFixed(1),
+      }))
+    : [];
+
+  const composedSection = (
     <div style={{ padding: '16px 8px 12px 0' }}>
       <ResponsiveContainer width="100%" height={230}>
         <ComposedChart data={chartData} margin={{ top: 4, right: 20, left: 0, bottom: 0 }}>
@@ -378,6 +415,52 @@ function RevenueChart({ data, loading, period }) {
           </div>
         )}
       </div>
+    </div>
+  );
+
+  if (!isAllTime) return composedSection;
+
+  const noData = totalRevenue === 0;
+  const donutSection = (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '16px 8px' }}>
+      {noData ? (
+        <div style={{ width: 160, height: 160, borderRadius: '50%', border: `2px dashed ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <p style={{ fontSize: 10, color: C.textDim, textAlign: 'center', margin: 0, padding: '0 12px' }}>No data</p>
+        </div>
+      ) : (
+        <PieChart width={190} height={190}>
+          <Pie data={pieData} cx={95} cy={95} innerRadius={54} outerRadius={82} paddingAngle={3} dataKey="value" startAngle={90} endAngle={-270}>
+            {pieData.map((entry, index) => (<Cell key={`rev-pie-${index}`} fill={entry.color} stroke="none" />))}
+          </Pie>
+          <Tooltip content={<RevenuePieTooltip />} />
+          <RevenueDonutLabel cx={95} cy={95} total={totalRevenue} />
+        </PieChart>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 5, width: '100%', maxWidth: isMobile ? 200 : '100%', padding: '0 12px' }}>
+        {pieData.map((p) => (
+          <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ width: 8, height: 8, borderRadius: 2, background: p.color, flexShrink: 0 }} />
+            <span style={{ flex: 1, fontSize: 10, fontWeight: 600, color: C.textSec }}>{p.name}</span>
+            <span style={{ fontSize: 11, fontWeight: 800, color: C.textPri }}>{p.share}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  if (isMobile) {
+    return (
+      <div>
+        {composedSection}
+        {donutSection}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 220px', gap: 0, alignItems: 'center' }}>
+      {composedSection}
+      {donutSection}
     </div>
   );
 }
@@ -711,14 +794,13 @@ function QuickActions({ navigate }) {
     { label: 'Reports',       icon: AssessmentOutlinedIcon,   path: '/manager/reports',        color: C.primary, bg: 'rgba(62,39,35,0.08)' },
     { label: 'Inventory',     icon: InventoryOutlinedIcon,    path: '/manager/inventory',      color: '#2E7D4F', bg: 'rgba(46,125,79,0.08)' },
     { label: 'Employees',     icon: PeopleOutlinedIcon,       path: '/manager/employees',      color: C.warning, bg: 'rgba(178,106,0,0.08)' },
-    { label: 'Customers',     icon: PersonSearchOutlinedIcon, path: '/manager/customers',      color: '#7B1FA2', bg: 'rgba(123,31,162,0.08)' },
     { label: 'Scheduling',    icon: CalendarTodayOutlinedIcon,path: '/manager/scheduling',     color: '#00695C', bg: 'rgba(0,105,92,0.08)' },
   ];
 
   return (
     <Card>
       <CardHeader title="Quick Actions" subtitle="Navigate to key sections" />
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 0 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 0 }}>
         {ACTIONS.map((a, i) => (
           <button
             key={a.label}
@@ -752,7 +834,6 @@ function QuickActionsMobile({ navigate }) {
     { label: 'Reports',       icon: AssessmentOutlinedIcon,   path: '/manager/reports',        color: C.primary, bg: 'rgba(62,39,35,0.08)' },
     { label: 'Inventory',     icon: InventoryOutlinedIcon,    path: '/manager/inventory',      color: '#2E7D4F', bg: 'rgba(46,125,79,0.08)' },
     { label: 'Employees',     icon: PeopleOutlinedIcon,       path: '/manager/employees',      color: C.warning, bg: 'rgba(178,106,0,0.08)' },
-    { label: 'Customers',     icon: PersonSearchOutlinedIcon, path: '/manager/customers',      color: '#7B1FA2', bg: 'rgba(123,31,162,0.08)' },
     { label: 'Schedule',      icon: CalendarTodayOutlinedIcon,path: '/manager/scheduling',     color: '#00695C', bg: 'rgba(0,105,92,0.08)' },
   ];
 
@@ -813,7 +894,7 @@ export default function ManagerDashboardPage() {
   const token       = useAuthStore((s) => s.token);
   const { stopLoading } = useLoading();
 
-  const [period, setPeriod]       = useState('today');
+  const [period, setPeriod]       = useState('all_time');
   const [data,   setData]         = useState(null);
   const [loading, setLoading]     = useState(true);
   const [lastRefresh, setLastRefresh] = useState(null);
@@ -869,7 +950,7 @@ export default function ManagerDashboardPage() {
     { label: 'Discounts',     mobileLabel: 'Discounts',  value: fmt$(kpi.discountTotal),        icon: DiscountOutlinedIcon,  color: '#7B1FA2', iconBg: 'rgba(123,31,162,0.08)',  delta: undefined, onClick: undefined },
     { label: 'Void Sales',    mobileLabel: 'Voids',      value: fmtNum(kpi.voidCount),          icon: BlockOutlinedIcon,     color: C.warning, iconBg: 'rgba(178,106,0,0.10)',   delta: undefined, onClick: undefined },
     { label: 'Active Staff',  mobileLabel: 'Staff',      value: fmtNum(kpi.activeEmployees),   icon: PeopleOutlinedIcon,    color: '#00695C', iconBg: 'rgba(0,105,92,0.10)',    delta: undefined, onClick: () => navigate('/manager/scheduling') },
-    { label: 'New Customers', mobileLabel: 'New Cust.',  value: fmtNum(kpi.newCustomers),       icon: PersonAddOutlinedIcon, color: '#7B1FA2', iconBg: 'rgba(123,31,162,0.08)',  delta: undefined, onClick: () => navigate('/manager/customers') },
+    { label: 'New Customers', mobileLabel: 'New Cust.',  value: fmtNum(kpi.newCustomers),       icon: PersonAddOutlinedIcon, color: '#7B1FA2', iconBg: 'rgba(123,31,162,0.08)',  delta: undefined },
   ];
 
   /* ══════════════════════════════════════════════════════
@@ -934,7 +1015,7 @@ export default function ManagerDashboardPage() {
           {/* Revenue chart */}
           <Card>
             <CardHeader title="Revenue & Transactions" subtitle="Trend for selected period" />
-            <RevenueChart data={data?.chart} loading={loading} period={period} />
+            <RevenueChart data={data?.chart} loading={loading} period={period} isMobile={false} />
           </Card>
 
           {/* Operations panel */}
@@ -1107,7 +1188,7 @@ export default function ManagerDashboardPage() {
       {/* Revenue chart */}
       <Card style={{ marginBottom: 14 }}>
         <CardHeader title="Revenue & Transactions" subtitle="Trend for selected period" />
-        <RevenueChart data={data?.chart} loading={loading} period={period} />
+        <RevenueChart data={data?.chart} loading={loading} period={period} isMobile={true} />
       </Card>
 
       {/* Active shifts */}

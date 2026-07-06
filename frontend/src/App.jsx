@@ -22,17 +22,16 @@ import ManagerShiftPage from './ManagerPages/ManagerShiftPage';
 import ManagerDashboardPage from './ManagerPages/ManagerDashboardPage';
 import ManagerInventoryPage from './ManagerPages/ManagerInventoryPage';
 import ManagerOverridePage from './ManagerPages/ManagerOverridePage';
+import ManagerOverrideHistoryPage from './ManagerPages/ManagerOverrideHistoryPage';
 import ManagerOverallReportPage    from './ManagerPages/ManagerOverallReportPage';
 import ManagerIndividualReportPage from './ManagerPages/ManagerIndividualReportPage';
 import ManagerGroupReportPage      from './ManagerPages/ManagerGroupReportPage';
 import ManagerTransactionPage       from './ManagerPages/ManagerTransactionPage';
 import ManagerTransactionDetailPage from './ManagerPages/ManagerTransactionDetailPage';
-import ManagerCustomersPage         from './ManagerPages/ManagerCustomersPage';
-import ManagerCustomerDetailPage    from './ManagerPages/ManagerCustomerDetailPage';
 import TransactionsPage        from './EmployeePages/TransactionsPage';
 import TransactionDetailPage   from './EmployeePages/TransactionDetailPage';
-import BarcodeScannerPage      from './EmployeePages/BarcodeScannerPage';
-import ManagerBarcodePage      from './ManagerPages/ManagerBarcodePage';
+// import BarcodeScannerPage      from './EmployeePages/BarcodeScannerPage'; // disabled for now — re-enable when barcode feature returns
+// import ManagerBarcodePage      from './ManagerPages/ManagerBarcodePage'; // disabled for now — re-enable when barcode feature returns
 import ManagerStaffingPage     from './ManagerPages/ManagerStaffingPage';
 import ManagerEmployeePage     from './ManagerPages/ManagerEmployeePage';
 import ManagerSettingsPage     from './ManagerPages/ManagerSettingsPage';
@@ -60,7 +59,7 @@ function LocalAuthRoutes({ role }) {
         <Route path="profile"       element={<ProfilePage />} />
         <Route path="transactions"      element={<TransactionsPage />} />
         <Route path="transactions/:id"  element={<TransactionDetailPage />} />
-        <Route path="barcode"           element={<BarcodeScannerPage />} />
+        {/* <Route path="barcode"           element={<BarcodeScannerPage />} /> disabled for now — re-enable when barcode feature returns */}
       </Route>
 
       {/* Manager routes */}
@@ -74,12 +73,11 @@ function LocalAuthRoutes({ role }) {
         <Route path="price-variance" element={<PriceVariancePage />} />
         <Route path="shift"          element={<ManagerShiftPage />} />
         <Route path="overrides" element={<ManagerOverridePage />} />
+        <Route path="overrides/history" element={<ManagerOverrideHistoryPage />} />
         <Route path="inventory" element={<ManagerInventoryPage />} />
         <Route path="transactions"      element={<ManagerTransactionPage />} />
         <Route path="transactions/:id"  element={<ManagerTransactionDetailPage />} />
-        <Route path="customers"         element={<ManagerCustomersPage />} />
-        <Route path="customers/:id"     element={<ManagerCustomerDetailPage />} />
-        <Route path="barcodes"          element={<ManagerBarcodePage />} />
+        {/* <Route path="barcodes"          element={<ManagerBarcodePage />} /> disabled for now — re-enable when barcode feature returns */}
         <Route path="scheduling"        element={<ManagerStaffingPage />} />
         <Route path="groups"            element={<ManagerGroupsPage />} />
         <Route path="employee"           element={<ManagerEmployeePage />} />

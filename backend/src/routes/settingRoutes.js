@@ -72,6 +72,42 @@ router.patch('/stock-tracking', protect, managerOrAdmin, async (req, res, next) 
   } catch (e) { next(e); }
 });
 
+const DEFAULT_REPORT_RECIPIENTS = ['staffingbetit@gmail.com'];
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// GET /api/settings/report-recipients — managers/admins only
+router.get('/report-recipients', protect, managerOrAdmin, async (req, res, next) => {
+  try {
+    const doc = await Setting.findById('global');
+    const recipients = doc?.reportRecipients?.length ? doc.reportRecipients : DEFAULT_REPORT_RECIPIENTS;
+    res.json({ recipients });
+  } catch (e) { next(e); }
+});
+
+// PATCH /api/settings/report-recipients — managers/admins only
+// Body: { recipients: string[] }
+router.patch('/report-recipients', protect, managerOrAdmin, async (req, res, next) => {
+  try {
+    const input = Array.isArray(req.body.recipients) ? req.body.recipients : [];
+    const cleaned = [...new Set(input.map((e) => String(e).trim().toLowerCase()).filter(Boolean))];
+
+    if (cleaned.length === 0) {
+      return res.status(400).json({ message: 'At least one email address is required.' });
+    }
+    const invalid = cleaned.filter((e) => !EMAIL_RE.test(e));
+    if (invalid.length > 0) {
+      return res.status(400).json({ message: `Invalid email address: ${invalid.join(', ')}` });
+    }
+
+    const doc = await Setting.findByIdAndUpdate(
+      'global',
+      { $set: { reportRecipients: cleaned } },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    res.json({ recipients: doc.reportRecipients });
+  } catch (e) { next(e); }
+});
+
 // GET /api/settings/logo
 router.get('/logo', protect, async (req, res, next) => {
   try {

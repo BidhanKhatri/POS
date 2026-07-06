@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Dialog, DialogContent, useMediaQuery } from '@mui/material';
 import AdminPanelSettingsOutlinedIcon from '@mui/icons-material/AdminPanelSettingsOutlined';
 import CancelOutlinedIcon            from '@mui/icons-material/CancelOutlined';
@@ -56,6 +57,7 @@ const STATUS_STYLE = {
 };
 
 const PENDING_PER_PAGE = 5;
+const HISTORY_PREVIEW_LIMIT = 8;
 
 const formatMoney = (n) => `$${Number(n ?? 0).toFixed(2)}`;
 
@@ -825,6 +827,7 @@ function SectionDivider({ label }) {
    Main Page
 ───────────────────────────────────────────── */
 export default function ManagerOverridePage() {
+  const navigate  = useNavigate();
   const token     = useAuthStore((s) => s.token);
   const headers   = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
   const isDesktop = useMediaQuery('(min-width:1024px)');
@@ -957,12 +960,21 @@ export default function ManagerOverridePage() {
                   <div style={{ width: 3, height: 16, borderRadius: 2, background: C.textDim }} />
                   <span style={{ fontSize: 11, fontWeight: 700, color: C.textDim, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Override History</span>
                 </div>
-                {resolved.length > 0 && (
-                  <span style={{ fontSize: 11, fontWeight: 600, color: C.textDim }}>{resolved.length} resolved</span>
-                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  {resolved.length > 0 && (
+                    <span style={{ fontSize: 11, fontWeight: 600, color: C.textDim }}>{resolved.length} resolved</span>
+                  )}
+                  <button
+                    onClick={() => navigate('/manager/overrides/history')}
+                    style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 7, border: `1px solid ${C.border}`, background: C.surface, fontSize: 11, fontWeight: 700, color: C.primary, cursor: 'pointer' }}
+                  >
+                    View All
+                    <ChevronRightOutlinedIcon sx={{ fontSize: 14 }} />
+                  </button>
+                </div>
               </div>
             </CornerPanel>
-            <HistoryTable history={resolved} isDesktop />
+            <HistoryTable history={resolved.slice(0, HISTORY_PREVIEW_LIMIT)} isDesktop />
           </div>
         </div>
 
@@ -1013,8 +1025,17 @@ export default function ManagerOverridePage() {
         )}
       </div>
 
-      <SectionDivider label="Override History" />
-      <HistoryTable history={resolved} isDesktop={false} />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <span style={{ fontSize: 10, fontWeight: 700, color: C.textDim, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Override History</span>
+        <button
+          onClick={() => navigate('/manager/overrides/history')}
+          style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '4px 9px', borderRadius: 7, border: `1px solid ${C.border}`, background: C.surface, fontSize: 11, fontWeight: 700, color: C.primary, cursor: 'pointer' }}
+        >
+          View All
+          <ChevronRightOutlinedIcon sx={{ fontSize: 13 }} />
+        </button>
+      </div>
+      <HistoryTable history={resolved.slice(0, HISTORY_PREVIEW_LIMIT)} isDesktop={false} />
 
       <PinDialog open={!!pinTarget} override={pinTarget} error={pinError} submitting={submitting} onClose={() => setPinTarget(null)} onConfirm={handlePinConfirm} />
       <PinDialog open={!!denyPinTarget} override={denyPinTarget} error={denyPinError} submitting={denySubmitting} onClose={() => setDenyPinTarget(null)} onConfirm={handleDenyPinConfirm} mode="deny" />

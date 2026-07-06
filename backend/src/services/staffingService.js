@@ -31,6 +31,12 @@ export function bustCache(key) {
   cache.delete(key);
 }
 
+// Clears every cached EMS response — used by Database Management's
+// "Dashboard Cache" action. Purely additive; no existing caller is affected.
+export function clearAllCache() {
+  cache.clear();
+}
+
 // ─── internal fetch helper ────────────────────────────────────────────────────
 
 async function emsRequest(path, params = {}) {

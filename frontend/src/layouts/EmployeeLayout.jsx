@@ -10,7 +10,7 @@ import Inventory2OutlinedIcon        from '@mui/icons-material/Inventory2Outline
 import AdminPanelSettingsOutlinedIcon from '@mui/icons-material/AdminPanelSettingsOutlined';
 import SettingsOutlinedIcon          from '@mui/icons-material/SettingsOutlined';
 import PersonOutlineOutlinedIcon     from '@mui/icons-material/PersonOutlineOutlined';
-import QrCodeScannerOutlinedIcon     from '@mui/icons-material/QrCodeScannerOutlined';
+// import QrCodeScannerOutlinedIcon     from '@mui/icons-material/QrCodeScannerOutlined'; // disabled for now — re-enable when barcode feature returns
 import LogoutOutlinedIcon            from '@mui/icons-material/LogoutOutlined';
 import LoginOutlinedIcon             from '@mui/icons-material/LoginOutlined';
 import WarningAmberOutlinedIcon      from '@mui/icons-material/WarningAmberOutlined';
@@ -35,7 +35,7 @@ const MENU_SECTIONS = [
     items: [
       { label: 'Transactions',      path: '/employee/transactions', icon: ReceiptLongOutlinedIcon         },
       { label: 'Inventory',         path: '/employee/inventory',    icon: Inventory2OutlinedIcon          },
-      { label: 'Barcode',           path: '/employee/barcode',      icon: QrCodeScannerOutlinedIcon       },
+      // { label: 'Barcode',           path: '/employee/barcode',      icon: QrCodeScannerOutlinedIcon       }, // disabled for now — re-enable when barcode feature returns
       { label: 'Overrides Request', path: '/employee/overrides',    icon: AdminPanelSettingsOutlinedIcon  },
     ],
   },
@@ -66,7 +66,7 @@ const SIDEBAR_SECTIONS = [
     items: [
       { label: 'Shift',             path: '/employee/shift',     icon: AccessTimeOutlinedIcon          },
       { label: 'Inventory',         path: '/employee/inventory', icon: Inventory2OutlinedIcon          },
-      { label: 'Barcode',           path: '/employee/barcode',   icon: QrCodeScannerOutlinedIcon       },
+      // { label: 'Barcode',           path: '/employee/barcode',   icon: QrCodeScannerOutlinedIcon       }, // disabled for now — re-enable when barcode feature returns
       { label: 'Overrides Request', path: '/employee/overrides', icon: AdminPanelSettingsOutlinedIcon  },
     ],
   },

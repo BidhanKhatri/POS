@@ -817,7 +817,7 @@ export default function ManagerGroupReportPage() {
   const isMobile    = !useMediaQuery('(min-width:1024px)');
   const queryClient = useQueryClient();
 
-  const [preset,       setPreset]       = useState('today');
+  const [preset,       setPreset]       = useState('overall');
   const [customStart,  setCustomStart]  = useState('');
   const [customEnd,    setCustomEnd]    = useState('');
   const [rankBy,       setRankBy]       = useState('revenue');

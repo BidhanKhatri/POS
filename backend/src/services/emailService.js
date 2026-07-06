@@ -248,16 +248,16 @@ export async function sendVerificationEmail({ to, name, verifyUrl }) {
   }
   const html = buildVerificationHtml(name, verifyUrl, 15);
   await transporter.sendMail({
-    from: process.env.SMTP_FROM || 'POS System <noreply@pos.local>',
+    from: process.env.SMTP_FROM || 'StaffingBetIT POS <noreply@pos.local>',
     to,
     subject: 'Verify your email — POS Account Setup',
     html,
   });
 }
 
-// Generic low-level send — accepts pre-built HTML and a custom subject.
-// Used by cronReportService to deliver scheduled reports.
-export async function sendReportEmail({ to, subject, html }) {
+// Generic low-level send — accepts pre-built HTML (+ optional plain-text alternative)
+// and a custom subject. Used by cronReportService to deliver scheduled reports.
+export async function sendReportEmail({ to, subject, html, text }) {
   const transporter = getTransporter();
   if (!transporter) {
     const err = new Error('Email service is not configured (SMTP_HOST missing).');
@@ -265,21 +265,23 @@ export async function sendReportEmail({ to, subject, html }) {
     throw err;
   }
   await transporter.sendMail({
-    from: process.env.SMTP_FROM || 'POS System <noreply@pos.local>',
+    from: process.env.SMTP_FROM || 'StaffingBetIT POS <noreply@pos.local>',
     to,
     subject,
     html,
+    ...(text ? { text } : {}),
   });
 }
 
-function buildOtpHtml(name, otp) {
+function buildOtpHtml(name, otp, purpose = 'PIN Reset', description) {
   const firstName = name.split(' ')[0];
+  const desc = description || `You requested a PIN reset for your POS Manager account. Use the code below — it expires in <strong>2 minutes</strong> and can only be used once.`;
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PIN Reset OTP</title>
+  <title>${purpose} OTP</title>
 </head>
 <body style="margin:0;padding:0;background:#F5F3F1;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#F5F3F1;padding:40px 16px;">
@@ -291,7 +293,7 @@ function buildOtpHtml(name, otp) {
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td><span style="font-size:20px;font-weight:800;color:#ffffff;letter-spacing:-0.3px;">POS System</span></td>
-                  <td align="right"><span style="font-size:10px;font-weight:800;color:#D4A373;letter-spacing:0.12em;text-transform:uppercase;border:1px solid rgba(212,163,115,0.45);padding:4px 10px;border-radius:20px;">PIN Reset</span></td>
+                  <td align="right"><span style="font-size:10px;font-weight:800;color:#D4A373;letter-spacing:0.12em;text-transform:uppercase;border:1px solid rgba(212,163,115,0.45);padding:4px 10px;border-radius:20px;">${purpose}</span></td>
                 </tr>
               </table>
             </td>
@@ -300,7 +302,7 @@ function buildOtpHtml(name, otp) {
             <td style="background:#ffffff;padding:32px 32px 28px;">
               <p style="margin:0 0 6px;font-size:15px;font-weight:700;color:#2B1D1A;">Hello, ${firstName},</p>
               <p style="margin:0 0 24px;font-size:13px;color:#6B5B57;line-height:21px;">
-                You requested a PIN reset for your POS Manager account. Use the code below — it expires in <strong>2 minutes</strong> and can only be used once.
+                ${desc}
               </p>
               <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
                 <tr>
@@ -338,7 +340,7 @@ function buildOtpHtml(name, otp) {
 </html>`;
 }
 
-export async function sendOtpEmail({ to, name, otp }) {
+export async function sendOtpEmail({ to, name, otp, purpose = 'PIN Reset', description }) {
   const transporter = getTransporter();
   if (!transporter) {
     const err = new Error('Email service is not configured (SMTP_HOST missing).');
@@ -346,10 +348,10 @@ export async function sendOtpEmail({ to, name, otp }) {
     throw err;
   }
   await transporter.sendMail({
-    from: process.env.SMTP_FROM || 'POS System <noreply@pos.local>',
+    from: process.env.SMTP_FROM || 'StaffingBetIT POS <noreply@pos.local>',
     to,
-    subject: 'Your PIN Reset OTP — POS System',
-    html: buildOtpHtml(name, otp),
+    subject: `Your ${purpose} OTP — POS System`,
+    html: buildOtpHtml(name, otp, purpose, description),
   });
 }
 
@@ -364,7 +366,7 @@ export async function sendReceiptEmail({ to, sale }) {
   const html = buildReceiptHtml(sale);
 
   await transporter.sendMail({
-    from: process.env.SMTP_FROM || 'POS System <noreply@pos.local>',
+    from: process.env.SMTP_FROM || 'StaffingBetIT POS <noreply@pos.local>',
     to,
     subject: `Your Receipt — Invoice ${sale.invoiceNo}`,
     html,

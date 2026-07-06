@@ -19,6 +19,7 @@ import scheduleRoutes from './scheduleRoutes.js';
 import groupRoutes    from './groupRoutes.js';
 import profileRoutes  from './profileRoutes.js';
 import uploadRoutes   from './uploadRoutes.js';
+import databaseManagementRoutes from './databaseManagementRoutes.js';
 
 router.use('/auth', authRoutes);
 router.use('/auth/webauthn', webauthnRoutes);
@@ -38,5 +39,6 @@ router.use('/schedules', scheduleRoutes);
 router.use('/groups',    groupRoutes);
 router.use('/profile',   profileRoutes);
 router.use('/upload',    uploadRoutes);
+router.use('/database-management', databaseManagementRoutes);
 
 export default router;

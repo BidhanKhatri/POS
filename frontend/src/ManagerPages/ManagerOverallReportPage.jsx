@@ -554,7 +554,7 @@ export default function ManagerOverallReportPage() {
   const location = useLocation();
   const isMobile = !useMediaQuery('(min-width:1024px)');
 
-  const [range, setRange] = useState('today');
+  const [range, setRange] = useState('overall');
   const dr = buildDateRange(range);
   const { start, end, compareStart, compareEnd, groupBy } = dr;
 

@@ -12,8 +12,7 @@ import ExpandMoreIcon                    from '@mui/icons-material/ExpandMore';
 import AssessmentOutlinedIcon            from '@mui/icons-material/AssessmentOutlined';
 import PersonOutlinedIcon                from '@mui/icons-material/PersonOutlined';
 import GroupsOutlinedIcon                from '@mui/icons-material/GroupsOutlined';
-import PeopleOutlinedIcon                from '@mui/icons-material/PeopleOutlined';
-import QrCodeScannerOutlinedIcon         from '@mui/icons-material/QrCodeScannerOutlined';
+// import QrCodeScannerOutlinedIcon         from '@mui/icons-material/QrCodeScannerOutlined'; // disabled for now — re-enable when barcode feature returns
 import CalendarMonthOutlinedIcon         from '@mui/icons-material/CalendarMonthOutlined';
 import ManageAccountsOutlinedIcon        from '@mui/icons-material/ManageAccountsOutlined';
 import SettingsOutlinedIcon              from '@mui/icons-material/SettingsOutlined';
@@ -47,14 +46,13 @@ const NAV_GROUPS = [
     group: 'Accounts',
     items: [
       { label: 'Employees', path: '/manager/employee',  icon: ManageAccountsOutlinedIcon },
-      { label: 'Customers', path: '/manager/customers', icon: PeopleOutlinedIcon         },
     ],
   },
   {
     group: 'Inventory',
     items: [
       { label: 'Inventory', path: '/manager/inventory', icon: Inventory2OutlinedIcon     },
-      { label: 'Barcodes',  path: '/manager/barcodes',  icon: QrCodeScannerOutlinedIcon  },
+      // { label: 'Barcodes',  path: '/manager/barcodes',  icon: QrCodeScannerOutlinedIcon  }, // disabled for now — re-enable when barcode feature returns
     ],
   },
   {

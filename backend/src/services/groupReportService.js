@@ -472,3 +472,9 @@ export async function exportGroupsCSV({ start, end }) {
 
   return lines.join('\n');
 }
+
+// Clears the in-memory group report cache — used by Database Management's
+// "Dashboard Cache" action. Purely additive; no existing caller is affected.
+export function clearCache() {
+  _cache.clear();
+}
