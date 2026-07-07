@@ -1,25 +1,75 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import WifiOffRoundedIcon from '@mui/icons-material/WifiOffRounded';
+
+const PROBE_URL = '/manifest.webmanifest';
+const PROBE_INTERVAL_MS = 8000;
+const PROBE_TIMEOUT_MS  = 4000;
 
 /**
  * App-wide "no internet" overlay. Purely presentational — does not touch
  * routing, auth, or data fetching. TanStack Query already refetches on
- * reconnect (default `refetchOnReconnect: true`), so once `navigator.onLine`
- * flips back to true this just disappears and the app continues normally.
+ * reconnect (default `refetchOnReconnect: true`), so once we detect the
+ * connection is back this just disappears and the app continues normally.
+ *
+ * `navigator.onLine` / the `online`/`offline` window events only reflect
+ * whether a network interface is up — not whether the internet is actually
+ * reachable, and iOS standalone (home-screen) PWAs are known to fire these
+ * events unreliably. So on top of listening for them, we actively probe a
+ * tiny same-origin static file on an interval to confirm real connectivity.
  */
 export default function OfflineScreen() {
   const [online, setOnline] = useState(() => (typeof navigator === 'undefined' ? true : navigator.onLine));
+  const probingRef = useRef(false);
 
   useEffect(() => {
-    const goOnline  = () => setOnline(true);
+    let cancelled = false;
+
+    const probe = async () => {
+      if (probingRef.current) return;
+      probingRef.current = true;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
+      try {
+        await fetch(`${PROBE_URL}?_=${Date.now()}`, {
+          method: 'HEAD',
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+        if (!cancelled) setOnline(true);
+      } catch {
+        if (!cancelled) setOnline(false);
+      } finally {
+        clearTimeout(timeout);
+        probingRef.current = false;
+      }
+    };
+
+    const goOnline  = () => probe();
     const goOffline = () => setOnline(false);
+    const onVisible = () => { if (document.visibilityState === 'visible') probe(); };
+
     window.addEventListener('online', goOnline);
     window.addEventListener('offline', goOffline);
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', probe);
+
+    // Only actively poll while we believe we're offline — cheap recovery
+    // detection without constant background chatter while everything's fine.
+    let interval = null;
+    if (!online) {
+      probe();
+      interval = setInterval(probe, PROBE_INTERVAL_MS);
+    }
+
     return () => {
+      cancelled = true;
+      if (interval) clearInterval(interval);
       window.removeEventListener('online', goOnline);
       window.removeEventListener('offline', goOffline);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', probe);
     };
-  }, []);
+  }, [online]);
 
   if (online) return null;
 
