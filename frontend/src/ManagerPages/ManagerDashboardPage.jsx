@@ -45,6 +45,8 @@ import { useLoading }              from '../context/LoadingContext';
 import useAuthStore                from '../store/useAuthStore';
 import { useSocketEvent }          from '../context/SocketContext';
 import { API_URL as API }          from '../config/api';
+import ForceCheckoutDialog          from '../components/ForceCheckoutDialog';
+import LockClockOutlinedIcon       from '@mui/icons-material/LockClockOutlined';
 
 // ── Design tokens (consistent with the rest of the app) ──────────────────────
 const C = {
@@ -769,6 +771,71 @@ function ActiveShifts({ shifts, loading }) {
   );
 }
 
+// ── Missed Checkouts ───────────────────────────────────────────────────────────
+function MissedCheckouts({ shifts, loading, onForceCheckout }) {
+  const fmtOvertime = (mins) => {
+    const h = Math.floor((mins ?? 0) / 60);
+    const m = (mins ?? 0) % 60;
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  };
+
+  return (
+    <div>
+      {loading ? (
+        <div>
+          {[1,2].map((k, i) => (
+            <div key={k} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 0', borderBottom: i < 1 ? `1px solid ${C.border}` : 'none' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Skeleton height={30} width={30} borderRadius={8} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  <Skeleton height={12} width={88} />
+                  <Skeleton height={10} width={130} />
+                </div>
+              </div>
+              <Skeleton height={30} width={100} borderRadius={8} />
+            </div>
+          ))}
+        </div>
+      ) : !shifts?.length ? (
+        <p style={{ fontSize: 12, color: C.textDim, margin: 0, padding: '4px 0' }}>No missed checkouts</p>
+      ) : shifts.map((s) => (
+        <div key={s._id} style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+          padding: '9px 0',
+          borderBottom: `1px solid ${C.border}`,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+            <div style={{
+              width: 30, height: 30, borderRadius: 8, flexShrink: 0,
+              background: 'rgba(183,28,28,0.10)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <LockClockOutlinedIcon sx={{ fontSize: 15, color: C.error }} />
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: C.textPri, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.employee?.name ?? 'Unknown'}</p>
+              <p style={{ margin: '1px 0 0', fontSize: 10, color: C.error, fontWeight: 600 }}>
+                Sched. end {fmtTime(s.scheduledEnd)} · {fmtOvertime(s.overtimeMinutes)} over
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => onForceCheckout(s)}
+            style={{
+              flexShrink: 0, padding: '7px 12px', borderRadius: 8,
+              border: `1px solid ${C.error}`, background: 'transparent',
+              color: C.error, fontSize: 11, fontWeight: 700, cursor: 'pointer',
+              fontFamily: "'Plus Jakarta Sans', sans-serif", whiteSpace: 'nowrap',
+            }}
+          >
+            Force Checkout
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── Recent Overrides ──────────────────────────────────────────────────────────
 function RecentOverrides({ overrides, loading, onViewAll }) {
   return (
@@ -974,6 +1041,7 @@ export default function ManagerDashboardPage() {
   const [loading, setLoading]     = useState(true);
   const [lastRefresh, setLastRefresh] = useState(null);
   const [stockTrackingEnabled, setStockTrackingEnabled] = useState(true);
+  const [forceCheckoutTarget, setForceCheckoutTarget] = useState(null);
 
   // Debounce ref so socket events don't hammer the backend
   const debounceRef = useRef(null);
@@ -1016,6 +1084,7 @@ export default function ManagerDashboardPage() {
   useSocketEvent('override:resolved',   scheduleRefresh);
   useSocketEvent('shift:update',        scheduleRefresh);
   useSocketEvent('inventory:lowstock',  scheduleRefresh);
+  useSocketEvent('shift:missedcheckout', scheduleRefresh);
 
   const kpi = data?.kpi ?? {};
 
@@ -1116,6 +1185,19 @@ export default function ManagerDashboardPage() {
               </div>
             </Card>
 
+            {/* Missed checkouts */}
+            {(loading || data?.missedCheckouts?.length > 0) && (
+              <Card>
+                <CardHeader
+                  title="Missed Checkouts"
+                  subtitle={`${data?.missedCheckouts?.length ?? 0} still clocked in past scheduled end`}
+                />
+                <div style={{ padding: '4px 16px 12px' }}>
+                  <MissedCheckouts shifts={data?.missedCheckouts} loading={loading} onForceCheckout={setForceCheckoutTarget} />
+                </div>
+              </Card>
+            )}
+
             {/* Overrides widget */}
             {kpi.pendingOverrides > 0 && (
               <div
@@ -1174,6 +1256,13 @@ export default function ManagerDashboardPage() {
 
         {/* ── Quick actions ─────────────────────────────────────────────────── */}
         <QuickActions navigate={navigate} />
+
+        <ForceCheckoutDialog
+          shift={forceCheckoutTarget}
+          token={token}
+          onClose={() => setForceCheckoutTarget(null)}
+          onDone={() => { setForceCheckoutTarget(null); load(true); }}
+        />
       </div>
     );
   }
@@ -1282,6 +1371,19 @@ export default function ManagerDashboardPage() {
         </div>
       </Card>
 
+      {/* Missed checkouts */}
+      {(loading || data?.missedCheckouts?.length > 0) && (
+        <Card style={{ marginBottom: 14 }}>
+          <CardHeader
+            title="Missed Checkouts"
+            subtitle={`${data?.missedCheckouts?.length ?? 0} past scheduled end`}
+          />
+          <div style={{ padding: '4px 14px 12px' }}>
+            <MissedCheckouts shifts={data?.missedCheckouts} loading={loading} onForceCheckout={setForceCheckoutTarget} />
+          </div>
+        </Card>
+      )}
+
       {/* Top performers */}
       <div style={{ marginBottom: 14 }}>
         <EmployeeLeaderboard
@@ -1369,6 +1471,13 @@ export default function ManagerDashboardPage() {
           )}
         </div>
       )}
+
+      <ForceCheckoutDialog
+        shift={forceCheckoutTarget}
+        token={token}
+        onClose={() => setForceCheckoutTarget(null)}
+        onDone={() => { setForceCheckoutTarget(null); load(true); }}
+      />
     </div>
   );
 }

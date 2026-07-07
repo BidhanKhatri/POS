@@ -12,6 +12,7 @@ import CornerCard from '../components/CornerCard/CornerCard';
 import useAuthStore from '../store/useAuthStore';
 import { useLoading } from '../context/LoadingContext';
 import { useSocketEvent } from '../context/SocketContext';
+import { useShiftGate } from '../context/ShiftGateContext';
 import { EVENTS } from '../socket/events';
 
 import { API_URL as API } from '../config/api';
@@ -36,6 +37,7 @@ export default function TerminalPage() {
   const user              = useAuthStore((s) => s.user);
   const isDesktop         = useMediaQuery('(min-width:1024px)');
   const { stopLoading }   = useLoading();
+  const { forceLocked, lockReason } = useShiftGate();
 
   // ── Shift gate (employees only) ──
   const [gateShift,    setGateShift]    = useState(null);
@@ -194,7 +196,7 @@ export default function TerminalPage() {
 
   /* ── Lock background scroll when gate overlay is active ── */
   const gateActive = user?.role === 'Employee' &&
-    (gateLoading || schedLoading || noScheduleToday || shiftEnded || isStaleShift || !gateShift);
+    (gateLoading || schedLoading || noScheduleToday || shiftEnded || isStaleShift || !gateShift || forceLocked);
 
   useEffect(() => {
     const main = document.querySelector('main');
@@ -636,7 +638,9 @@ export default function TerminalPage() {
     }}>
       <WarningAmberOutlinedIcon sx={{ fontSize: 18, color: '#B26A00', flexShrink: 0 }} />
       <span style={{ fontSize: 13, fontWeight: 700, color: '#7A4600', whiteSpace: 'nowrap' }}>
-        Your shift ends in {shiftEndingWarning.minutesLeft} minute{shiftEndingWarning.minutesLeft === 1 ? '' : 's'} — you won't be able to start new sales after that.
+        {shiftEndingWarning.minutesLeft <= 5
+          ? 'Your shift will end in 5 minutes. Complete current transaction.'
+          : `Your shift ends in ${shiftEndingWarning.minutesLeft} minutes — you won't be able to start new sales after that.`}
       </span>
       <button onClick={() => setShiftEndingWarning(null)} style={{
         display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -676,6 +680,28 @@ export default function TerminalPage() {
               <div style={{ width: 56, height: 56, borderRadius: 16, background: C.elevated, animation: 'gate-pulse 1.4s ease infinite' }} />
               <div style={{ height: 14, width: 180, borderRadius: 6, background: C.elevated, animation: 'gate-pulse 1.4s ease infinite' }} />
               <div style={{ height: 11, width: 120, borderRadius: 6, background: C.elevated, animation: 'gate-pulse 1.4s ease infinite' }} />
+            </div>
+          ) : forceLocked ? (
+            /* ── Shift ended in real time (cron-detected or manager-forced) ── */
+            <div>
+              <div style={{
+                width: 60, height: 60, borderRadius: 16,
+                background: 'rgba(183,28,28,0.10)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                margin: '0 auto 18px',
+              }}>
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+                  <rect x="5" y="11" width="14" height="9" rx="2" stroke="#B71C1C" strokeWidth="2"/>
+                  <path d="M8 11V7a4 4 0 018 0v4" stroke="#B71C1C" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+              </div>
+
+              <h2 style={{ margin: '0 0 8px', fontSize: 21, fontWeight: 800, color: C.textPri, letterSpacing: '-0.3px' }}>
+                Shift Ended
+              </h2>
+              <p style={{ margin: '0 0 28px', fontSize: 14, fontWeight: 500, color: C.textSec, lineHeight: 1.55 }}>
+                {lockReason}
+              </p>
             </div>
           ) : noScheduleToday ? (
             <div>

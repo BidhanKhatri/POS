@@ -5,6 +5,7 @@ import ManagerOverride from '../models/ManagerOverride.js';
 import Shift from '../models/Shift.js';
 import Product from '../models/Product.js';
 import Customer from '../models/Customer.js';
+import { computeScheduledEndDate } from '../utils/shiftTime.js';
 
 // Utility: UTC day boundaries for a given date (defaults to today)
 function dayBounds(offsetDays = 0) {
@@ -355,6 +356,7 @@ export const managerDashboard = async (req, res, next) => {
       prevKpiResult,
       voidCount,
       activeShifts,
+      missedCheckoutShifts,
       newCustomers,
       pendingOverrides,
       chartRaw,
@@ -400,11 +402,18 @@ export const managerDashboard = async (req, res, next) => {
         ? { createdAt: { $gte: rangeStart, $lte: rangeEnd }, status: 'VOIDED' }
         : { status: 'VOIDED' }),
 
-      // 4. Active shifts right now
-      Shift.find({ status: 'OPEN' })
+      // 4. Active shifts right now — excludes shifts flagged as a missed
+      // checkout, which move to their own widget (query 4b) instead.
+      Shift.find({ status: 'OPEN', missedCheckoutDetectedAt: null })
         .populate('employeeId', 'name role employeeCode')
         .sort({ clockInTime: 1 })
         .limit(10)
+        .lean(),
+
+      // 4b. Missed checkouts — still OPEN, past their scheduled end
+      Shift.find({ status: 'OPEN', missedCheckoutDetectedAt: { $ne: null } })
+        .populate('employeeId', 'name role employeeCode')
+        .sort({ missedCheckoutDetectedAt: 1 })
         .lean(),
 
       // 5. New customers in period
@@ -559,6 +568,25 @@ export const managerDashboard = async (req, res, next) => {
       }
     }
 
+    // Enrich missed-checkout shifts with last activity (most recent Sale
+    // during the shift, real data only — falls back to clockInTime) and
+    // overtime duration, same shape as GET /api/shifts/missed-checkouts.
+    const missedCheckouts = await Promise.all(missedCheckoutShifts.map(async (s) => {
+      const scheduledEndDate = computeScheduledEndDate(s);
+      const lastSale = await Sale.findOne({ employeeId: s.employeeId?._id, createdAt: { $gte: s.clockInTime } })
+        .sort({ createdAt: -1 })
+        .select('createdAt')
+        .lean();
+      return {
+        _id:            s._id,
+        employee:       s.employeeId,
+        clockInTime:    s.clockInTime,
+        scheduledEnd:   scheduledEndDate,
+        overtimeMinutes: Math.max(0, Math.round((Date.now() - scheduledEndDate.getTime()) / 60000)),
+        lastActivity:   lastSale?.createdAt ?? s.clockInTime,
+      };
+    }));
+
     res.json({
       period,
       kpi: {
@@ -594,6 +622,7 @@ export const managerDashboard = async (req, res, next) => {
         totalTxn:    s.totalTransactions,
         employee:    s.employeeId,
       })),
+      missedCheckouts: missedCheckouts,
       recentOverrides: recentOverridesRaw,
     });
   } catch (err) {

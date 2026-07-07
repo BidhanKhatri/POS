@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import SplashScreen from './components/SplashScreen';
 import OfflineScreen from './components/OfflineScreen';
 import { SocketProvider } from './context/SocketContext';
+import { ShiftGateProvider } from './context/ShiftGateContext';
 import { useLoading } from './context/LoadingContext';
 import LoginScreen from './AuthPages/LoginScreen';
 import SignupPage from './AuthPages/SignupPage';
@@ -169,11 +170,13 @@ function AuthGate() {
 function App() {
   return (
     <SocketProvider>
-      <SplashScreen />
-      <OfflineScreen />
-      <BrowserRouter>
-        <AuthGate />
-      </BrowserRouter>
+      <ShiftGateProvider>
+        <SplashScreen />
+        <OfflineScreen />
+        <BrowserRouter>
+          <AuthGate />
+        </BrowserRouter>
+      </ShiftGateProvider>
     </SocketProvider>
   );
 }

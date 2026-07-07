@@ -21,6 +21,7 @@ import { runDailyReport   } from './dailyReport.cron.js';
 // import { runMonthlyReport } from './monthlyReport.cron.js'; // disabled for now — re-enable when monthly reports return
 // import { runYearlyReport  } from './yearlyReport.cron.js'; // disabled for now — re-enable when yearly reports return
 import { runShiftEndingSoonCheck } from './shiftEndingSoon.cron.js';
+import { runMissedCheckoutCheck } from './missedCheckout.cron.js';
 
 // Wraps each job in a try/catch so a crash in one doesn't kill the process or affect others.
 function safe(label, fn) {
@@ -44,9 +45,11 @@ export function initCronJobs() {
   // cron.schedule('0 3 1 * *',  safe('MONTHLY report', runMonthlyReport), utcOpts); // disabled for now
   // cron.schedule('0 4 1 1 *',  safe('YEARLY report',  runYearlyReport),  utcOpts); // disabled for now
   cron.schedule('* * * * *',  safe('Shift ending soon check', runShiftEndingSoonCheck), utcOpts);
+  cron.schedule('* * * * *',  safe('Missed checkout check', runMissedCheckoutCheck), utcOpts);
 
   console.log('[CRON] Scheduled report jobs initialized');
   console.log('[CRON]   Daily   → 18:00 America/New_York daily (6pm Eastern, DST-aware)');
   console.log('[CRON]   (Weekly/Monthly/Yearly reports disabled)');
   console.log('[CRON]   Shift ending soon → every minute');
+  console.log('[CRON]   Missed checkout check → every minute');
 }

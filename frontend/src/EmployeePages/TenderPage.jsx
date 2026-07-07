@@ -21,6 +21,7 @@ import CardBrandIcon from '../components/CardBrandIcon';
 import { CARD_BRAND_META } from '../components/cardBrandMeta';
 import { printReceipt, downloadPDF } from '../utils/receiptUtils';
 import useAuthStore from '../store/useAuthStore';
+import { useShiftGate } from '../context/ShiftGateContext';
 import CornerCard from '../components/CornerCard/CornerCard';
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import ShoppingBagOutlinedIcon from '@mui/icons-material/ShoppingBagOutlined';
@@ -288,6 +289,7 @@ export default function TenderPage() {
     : cartSubtotal;
   const terminalPath          = location.pathname.startsWith('/manager') ? '/manager/terminal' : '/employee/terminal';
   const token                 = useAuthStore((s) => s.token);
+  const { forceLocked, lockReason } = useShiftGate();
 
   // Defaults to 'MOI' — the only payment method currently offered — so the
   // buyer details section shows immediately instead of waiting on a method
@@ -1519,6 +1521,23 @@ export default function TenderPage() {
     </div>
   );
 
+  // ── Shared: shift-ended notice — non-blocking, since the employee was
+  // already mid-checkout when the shift ended. Confirm still works (the
+  // server allows a short grace window for sale creation); the NEXT visit
+  // to the Terminal is what actually gets locked out (see ShiftGateContext). ──
+  const shiftEndBanner = forceLocked && !isRefund && (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 10,
+      padding: '11px 14px', borderRadius: 10, marginBottom: 16,
+      background: 'rgba(183,28,28,0.07)', border: '1px solid rgba(183,28,28,0.22)',
+    }}>
+      <WarningAmberOutlinedIcon sx={{ fontSize: 17, color: '#B71C1C', flexShrink: 0 }} />
+      <span style={{ fontSize: 12.5, fontWeight: 600, color: '#B71C1C', lineHeight: 1.4 }}>
+        {lockReason} Finish this transaction — you'll be locked out of new sales afterward.
+      </span>
+    </div>
+  );
+
   // ── Shared: action buttons ─────────────────────────────────────────────────
   const actionButtons = (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -1568,6 +1587,7 @@ export default function TenderPage() {
         <p style={{ margin: '0 0 20px', fontSize: 12, fontWeight: 500, color: '#A09490' }}>
           Fill in buyer information to complete the transaction.
         </p>
+        {shiftEndBanner}
         {buyerForm}
         {discountSection}
         {refundSection}
@@ -1593,6 +1613,7 @@ export default function TenderPage() {
       {/* Payment method selection hidden while MOI is the only option — see
           commented-out paymentGrid above. Re-add this divider + {paymentGrid}
           when more methods return. */}
+      {shiftEndBanner}
       {buyerForm}
       {discountSection}
       {refundSection}

@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import Shift from '../models/Shift.js';
+import { computeScheduledEndDate } from '../utils/shiftTime.js';
 
 const protect = async (req, res, next) => {
   let token;
@@ -66,4 +67,28 @@ const requireActiveShift = async (req, res, next) => {
   }
 };
 
-export { protect, admin, managerOrAdmin, requireActiveShift };
+/**
+ * Require that the employee's active shift has not passed its scheduled end.
+ * Must run AFTER requireActiveShift (reads req.activeShift). Managers/Admins
+ * bypass, same as requireActiveShift. `graceMinutes` allows a short window
+ * past scheduledEnd — used only on sale creation to cover someone already
+ * mid-payment-entry when the clock hit; 0 (no grace) everywhere else.
+ */
+const requireShiftNotEnded = (graceMinutes = 0) => async (req, res, next) => {
+  if (req.user.role === 'Admin' || req.user.role === 'Manager') return next();
+  const shift = req.activeShift;
+  if (shift?.scheduledEnd) {
+    const endDT = computeScheduledEndDate(shift);
+    const cutoff = new Date(endDT.getTime() + graceMinutes * 60000);
+    if (new Date() > cutoff) {
+      return res.status(403).json({
+        success: false,
+        code: 'SHIFT_ENDED',
+        message: 'Your shift has ended. Please contact your manager.',
+      });
+    }
+  }
+  next();
+};
+
+export { protect, admin, managerOrAdmin, requireActiveShift, requireShiftNotEnded };

@@ -5,10 +5,14 @@ import {
   getSaleDetail, listTransactions, emailReceipt,
   managerSaleDetail, transactionKpis, listEmployees,
 } from '../controllers/saleController.js';
-import { protect, managerOrAdmin, requireActiveShift } from '../middleware/authMiddleware.js';
+import { protect, managerOrAdmin, requireActiveShift, requireShiftNotEnded } from '../middleware/authMiddleware.js';
 
-// Initiating or completing a sale requires an active (clocked-in) shift for employees
-router.post('/',              protect, requireActiveShift, processSale);
+// Initiating or completing a sale requires an active (clocked-in) shift for employees.
+// New sale creation additionally requires the shift not be past its scheduled end,
+// with a short 2-minute grace period covering someone already mid card-entry when
+// the clock hit. /complete is left ungated — an already-approved override finalize
+// (or the tail end of an in-progress sale) must never be blocked here.
+router.post('/',              protect, requireActiveShift, requireShiftNotEnded(2), processSale);
 router.post('/:id/complete',  protect, requireActiveShift, completeSale);
 
 router.get('/',           protect, listTransactions);

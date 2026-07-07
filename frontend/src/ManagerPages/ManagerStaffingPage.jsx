@@ -16,8 +16,11 @@ import EditOutlinedIcon           from '@mui/icons-material/EditOutlined';
 import DeleteOutlineOutlinedIcon  from '@mui/icons-material/DeleteOutlineOutlined';
 import ContentCopyOutlinedIcon    from '@mui/icons-material/ContentCopyOutlined';
 import CloseOutlinedIcon          from '@mui/icons-material/CloseOutlined';
+import LockClockOutlinedIcon      from '@mui/icons-material/LockClockOutlined';
 import useAuthStore from '../store/useAuthStore';
 import CornerCard from '../components/CornerCard/CornerCard';
+import ForceCheckoutDialog from '../components/ForceCheckoutDialog';
+import { useSocketEvent } from '../context/SocketContext';
 
 import { API_URL as API } from '../config/api';
 
@@ -124,6 +127,80 @@ function StatCard({ label, value, icon: Icon, color, iconBg }) {
         </p>
       </div>
     </CornerCard>
+  );
+}
+
+/* ─── Active Shifts / Missed Checkouts ───────────────────────────────────── */
+function ShiftStatusSection({ activeShifts, missedCheckouts, loading, onForceCheckout, isDesktop }) {
+  const elapsed = (clockIn) => {
+    const ms = Date.now() - new Date(clockIn).getTime();
+    const h  = Math.floor(ms / 3600000);
+    const m  = Math.floor((ms % 3600000) / 60000);
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  };
+  const fmtOvertime = (mins) => {
+    const h = Math.floor((mins ?? 0) / 60);
+    const m = (mins ?? 0) % 60;
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  };
+  const fmtTime = (iso) => new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+
+  const rowStyle = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '10px 0', borderBottom: `1px solid ${C.border}` };
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: isDesktop ? '1fr 1fr' : '1fr', gap: 10 }}>
+      {/* Active shifts */}
+      <CornerCard borderColor={C.border} accentColor={C.success} borderRadius={12} cornerSize={22} cornerHeight={22} style={{ padding: '14px 16px' }}>
+        <p style={{ margin: '0 0 4px', fontSize: 12, fontWeight: 800, color: C.textPri }}>Active Shifts</p>
+        <p style={{ margin: '0 0 8px', fontSize: 10, fontWeight: 600, color: C.textDim }}>{activeShifts?.length ?? 0} employees clocked in</p>
+        {loading ? (
+          <p style={{ fontSize: 11, color: C.textDim, margin: 0, padding: '4px 0' }}>Loading…</p>
+        ) : !activeShifts?.length ? (
+          <p style={{ fontSize: 11, color: C.textDim, margin: 0, padding: '4px 0' }}>No active shifts right now</p>
+        ) : activeShifts.map((s, i) => (
+          <div key={s._id} style={{ ...rowStyle, borderBottom: i === activeShifts.length - 1 ? 'none' : rowStyle.borderBottom }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+              <div style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0, background: 'rgba(46,125,79,0.10)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <AccessTimeOutlinedIcon sx={{ fontSize: 14, color: C.success }} />
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: C.textPri, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.employee?.name ?? 'Unknown'}</p>
+                <p style={{ margin: '1px 0 0', fontSize: 10, color: C.textDim }}>Clocked in {fmtTime(s.clockInTime)} · {elapsed(s.clockInTime)} ago</p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </CornerCard>
+
+      {/* Missed checkouts */}
+      <CornerCard borderColor={C.border} accentColor={C.error} borderRadius={12} cornerSize={22} cornerHeight={22} style={{ padding: '14px 16px' }}>
+        <p style={{ margin: '0 0 4px', fontSize: 12, fontWeight: 800, color: C.textPri }}>Missed Checkouts</p>
+        <p style={{ margin: '0 0 8px', fontSize: 10, fontWeight: 600, color: C.textDim }}>{missedCheckouts?.length ?? 0} still clocked in past scheduled end</p>
+        {loading ? (
+          <p style={{ fontSize: 11, color: C.textDim, margin: 0, padding: '4px 0' }}>Loading…</p>
+        ) : !missedCheckouts?.length ? (
+          <p style={{ fontSize: 11, color: C.textDim, margin: 0, padding: '4px 0' }}>No missed checkouts</p>
+        ) : missedCheckouts.map((s, i) => (
+          <div key={s._id} style={{ ...rowStyle, borderBottom: i === missedCheckouts.length - 1 ? 'none' : rowStyle.borderBottom }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+              <div style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0, background: 'rgba(183,28,28,0.10)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <LockClockOutlinedIcon sx={{ fontSize: 14, color: C.error }} />
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: C.textPri, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.employee?.name ?? 'Unknown'}</p>
+                <p style={{ margin: '1px 0 0', fontSize: 10, color: C.error, fontWeight: 600 }}>Sched. end {fmtTime(s.scheduledEnd)} · {fmtOvertime(s.overtimeMinutes)} over</p>
+              </div>
+            </div>
+            <button
+              onClick={() => onForceCheckout(s)}
+              style={{ flexShrink: 0, padding: '6px 11px', borderRadius: 8, border: `1px solid ${C.error}`, background: 'transparent', color: C.error, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", whiteSpace: 'nowrap' }}
+            >
+              Force Checkout
+            </button>
+          </div>
+        ))}
+      </CornerCard>
+    </div>
   );
 }
 
@@ -1032,6 +1109,12 @@ export default function ManagerStaffingPage() {
   const [syncEnabled,  setSyncEnabled]  = useState(false);
   const [syncLoading,  setSyncLoading]  = useState(true);
 
+  /* ── Active shifts / missed checkouts ── */
+  const [activeShifts,    setActiveShifts]    = useState([]);
+  const [missedCheckouts, setMissedCheckouts]  = useState([]);
+  const [shiftStatusLoading, setShiftStatusLoading] = useState(true);
+  const [forceCheckoutTarget, setForceCheckoutTarget] = useState(null);
+
   /* ── Local schedule state ── */
   const [localEmployees, setLocalEmployees] = useState([]);
   const [localSchedules, setLocalSchedules] = useState([]);
@@ -1077,6 +1160,28 @@ export default function ManagerStaffingPage() {
       .catch(() => {})
       .finally(() => setSyncLoading(false));
   }, [token]);
+
+  /* ── fetch active shifts / missed checkouts ── */
+  const loadShiftStatus = useCallback(async () => {
+    try {
+      const [activeRes, missedRes] = await Promise.all([
+        fetch(`${API}/api/shifts/active-all`,      { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${API}/api/shifts/missed-checkouts`, { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+      const [activeData, missedData] = await Promise.all([activeRes.json(), missedRes.json()]);
+      setActiveShifts(activeData.success ? activeData.data : []);
+      setMissedCheckouts(missedData.success ? missedData.data : []);
+    } catch {
+      // non-fatal — section just shows empty/stale until next refresh
+    } finally {
+      setShiftStatusLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => { loadShiftStatus(); }, [loadShiftStatus]);
+
+  useSocketEvent('shift:missedcheckout', loadShiftStatus);
+  useSocketEvent('shift:update',         loadShiftStatus);
 
 
   /* ── EMS fetch (sync mode ON) ── */
@@ -1488,6 +1593,24 @@ export default function ManagerStaffingPage() {
           </div>
         )}
 
+        {/* Active shifts / missed checkouts */}
+        <div style={{ marginBottom: 14 }}>
+          <ShiftStatusSection
+            activeShifts={activeShifts}
+            missedCheckouts={missedCheckouts}
+            loading={shiftStatusLoading}
+            onForceCheckout={setForceCheckoutTarget}
+            isDesktop={false}
+          />
+        </div>
+
+        <ForceCheckoutDialog
+          shift={forceCheckoutTarget}
+          token={token}
+          onClose={() => setForceCheckoutTarget(null)}
+          onDone={() => { setForceCheckoutTarget(null); loadShiftStatus(); }}
+        />
+
         {/* Mobile roster */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, position: 'relative' }}>
           {displayLoading && (
@@ -1727,6 +1850,22 @@ export default function ManagerStaffingPage() {
           </div>
         </div>
       )}
+
+      {/* ── Active shifts / missed checkouts ── */}
+      <ShiftStatusSection
+        activeShifts={activeShifts}
+        missedCheckouts={missedCheckouts}
+        loading={shiftStatusLoading}
+        onForceCheckout={setForceCheckoutTarget}
+        isDesktop={true}
+      />
+
+      <ForceCheckoutDialog
+        shift={forceCheckoutTarget}
+        token={token}
+        onClose={() => setForceCheckoutTarget(null)}
+        onDone={() => { setForceCheckoutTarget(null); loadShiftStatus(); }}
+      />
 
       {/* ── Roster table ── */}
       <div style={{ flex: 1, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 320, position: 'relative' }}>

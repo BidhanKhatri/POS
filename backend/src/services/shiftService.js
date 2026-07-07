@@ -1,4 +1,5 @@
 import Shift from '../models/Shift.js';
+import { computeScheduledEndDate } from '../utils/shiftTime.js';
 
 /**
  * Open (clock-in) a shift.
@@ -100,4 +101,38 @@ const recoverClockOut = async (employeeId, { clockOutTime, clockOutReason = null
   return shift;
 };
 
-export { openShift, closeShift, getActiveShift, recoverClockOut };
+/**
+ * Manager-initiated forced checkout for a shift the employee left open past
+ * its scheduled end (missed checkout). Targets a specific shift by _id
+ * (the manager acts on a shift picked from the Missed Checkouts list), not
+ * by employeeId — unlike closeShift/recoverClockOut which are self-service.
+ *
+ * checkoutTime defaults to the shift's own computed scheduled end if omitted.
+ * Re-verifies status:'OPEN' at read time to guard against the shift having
+ * just been closed (by the employee themselves, or another manager) in the
+ * moments before this call — surfaces a clear error rather than silently
+ * double-writing over a shift that's no longer open.
+ */
+const forceCheckout = async (shiftId, managerId, { reason, checkoutTime } = {}) => {
+  const shift = await Shift.findOne({ _id: shiftId, status: 'OPEN' });
+  if (!shift) throw new Error('Shift not found or already closed.');
+
+  const closeTime = checkoutTime ? new Date(checkoutTime) : computeScheduledEndDate(shift);
+  if (isNaN(closeTime.getTime())) throw new Error('Invalid checkout time.');
+  if (closeTime <= shift.clockInTime) throw new Error('Checkout time must be after clock-in time.');
+  if (closeTime > new Date()) throw new Error('Checkout time cannot be in the future.');
+
+  const before = shift.toObject();
+
+  shift.status           = 'CLOSED';
+  shift.clockOutTime     = closeTime;
+  shift.clockOutReason   = reason?.trim() || 'Force checked out by manager';
+  shift.earlyClockOut    = false;
+  shift.forcedCheckout   = true;
+  shift.forcedCheckoutBy = managerId;
+  await shift.save();
+
+  return { shift, before };
+};
+
+export { openShift, closeShift, getActiveShift, recoverClockOut, forceCheckout };

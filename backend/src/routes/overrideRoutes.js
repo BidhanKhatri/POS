@@ -11,16 +11,17 @@ import {
   approveOverride,
   denyOverride,
 } from '../controllers/overrideController.js';
-import { protect, managerOrAdmin, requireActiveShift } from '../middleware/authMiddleware.js';
+import { protect, managerOrAdmin, requireActiveShift, requireShiftNotEnded } from '../middleware/authMiddleware.js';
 
-// Employee-initiated transactions require an active shift
+// Employee-initiated transactions require an active shift, and (unlike sale
+// creation) are blocked immediately once the shift has ended — no grace period.
 router.route('/')
   .get(protect, managerOrAdmin, getOverrides)
-  .post(protect, requireActiveShift, createRefundRequest);
+  .post(protect, requireActiveShift, requireShiftNotEnded(), createRefundRequest);
 
-router.route('/discount').post(protect,   requireActiveShift, createDiscountOverride);
-router.route('/void').post(protect,       requireActiveShift, createVoidRequest);
-router.route('/price-change').post(protect, requireActiveShift, createPriceChangeOverride);
+router.route('/discount').post(protect,   requireActiveShift, requireShiftNotEnded(), createDiscountOverride);
+router.route('/void').post(protect,       requireActiveShift, requireShiftNotEnded(), createVoidRequest);
+router.route('/price-change').post(protect, requireActiveShift, requireShiftNotEnded(), createPriceChangeOverride);
 router.route('/mine').get(protect, getMyOverrides);
 
 router.route('/:id').get(protect, getOverrideById);

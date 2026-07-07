@@ -10,6 +10,9 @@ export const EVENTS = {
   // Shift
   SHIFT_UPDATE:      'shift:update',       // → managers room
   SHIFT_ENDING_SOON: 'shift:endingsoon',  // → employee:{id} room
+  SHIFT_ENDED:              'shift:ended',          // → employee:{id} room — instant terminal lock
+  MISSED_CHECKOUT_DETECTED: 'shift:missedcheckout', // → managers room — dashboard refresh
+  FORCE_CHECKOUT:           'shift:forcecheckout',  // → employee:{id} room — manager forced their checkout
 
   // Inventory
   INVENTORY_LOWSTOCK: 'inventory:lowstock', // → managers room

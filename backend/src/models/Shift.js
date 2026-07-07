@@ -64,6 +64,13 @@ const shiftSchema = new mongoose.Schema({
   // Set once the "shift ending soon" cron has pushed its socket warning for
   // this shift — prevents re-notifying the employee every minute the cron runs.
   endingSoonNotifiedAt: { type: Date, default: null },
+
+  // ── Missed checkout / forced checkout ─────────────────────────────────────
+  // Set once the missed-checkout cron detects this shift is still OPEN past
+  // its scheduledEnd — dedupes detection the same way endingSoonNotifiedAt does.
+  missedCheckoutDetectedAt: { type: Date, default: null },
+  forcedCheckout:           { type: Boolean, default: false },
+  forcedCheckoutBy:         { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
 }, {
   timestamps: true,
 });

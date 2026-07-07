@@ -19,14 +19,17 @@ const auditLogSchema = new mongoose.Schema({
   afterData: {
     type: mongoose.Schema.Types.Mixed,
   },
+  // performedBy/role are null only for system-generated entries (e.g. the
+  // missed-checkout cron detecting a stale shift with no human actor) —
+  // every manager/employee-initiated action still always supplies both.
   performedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true,
+    default: null,
   },
   role: {
     type: String,
-    required: true,
+    default: null,
   },
   ipAddress: {
     type: String,
