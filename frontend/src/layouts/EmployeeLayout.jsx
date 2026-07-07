@@ -108,6 +108,22 @@ export default function EmployeeLayout() {
   });
   const storeLogo = logoData?.data?.url ?? localStorage.getItem(LOGO_CACHE_KEY) ?? null;
 
+  const { data: storeNameData } = useQuery({
+    queryKey: ['settings-store-name'],
+    queryFn: async () => {
+      const res = await fetch(`${API}/api/settings/store-name`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return res.ok ? res.json() : { storeName: '' };
+    },
+    staleTime: 5 * 60 * 1000,
+    enabled: !!token,
+  });
+  const storeName = storeNameData?.storeName?.trim() || 'POS';
+
+  const ROLE_SHORT = { Admin: 'Admin', Manager: 'Manager', Employee: 'EMP' };
+  const roleLabel = ROLE_SHORT[user?.role] || 'EMP';
+
   // Safety net: dismiss the splash at most 1.2s after any navigation
   useEffect(() => {
     const t = setTimeout(stopLoading, 1200);
@@ -560,15 +576,22 @@ export default function EmployeeLayout() {
           </div>
           <div>
             <p style={{ fontSize: 13, fontWeight: 700, color: '#fff', lineHeight: '17px', margin: 0 }}>
-              {user?.name || 'Employee'}
+              {storeName}
             </p>
-            <p style={{ fontSize: 11, fontWeight: 500, color: 'rgba(255,255,255,0.55)', margin: 0, letterSpacing: '0.04em' }}>
-              {user?.employeeCode}
+            <p style={{ fontSize: 10.5, fontWeight: 500, color: 'rgba(255,255,255,0.55)', margin: 0, letterSpacing: '0.03em' }}>
+              {user?.name || 'Employee'}
             </p>
           </div>
         </div>
 
-        {hdrBadge}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* Role flag */}
+          <div style={{ display: 'flex', alignItems: 'center', padding: '4px 9px', borderRadius: 6, background: 'rgba(212,163,115,0.18)', border: '1px solid rgba(212,163,115,0.4)', flexShrink: 0 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: '#D4A373', letterSpacing: '0.05em', textTransform: 'uppercase' }}>{roleLabel}</span>
+          </div>
+
+          {hdrBadge}
+        </div>
       </header>
 
       {/* ── Page content ── */}
