@@ -4,6 +4,14 @@ import App from './App.jsx'
 import ThemeProvider from './theme/ThemeProvider'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { LoadingProvider } from './context/LoadingContext.jsx'
+import { registerSW } from 'virtual:pwa-register'
+
+// Register the service worker. registerType:'autoUpdate' + skipWaiting/clientsClaim
+// in sw.js mean new versions take over silently — no forced reload of the
+// current session, no update prompts interrupting an in-progress sale.
+if ('serviceWorker' in navigator) {
+  registerSW({ immediate: true })
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {

@@ -1,12 +1,78 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: [
+      react(),
+      tailwindcss(),
+      VitePWA({
+        strategies: 'injectManifest',
+        srcDir: 'src',
+        filename: 'sw.js',
+        injectManifest: {
+          // App code + hashed build assets only — API/socket traffic is
+          // never part of the build output so it can never end up here.
+          globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest,woff,woff2}'],
+          // Main JS bundle is a few MB (POS terminal + reporting + charts);
+          // raise the default 2 MiB precache ceiling so it's still installed
+          // for offline use instead of silently skipped.
+          maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
+        },
+        registerType: 'autoUpdate',
+        injectRegister: false, // we call registerSW() ourselves in main.jsx
+        devOptions: {
+          enabled: false, // avoid SW/caching surprises during `npm run dev`
+        },
+        manifest: {
+          id: '/',
+          name: 'POS — Point of Sale',
+          short_name: 'POS',
+          description: 'POS — mobile-first point of sale system for staff and managers.',
+          lang: 'en',
+          dir: 'ltr',
+          display: 'standalone',
+          display_override: ['standalone', 'fullscreen', 'minimal-ui'],
+          orientation: 'portrait',
+          theme_color: '#3E2723',
+          background_color: '#F5F3F1',
+          start_url: '/',
+          scope: '/',
+          categories: ['business', 'finance', 'productivity'],
+          icons: [
+            { src: '/icons/icon-72x72.png',   sizes: '72x72',   type: 'image/png', purpose: 'any' },
+            { src: '/icons/icon-96x96.png',   sizes: '96x96',   type: 'image/png', purpose: 'any' },
+            { src: '/icons/icon-128x128.png', sizes: '128x128', type: 'image/png', purpose: 'any' },
+            { src: '/icons/icon-144x144.png', sizes: '144x144', type: 'image/png', purpose: 'any' },
+            { src: '/icons/icon-152x152.png', sizes: '152x152', type: 'image/png', purpose: 'any' },
+            { src: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+            { src: '/icons/icon-384x384.png', sizes: '384x384', type: 'image/png', purpose: 'any' },
+            { src: '/icons/icon-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+            { src: '/icons/maskable-icon-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          ],
+          shortcuts: [
+            {
+              name: 'New Sale',
+              short_name: 'Sale',
+              description: 'Jump straight to the terminal to ring up a sale',
+              url: '/employee/terminal',
+              icons: [{ src: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png' }],
+            },
+            {
+              name: 'Dashboard',
+              short_name: 'Dashboard',
+              description: 'Open the manager dashboard',
+              url: '/manager/dashboard',
+              icons: [{ src: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png' }],
+            },
+          ],
+        },
+      }),
+    ],
     define: {
       'process.env.VITE_CLERK_PUBLISHABLE_KEY': JSON.stringify(env.VITE_CLERK_PUBLISHABLE_KEY),
     },
