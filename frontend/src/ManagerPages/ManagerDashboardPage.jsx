@@ -37,6 +37,8 @@ import RefreshOutlinedIcon         from '@mui/icons-material/RefreshOutlined';
 import ArrowUpwardIcon             from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon           from '@mui/icons-material/ArrowDownward';
 import ChevronRightOutlinedIcon    from '@mui/icons-material/ChevronRightOutlined';
+import ChevronLeftIcon             from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon            from '@mui/icons-material/ChevronRight';
 import EmojiEventsOutlinedIcon     from '@mui/icons-material/EmojiEventsOutlined';
 import AccessTimeOutlinedIcon      from '@mui/icons-material/AccessTimeOutlined';
 import { useLoading }              from '../context/LoadingContext';
@@ -237,6 +239,79 @@ function Skeleton({ height = 16, width = '100%', borderRadius = 6 }) {
       animation: 'shimmer 1.4s infinite',
       flexShrink: 0,
     }} />
+  );
+}
+
+function KpiScrollContainer({ children, style }) {
+  const scrollRef = useRef(null);
+  const [canLeft, setCanLeft]   = useState(false);
+  const [canRight, setCanRight] = useState(false);
+
+  const update = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setCanLeft(el.scrollLeft > 4);
+    setCanRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  }, []);
+
+  useEffect(() => {
+    update();
+    const el = scrollRef.current;
+    if (!el) return;
+    el.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+    return () => {
+      el.removeEventListener('scroll', update);
+      window.removeEventListener('resize', update);
+    };
+  }, [update, children]);
+
+  const scrollBy = (dir) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir * el.clientWidth * 0.85, behavior: 'smooth' });
+  };
+
+  const arrowBase = {
+    position: 'absolute', top: '50%', transform: 'translateY(-50%)',
+    width: 28, height: 28, borderRadius: '50%',
+    border: `1px solid ${C.border}`, background: C.surface,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    cursor: 'pointer', padding: 0, zIndex: 2,
+    boxShadow: '0 2px 8px rgba(43,29,26,0.14)',
+  };
+
+  return (
+    <div style={{ position: 'relative', ...style }}>
+      <div
+        ref={scrollRef}
+        className="kpi-hscroll"
+        style={{
+          overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none',
+          WebkitOverflowScrolling: 'touch', scrollSnapType: 'x mandatory',
+        }}
+      >
+        <div style={{ display: 'flex', flexDirection: 'row', gap: 8, width: 'max-content' }}>
+          {children}
+        </div>
+      </div>
+      {canLeft && (
+        <button
+          aria-label="Scroll left" onClick={() => scrollBy(-1)}
+          className="kpi-arrow" style={{ ...arrowBase, left: -6 }}
+        >
+          <ChevronLeftIcon sx={{ fontSize: 18, color: C.textSec }} />
+        </button>
+      )}
+      {canRight && (
+        <button
+          aria-label="Scroll right" onClick={() => scrollBy(1)}
+          className="kpi-arrow" style={{ ...arrowBase, right: -6 }}
+        >
+          <ChevronRightIcon sx={{ fontSize: 18, color: C.textSec }} />
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -451,8 +526,8 @@ function RevenueChart({ data, loading, period, isMobile }) {
   if (isMobile) {
     return (
       <div>
-        {composedSection}
         {donutSection}
+        {composedSection}
       </div>
     );
   }
@@ -577,9 +652,9 @@ function PaymentBreakdown({ methods, loading }) {
 }
 
 // ── Inventory Health ──────────────────────────────────────────────────────────
-function InventoryHealth({ inventory, loading, onView }) {
+function InventoryHealth({ inventory, loading, onView, stockTrackingEnabled = true }) {
   const lowCount = inventory?.lowStock?.length ?? 0;
-  const outCount = inventory?.outOfStock?.length ?? 0;
+  const outCount = stockTrackingEnabled ? (inventory?.outOfStock?.length ?? 0) : 0;
   const hasAlerts = lowCount > 0 || outCount > 0;
 
   return (
@@ -898,9 +973,17 @@ export default function ManagerDashboardPage() {
   const [data,   setData]         = useState(null);
   const [loading, setLoading]     = useState(true);
   const [lastRefresh, setLastRefresh] = useState(null);
+  const [stockTrackingEnabled, setStockTrackingEnabled] = useState(true);
 
   // Debounce ref so socket events don't hammer the backend
   const debounceRef = useRef(null);
+
+  useEffect(() => {
+    fetch(`${API}/api/settings/stock-tracking`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((d) => setStockTrackingEnabled(d.stockTrackingEnabled ?? true))
+      .catch(() => {});
+  }, [token]);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -1071,6 +1154,7 @@ export default function ManagerDashboardPage() {
             inventory={data?.inventory}
             loading={loading}
             onView={() => navigate('/manager/inventory')}
+            stockTrackingEnabled={stockTrackingEnabled}
           />
         </div>
 
@@ -1097,20 +1181,31 @@ export default function ManagerDashboardPage() {
   /* ══════════════════════════════════════════════════════
      MOBILE
   ══════════════════════════════════════════════════════ */
-  const outOfStockCount = data?.inventory?.outOfStock?.length ?? 0;
+  const outOfStockCount = stockTrackingEnabled ? (data?.inventory?.outOfStock?.length ?? 0) : 0;
 
   return (
     <div style={{ padding: '16px 14px 32px', maxWidth: 640, margin: '0 auto', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
       <style>{`
         @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
         .kpi-hscroll::-webkit-scrollbar { display: none; }
+        .kpi-arrow { animation: kpiArrowPulse 1.8s ease-out infinite; }
+        @keyframes kpiArrowPulse {
+          0%   { box-shadow: 0 2px 8px rgba(43,29,26,0.14), 0 0 0 0 rgba(212,163,115,0.55); }
+          70%  { box-shadow: 0 2px 8px rgba(43,29,26,0.14), 0 0 0 8px rgba(212,163,115,0); }
+          100% { box-shadow: 0 2px 8px rgba(43,29,26,0.14), 0 0 0 0 rgba(212,163,115,0); }
+        }
       `}</style>
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-        <div>
-          <p style={{ margin: 0, fontSize: 10, fontWeight: 600, color: C.textDim, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Manager Portal</p>
-          <h1 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: C.textPri, letterSpacing: '-0.2px' }}>Dashboard</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 32, height: 32, borderRadius: 8, background: C.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <SpaceDashboardOutlinedIcon sx={{ fontSize: 16, color: C.accent }} />
+          </div>
+          <div>
+            <p style={{ margin: 0, fontSize: 10, fontWeight: 600, color: C.textDim, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Manager Portal</p>
+            <h1 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: C.textPri, letterSpacing: '-0.2px' }}>Dashboard</h1>
+          </div>
         </div>
         <button
           onClick={() => load()}
@@ -1131,59 +1226,42 @@ export default function ManagerDashboardPage() {
 
       {/* ── KPI cards: 2-row × 5-col horizontal scroll ──────────────────────── */}
       {/* Exactly 2 columns (4 cards) visible; scroll left to reveal the rest   */}
-      <div
-        className="kpi-hscroll"
-        style={{
-          overflowX: 'auto',
-          scrollbarWidth: 'none',
-          msOverflowStyle: 'none',
-          WebkitOverflowScrolling: 'touch',
-          scrollSnapType: 'x mandatory',
-          marginBottom: 14,
-        }}
-      >
-        <div style={{
-          display: 'flex',
-          flexDirection: 'row',
-          gap: 8,
-          width: 'max-content',
-        }}>
-          {(() => {
-            const all = loading
-              ? [1,2,3,4,5,6,7,8,9,10].map((k) => ({ _k: k }))
-              : [...KPI_ROW1, ...KPI_ROW2];
-            // Group into columns: pair KPI_ROW1[i] with KPI_ROW2[i]
-            const cols = [];
-            for (let i = 0; i < Math.ceil(all.length / 2); i++) {
-              cols.push([all[i * 2], all[i * 2 + 1]].filter(Boolean));
-            }
-            /* card width: 2 cards + 1 gap must fill the content area exactly
-               content area = 100vw - 28px (14px padding each side)
-               card_width = (100vw - 28px - 8px) / 2 = (100vw - 36px) / 2      */
-            const colW = 'calc((100vw - 36px) / 2)';
-            return cols.map((pair, ci) => (
-              <div
-                key={ci}
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 8,
-                  width: colW,
-                  minWidth: colW,
-                  flexShrink: 0,
-                  scrollSnapAlign: 'start',
-                }}
-              >
-                {pair.map((item, ri) =>
-                  loading
-                    ? <KpiCardSkeleton key={ri} compact />
-                    : <KpiCard key={item.label} {...item} compact />
-                )}
-              </div>
-            ));
-          })()}
-        </div>
-      </div>
+      <KpiScrollContainer style={{ marginBottom: 14 }}>
+        {(() => {
+          const all = loading
+            ? [1,2,3,4,5,6,7,8,9,10].map((k) => ({ _k: k }))
+            : [...KPI_ROW1, ...KPI_ROW2];
+          // Group into columns: pair KPI_ROW1[i] with KPI_ROW2[i]
+          const cols = [];
+          for (let i = 0; i < Math.ceil(all.length / 2); i++) {
+            cols.push([all[i * 2], all[i * 2 + 1]].filter(Boolean));
+          }
+          /* card width: 2 cards + 1 gap must fill the content area exactly
+             content area = 100vw - 28px (14px padding each side)
+             card_width = (100vw - 28px - 8px) / 2 = (100vw - 36px) / 2      */
+          const colW = 'calc((100vw - 36px) / 2)';
+          return cols.map((pair, ci) => (
+            <div
+              key={ci}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+                width: colW,
+                minWidth: colW,
+                flexShrink: 0,
+                scrollSnapAlign: 'start',
+              }}
+            >
+              {pair.map((item, ri) =>
+                loading
+                  ? <KpiCardSkeleton key={ri} compact />
+                  : <KpiCard key={item.label} {...item} compact />
+              )}
+            </div>
+          ));
+        })()}
+      </KpiScrollContainer>
 
       {/* Revenue chart */}
       <Card style={{ marginBottom: 14 }}>
@@ -1224,6 +1302,7 @@ export default function ManagerDashboardPage() {
           inventory={data?.inventory}
           loading={loading}
           onView={() => navigate('/manager/inventory')}
+          stockTrackingEnabled={stockTrackingEnabled}
         />
       </div>
 

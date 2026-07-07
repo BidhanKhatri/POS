@@ -1626,21 +1626,49 @@ function ProfileManagementTab({ token }) {
   const [avatarUrl, setAvatarUrl] = useState(null);
   const [logoUrl,   setLogoUrl]   = useState(null);
 
+  const [storeName, setStoreName]           = useState('');
+  const [storeNameSaving, setStoreNameSaving] = useState(false);
+  const [storeNameSaved, setStoreNameSaved]   = useState(false);
+
   useEffect(() => {
     setProfLoad(true);
     Promise.all([
       fetch(`${API}/api/profile`, { headers: authHeaders }).then(r => r.json()),
       fetch(`${API}/api/settings/logo`, { headers: authHeaders }).then(r => r.json()),
+      fetch(`${API}/api/settings/store-name`, { headers: authHeaders }).then(r => r.json()),
     ])
-      .then(([profData, logoData]) => {
+      .then(([profData, logoData, storeNameData]) => {
         setProfile(profData.data);
         setAddress(profData.data?.address ?? '');
         setAvatarUrl(profData.data?.imageUrl ?? null);
         setLogoUrl(logoData.data?.url ?? null);
+        setStoreName(storeNameData?.storeName ?? '');
       })
       .catch(() => {})
       .finally(() => setProfLoad(false));
   }, [token]);
+
+  async function handleStoreNameSave() {
+    setStoreNameSaving(true);
+    setStoreNameSaved(false);
+    try {
+      const res = await fetch(`${API}/api/settings/store-name`, {
+        method: 'PATCH',
+        headers: authHeaders,
+        body: JSON.stringify({ storeName }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Save failed.');
+      setStoreName(data.storeName ?? '');
+      setStoreNameSaved(true);
+      qc.invalidateQueries({ queryKey: ['settings-store-name'] });
+      setTimeout(() => setStoreNameSaved(false), 2500);
+    } catch {
+      // silently ignore — non-critical setting
+    } finally {
+      setStoreNameSaving(false);
+    }
+  }
 
   async function handleAvatarUpload(file) {
     const fd = new FormData();
@@ -1816,6 +1844,30 @@ function ProfileManagementTab({ token }) {
           <div>
             <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri }}>Branding & Identity</p>
             <p style={{ margin: '1px 0 0', fontSize: 11, color: C.textSec }}>Store logo and your manager profile picture</p>
+          </div>
+        </div>
+
+        {/* Store Name */}
+        <div style={{ padding: '20px', borderBottom: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div>
+            <p style={{ margin: '0 0 3px', fontSize: 11, fontWeight: 700, color: C.textSec, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Store Name</p>
+            <p style={{ margin: 0, fontSize: 11, color: C.textDim, lineHeight: '16px' }}>Shown in the mobile header — defaults to "POS" if left blank</p>
+          </div>
+          <div style={{ display: 'flex', gap: 8, maxWidth: 360 }}>
+            <input
+              value={storeName}
+              onChange={(e) => setStoreName(e.target.value)}
+              placeholder="POS"
+              maxLength={60}
+              style={{ flex: 1, height: 38, padding: '0 12px', borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 13, fontFamily: "'Plus Jakarta Sans', sans-serif", color: C.textPri, outline: 'none' }}
+            />
+            <button
+              onClick={handleStoreNameSave}
+              disabled={storeNameSaving}
+              style={{ height: 38, padding: '0 16px', borderRadius: 8, border: 'none', background: storeNameSaved ? C.success : C.primary, color: '#fff', fontSize: 12, fontWeight: 700, cursor: storeNameSaving ? 'wait' : 'pointer', opacity: storeNameSaving ? 0.6 : 1, whiteSpace: 'nowrap' }}
+            >
+              {storeNameSaving ? 'Saving…' : storeNameSaved ? 'Saved ✓' : 'Save'}
+            </button>
           </div>
         </div>
 

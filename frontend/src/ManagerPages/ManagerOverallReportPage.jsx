@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useMediaQuery } from '@mui/material';
 import { useQueryClient } from '@tanstack/react-query';
@@ -22,6 +22,8 @@ import RefreshOutlinedIcon      from '@mui/icons-material/RefreshOutlined';
 import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined';
 import LightbulbOutlinedIcon    from '@mui/icons-material/LightbulbOutlined';
 import EmojiEventsOutlinedIcon  from '@mui/icons-material/EmojiEventsOutlined';
+import ChevronLeftIcon  from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import {
   useReportSummary, useReportTrend, useReportPayments,
   useReportProducts, useReportAnomalies, useReportInsights,
@@ -471,22 +473,112 @@ function SkeletonBlock({ h = 20, w = '100%', radius = 6 }) {
   return <div style={{ height: h, width: w, borderRadius: radius, background: 'linear-gradient(90deg, #EDE5E0 25%, #F5F3F1 50%, #EDE5E0 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.4s infinite', flexShrink: 0 }} />;
 }
 
+function KpiScrollContainer({ children, style }) {
+  const scrollRef = useRef(null);
+  const [canLeft, setCanLeft]   = useState(false);
+  const [canRight, setCanRight] = useState(false);
+
+  const update = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setCanLeft(el.scrollLeft > 4);
+    setCanRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  }, []);
+
+  useEffect(() => {
+    update();
+    const el = scrollRef.current;
+    if (!el) return;
+    el.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+    return () => {
+      el.removeEventListener('scroll', update);
+      window.removeEventListener('resize', update);
+    };
+  }, [update, children]);
+
+  const scrollBy = (dir) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir * el.clientWidth * 0.85, behavior: 'smooth' });
+  };
+
+  const arrowBase = {
+    position: 'absolute', top: '50%', transform: 'translateY(-50%)',
+    width: 28, height: 28, borderRadius: '50%',
+    border: `1px solid ${C.border}`, background: C.surface,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    cursor: 'pointer', padding: 0, zIndex: 2,
+    boxShadow: '0 2px 8px rgba(43,29,26,0.14)',
+  };
+
+  return (
+    <div style={{ position: 'relative', ...style }}>
+      <div
+        ref={scrollRef}
+        className="kpi-hscroll"
+        style={{
+          overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none',
+          WebkitOverflowScrolling: 'touch', scrollSnapType: 'x mandatory',
+        }}
+      >
+        <div style={{ display: 'flex', flexDirection: 'row', gap: 8, width: 'max-content' }}>
+          {children}
+        </div>
+      </div>
+      {canLeft && (
+        <button
+          aria-label="Scroll left" onClick={() => scrollBy(-1)}
+          className="kpi-arrow" style={{ ...arrowBase, left: -6 }}
+        >
+          <ChevronLeftIcon sx={{ fontSize: 18, color: C.textSec }} />
+        </button>
+      )}
+      {canRight && (
+        <button
+          aria-label="Scroll right" onClick={() => scrollBy(1)}
+          className="kpi-arrow" style={{ ...arrowBase, right: -6 }}
+        >
+          <ChevronRightIcon sx={{ fontSize: 18, color: C.textSec }} />
+        </button>
+      )}
+    </div>
+  );
+}
+
 function LoadingKpis({ isMobile }) {
   const pad    = isMobile ? '11px 12px' : '14px 16px';
   const iconSz = isMobile ? 34 : 38;
   const valH   = isMobile ? 15 : 18;
+
+  const card = (i) => (
+    <div key={i} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: pad, display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 12 }}>
+      <SkeletonBlock h={iconSz} w={iconSz} radius={9} />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: isMobile ? 5 : 7 }}>
+        <SkeletonBlock h={valH} w="68%" />
+        <SkeletonBlock h={9} w="42%" />
+      </div>
+    </div>
+  );
+
+  if (!isMobile) {
+    return (
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
+        {[1, 2, 3, 4].map(card)}
+      </div>
+    );
+  }
+
+  const colW = 'calc((100vw - 36px) / 2)';
+  const cols = [[1, 2], [3, 4], [5]];
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: isMobile ? 8 : 12, marginBottom: 20 }}>
-      {[1, 2, 3, 4].map(i => (
-        <div key={i} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: pad, display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 12 }}>
-          <SkeletonBlock h={iconSz} w={iconSz} radius={9} />
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: isMobile ? 5 : 7 }}>
-            <SkeletonBlock h={valH} w="68%" />
-            <SkeletonBlock h={9} w="42%" />
-          </div>
+    <KpiScrollContainer style={{ marginBottom: 20 }}>
+      {cols.map((pair, ci) => (
+        <div key={ci} style={{ display: 'flex', flexDirection: 'column', gap: 8, width: colW, minWidth: colW, flexShrink: 0, scrollSnapAlign: 'start' }}>
+          {pair.map(card)}
         </div>
       ))}
-    </div>
+    </KpiScrollContainer>
   );
 }
 
@@ -626,6 +718,20 @@ export default function ManagerOverallReportPage() {
               </button>
             </div>
           </div>
+          {/* Mobile: report section filter (Overall / Individual / Group) */}
+          <div style={{ overflowX: 'auto', scrollbarWidth: 'none', marginBottom: 10 }}>
+            <div style={{ display: 'flex', gap: 3, background: C.elevated, borderRadius: 10, padding: 3, width: 'max-content' }}>
+              {REPORT_TABS.map(({ id, label, path }) => {
+                const active = location.pathname === path;
+                return (
+                  <button key={id} onClick={() => navigate(path)} style={{ padding: '7px 16px', borderRadius: 7, border: 'none', background: active ? C.surface : 'transparent', boxShadow: active ? '0 1px 4px rgba(62,39,35,0.12)' : 'none', color: active ? C.primary : C.textDim, fontSize: 12, fontWeight: active ? 700 : 500, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.15s' }}>
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Mobile: range filter — pill/chip style */}
           <div style={{ overflowX: 'auto', scrollbarWidth: 'none', marginBottom: 12 }}>
             <div style={{ display: 'flex', gap: 4, width: 'max-content' }}>
@@ -697,40 +803,63 @@ export default function ManagerOverallReportPage() {
       {anomalies.data?.length > 0 && <AlertBanner alerts={anomalies.data} />}
 
       {/* KPI Cards */}
-      {summary.isLoading ? <LoadingKpis isMobile={isMobile} /> : (
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(5, 1fr)', gap: isMobile ? 8 : 14, marginBottom: 20 }}>
-          <KpiCard
-            label={isMobile ? 'Net Rev' : 'Net Revenue'}
-            value={fmt$(cur?.netRevenue)}
-            sub={isMobile ? `Gross ${fmt$(cur?.grossRevenue)}` : `Gross ${fmt$(cur?.grossRevenue)}`}
-            icon={AttachMoneyOutlinedIcon} color={C.success} iconBg="rgba(46,125,79,0.10)" delta={deltas?.netRevenue} isMobile={isMobile}
-          />
-          <KpiCard
-            label={isMobile ? 'Txns' : 'Transactions'}
-            value={cur?.txnCount ?? '—'}
-            sub={isMobile ? `Avg ${fmt$(cur?.avgTicket)}` : `Avg ticket ${fmt$(cur?.avgTicket)}`}
-            icon={ReceiptLongOutlinedIcon} color={C.info} iconBg="rgba(2,119,189,0.10)" delta={deltas?.txnCount} isMobile={isMobile}
-          />
-          <KpiCard
-            label={isMobile ? 'Refund %' : 'Refund Rate'}
-            value={`${cur?.refundRate ?? 0}%`}
-            sub={isMobile ? `${cur?.refundCount ?? 0} refunds` : `${cur?.refundCount ?? 0} refunds · ${fmt$(cur?.refundedAmount)}`}
-            icon={PaymentsOutlinedIcon} color={C.error} iconBg="rgba(183,28,28,0.09)" delta={deltas?.refundedAmount != null ? -deltas.refundedAmount : null} isMobile={isMobile}
-          />
-          <KpiCard
-            label={isMobile ? 'Tax' : 'Tax Collected'}
-            value={fmt$(cur?.taxTotal)}
-            sub={isMobile ? `Disc ${fmt$(cur?.discountTotal)}` : `Discounts ${fmt$(cur?.discountTotal)}`}
-            icon={ReceiptOutlinedIcon} color={C.warning} iconBg="rgba(178,106,0,0.10)" delta={deltas?.taxTotal} isMobile={isMobile}
-          />
-          <KpiCard
-            label={isMobile ? 'Tips' : 'Total Tips'}
-            value={fmt$(cur?.tipTotal)}
-            sub="Refund tips · not revenue"
-            icon={PaidOutlinedIcon} color={C.accent} iconBg="rgba(212,163,115,0.16)" delta={deltas?.tipTotal} isMobile={isMobile}
-          />
-        </div>
-      )}
+      {summary.isLoading ? <LoadingKpis isMobile={isMobile} /> : (() => {
+        const kpis = [
+          {
+            label: isMobile ? 'Net Rev' : 'Net Revenue',
+            value: fmt$(cur?.netRevenue),
+            sub: `Gross ${fmt$(cur?.grossRevenue)}`,
+            icon: AttachMoneyOutlinedIcon, color: C.success, iconBg: 'rgba(46,125,79,0.10)', delta: deltas?.netRevenue,
+          },
+          {
+            label: isMobile ? 'Txns' : 'Transactions',
+            value: cur?.txnCount ?? '—',
+            sub: isMobile ? `Avg ${fmt$(cur?.avgTicket)}` : `Avg ticket ${fmt$(cur?.avgTicket)}`,
+            icon: ReceiptLongOutlinedIcon, color: C.info, iconBg: 'rgba(2,119,189,0.10)', delta: deltas?.txnCount,
+          },
+          {
+            label: isMobile ? 'Refund %' : 'Refund Rate',
+            value: `${cur?.refundRate ?? 0}%`,
+            sub: isMobile ? `${cur?.refundCount ?? 0} refunds` : `${cur?.refundCount ?? 0} refunds · ${fmt$(cur?.refundedAmount)}`,
+            icon: PaymentsOutlinedIcon, color: C.error, iconBg: 'rgba(183,28,28,0.09)', delta: deltas?.refundedAmount != null ? -deltas.refundedAmount : null,
+          },
+          {
+            label: isMobile ? 'Tax' : 'Tax Collected',
+            value: fmt$(cur?.taxTotal),
+            sub: isMobile ? `Disc ${fmt$(cur?.discountTotal)}` : `Discounts ${fmt$(cur?.discountTotal)}`,
+            icon: ReceiptOutlinedIcon, color: C.warning, iconBg: 'rgba(178,106,0,0.10)', delta: deltas?.taxTotal,
+          },
+          {
+            label: isMobile ? 'Tips' : 'Total Tips',
+            value: fmt$(cur?.tipTotal),
+            sub: 'Refund tips · not revenue',
+            icon: PaidOutlinedIcon, color: C.accent, iconBg: 'rgba(212,163,115,0.16)', delta: deltas?.tipTotal,
+          },
+        ];
+
+        if (!isMobile) {
+          return (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 14, marginBottom: 20 }}>
+              {kpis.map((k) => <KpiCard key={k.label} {...k} isMobile={isMobile} />)}
+            </div>
+          );
+        }
+
+        const colW = 'calc((100vw - 36px) / 2)';
+        const cols = [];
+        for (let i = 0; i < Math.ceil(kpis.length / 2); i++) {
+          cols.push([kpis[i * 2], kpis[i * 2 + 1]].filter(Boolean));
+        }
+        return (
+          <KpiScrollContainer style={{ marginBottom: 20 }}>
+            {cols.map((pair, ci) => (
+              <div key={ci} style={{ display: 'flex', flexDirection: 'column', gap: 8, width: colW, minWidth: colW, flexShrink: 0, scrollSnapAlign: 'start' }}>
+                {pair.map((k) => <KpiCard key={k.label} {...k} isMobile={isMobile} />)}
+              </div>
+            ))}
+          </KpiScrollContainer>
+        );
+      })()}
 
       {/* Charts row */}
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 340px', gap: 16, marginBottom: 16 }}>
@@ -1111,6 +1240,13 @@ export default function ManagerOverallReportPage() {
       <style>{`
         @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .kpi-hscroll::-webkit-scrollbar { display: none; }
+        .kpi-arrow { animation: kpiArrowPulse 1.8s ease-out infinite; }
+        @keyframes kpiArrowPulse {
+          0%   { box-shadow: 0 2px 8px rgba(43,29,26,0.14), 0 0 0 0 rgba(212,163,115,0.55); }
+          70%  { box-shadow: 0 2px 8px rgba(43,29,26,0.14), 0 0 0 8px rgba(212,163,115,0); }
+          100% { box-shadow: 0 2px 8px rgba(43,29,26,0.14), 0 0 0 0 rgba(212,163,115,0); }
+        }
       `}</style>
     </div>
   );

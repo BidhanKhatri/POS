@@ -1013,6 +1013,20 @@ export default function ManagerGroupReportPage() {
               </button>
             </div>
           </div>
+
+          {/* Row 2: report section filter (Overall / Individual / Group) */}
+          <div style={{ overflowX:'auto', scrollbarWidth:'none', marginBottom: 10, width:'100%' }}>
+            <div style={{ display:'flex', gap:3, background:C.elevated, borderRadius:10, padding:3, width:'max-content' }}>
+              {REPORT_TABS.map(({ id, label, path }) => {
+                const active = location.pathname === path;
+                return (
+                  <button key={id} onClick={() => navigate(path)} style={{ padding:'7px 16px', borderRadius:7, border:'none', background: active ? C.surface : 'transparent', boxShadow: active ? '0 1px 4px rgba(62,39,35,0.12)' : 'none', color: active ? C.primary : C.textDim, fontSize:12, fontWeight: active ? 700 : 500, cursor:'pointer', whiteSpace:'nowrap', transition:'all 0.15s' }}>
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       ) : (
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20, flexWrap:'wrap', gap:12 }}>

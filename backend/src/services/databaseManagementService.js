@@ -28,7 +28,6 @@ import Shift from '../models/Shift.js';
 import PosSchedule from '../models/PosSchedule.js';
 import GroupSync from '../models/GroupSync.js';
 import Group from '../models/Group.js';
-import Customer from '../models/Customer.js';
 import Product from '../models/Product.js';
 import InventoryMovement from '../models/InventoryMovement.js';
 import DatabaseBackup from '../models/DatabaseBackup.js';
@@ -59,7 +58,6 @@ const MODULE_REGISTRY = {
   employees:      { label: 'Employees',       targets: [{ model: User, filter: { role: 'Employee' } }] },
   schedules:      { label: 'Schedules',       targets: [{ model: Shift, filter: { status: 'CLOSED' } }, { model: PosSchedule }, { model: GroupSync }] },
   groups:         { label: 'Groups',          targets: [{ model: Group }] },
-  customers:      { label: 'Customers',       targets: [{ model: Customer }] },
   inventory:      { label: 'Inventory',       targets: [{ model: Product }, { model: InventoryMovement }], optional: true },
 };
 

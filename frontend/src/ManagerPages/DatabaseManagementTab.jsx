@@ -17,7 +17,6 @@ import AdminPanelSettingsOutlinedIcon from '@mui/icons-material/AdminPanelSettin
 import BadgeOutlinedIcon           from '@mui/icons-material/BadgeOutlined';
 import CalendarMonthOutlinedIcon   from '@mui/icons-material/CalendarMonthOutlined';
 import GroupsOutlinedIcon          from '@mui/icons-material/GroupsOutlined';
-import ContactsOutlinedIcon        from '@mui/icons-material/ContactsOutlined';
 import Inventory2OutlinedIcon      from '@mui/icons-material/Inventory2Outlined';
 import CachedOutlinedIcon          from '@mui/icons-material/CachedOutlined';
 import { API_URL as API } from '../config/api';
@@ -39,7 +38,6 @@ const MODULE_META = {
   employees:      { icon: BadgeOutlinedIcon,                color: C.warning, bg: 'rgba(178,106,0,0.08)' },
   schedules:      { icon: CalendarMonthOutlinedIcon,        color: '#00695C', bg: 'rgba(0,105,92,0.08)' },
   groups:         { icon: GroupsOutlinedIcon,               color: '#00695C', bg: 'rgba(0,105,92,0.08)' },
-  customers:      { icon: ContactsOutlinedIcon,             color: '#7B1FA2', bg: 'rgba(123,31,162,0.08)' },
   inventory:      { icon: Inventory2OutlinedIcon,           color: C.success, bg: 'rgba(46,125,79,0.08)' },
 };
 
@@ -420,40 +418,49 @@ function ModuleCard({ mod, onBackup, onDelete, onClearCache, backingUp, clearing
     onClearCache(mod);
   };
 
+  const iconBox = isMobile ? 30 : 36;
+  const iconFs  = isMobile ? 15 : 18;
+  const btnStyle = isMobile ? { ...btnBase, minHeight: 36, fontSize: 11, padding: '0 6px', gap: 4 } : btnBase;
+  const btnIconFs = isMobile ? 13 : 15;
+
   return (
-    <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={{ width: 36, height: 36, borderRadius: 10, background: meta.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          <Icon sx={{ fontSize: 18, color: meta.color }} />
+    <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: isMobile ? '11px 12px' : '14px 16px', display: 'flex', flexDirection: 'column', gap: isMobile ? 8 : 12, minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 10, minWidth: 0 }}>
+        <div style={{ width: iconBox, height: iconBox, borderRadius: 10, background: meta.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <Icon sx={{ fontSize: iconFs, color: meta.color }} />
         </div>
         <div style={{ minWidth: 0 }}>
-          <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: C.textPri, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{mod.label}</p>
-          {mod.optional && <p style={{ margin: 0, fontSize: 9.5, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Optional</p>}
+          <p style={{ margin: 0, fontSize: isMobile ? 12 : 13, fontWeight: 800, color: C.textPri, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{mod.label}</p>
+          {mod.optional && <p style={{ margin: 0, fontSize: 9, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Optional</p>}
         </div>
       </div>
 
       {mod.clearOnly ? (
-        <p style={{ margin: 0, fontSize: 11.5, color: C.textSec }}>Clears in-memory report/staffing caches. Rebuilt automatically on next request.</p>
+        <p style={{ margin: 0, fontSize: isMobile ? 10.5 : 11.5, color: C.textSec }}>{isMobile ? 'Clears in-memory caches.' : 'Clears in-memory report/staffing caches. Rebuilt automatically on next request.'}</p>
       ) : (
-        <p style={{ margin: 0, fontSize: 20, fontWeight: 800, color: C.textPri, letterSpacing: '-0.3px' }}>{fmtNum(mod.totalRecords)} <span style={{ fontSize: 11, fontWeight: 600, color: C.textDim }}>records</span></p>
+        <p style={{ margin: 0, fontSize: isMobile ? 16 : 20, fontWeight: 800, color: C.textPri, letterSpacing: '-0.3px' }}>{fmtNum(mod.totalRecords)} <span style={{ fontSize: isMobile ? 10 : 11, fontWeight: 600, color: C.textDim }}>records</span></p>
       )}
 
-      <div style={{ display: 'flex', gap: 8 }}>
+      <div style={{ display: 'flex', gap: isMobile ? 6 : 8 }}>
         {mod.clearOnly ? (
           <button
             onClick={handleClearClick}
             disabled={clearingCache}
-            style={{ ...btnBase, background: confirmClear ? C.warning : C.elevated, color: confirmClear ? '#fff' : C.textPri, opacity: clearingCache ? 0.6 : 1 }}
+            style={{ ...btnStyle, background: confirmClear ? C.warning : C.elevated, color: confirmClear ? '#fff' : C.textPri, opacity: clearingCache ? 0.6 : 1 }}
           >
-            <CachedOutlinedIcon sx={{ fontSize: 15 }} /> {clearingCache ? 'Clearing…' : confirmClear ? 'Click again to confirm' : 'Clear Cache'}
+            <CachedOutlinedIcon sx={{ fontSize: btnIconFs }} />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {clearingCache ? 'Clearing…' : confirmClear ? (isMobile ? 'Confirm?' : 'Click again to confirm') : 'Clear Cache'}
+            </span>
           </button>
         ) : (
           <>
-            <button onClick={() => onBackup(mod)} disabled={backingUp} style={{ ...btnBase, background: C.elevated, color: C.textPri, opacity: backingUp ? 0.6 : 1 }}>
-              <CloudUploadOutlinedIcon sx={{ fontSize: 15 }} /> {backingUp ? 'Backing up…' : 'Backup'}
+            <button onClick={() => onBackup(mod)} disabled={backingUp} style={{ ...btnStyle, background: C.elevated, color: C.textPri, opacity: backingUp ? 0.6 : 1 }}>
+              <CloudUploadOutlinedIcon sx={{ fontSize: btnIconFs }} />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{backingUp ? (isMobile ? '…' : 'Backing up…') : 'Backup'}</span>
             </button>
-            <button onClick={() => onDelete(mod)} disabled={mod.totalRecords === 0} style={{ ...btnBase, background: mod.totalRecords === 0 ? C.elevated : 'rgba(183,28,28,0.10)', color: mod.totalRecords === 0 ? C.textDim : C.error, opacity: mod.totalRecords === 0 ? 0.6 : 1, cursor: mod.totalRecords === 0 ? 'not-allowed' : 'pointer' }}>
-              <DeleteOutlineOutlinedIcon sx={{ fontSize: 15 }} /> Delete
+            <button onClick={() => onDelete(mod)} disabled={mod.totalRecords === 0} style={{ ...btnStyle, background: mod.totalRecords === 0 ? C.elevated : 'rgba(183,28,28,0.10)', color: mod.totalRecords === 0 ? C.textDim : C.error, opacity: mod.totalRecords === 0 ? 0.6 : 1, cursor: mod.totalRecords === 0 ? 'not-allowed' : 'pointer' }}>
+              <DeleteOutlineOutlinedIcon sx={{ fontSize: btnIconFs }} /> Delete
             </button>
           </>
         )}
@@ -647,7 +654,7 @@ export default function DatabaseManagementTab({ token, isMobile }) {
             <RefreshOutlinedIcon sx={{ fontSize: 14 }} /> Refresh
           </button>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fill, minmax(220px, 1fr))', gap: isMobile ? 8 : 12 }}>
           {modules.map((mod) => (
             <ModuleCard
               key={mod.key}

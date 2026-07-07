@@ -129,6 +129,17 @@ export default function ManagerLayout() {
   });
   const storeLogo = logoData?.data?.url ?? null;
 
+  const { data: storeNameData } = useQuery({
+    queryKey: ['settings-store-name'],
+    queryFn: () => fetch(`${API}/api/settings/store-name`, { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` } }).then(r => r.ok ? r.json() : { storeName: '' }),
+    staleTime: 5 * 60 * 1000,
+    enabled: !!token,
+  });
+  const storeName = storeNameData?.storeName?.trim() || 'POS';
+
+  const ROLE_SHORT = { Admin: 'Admin', Manager: 'Manager', Employee: 'EMP' };
+  const roleLabel = ROLE_SHORT[user?.role] || 'Manager';
+
   const { data: syncData } = useQuery({
     queryKey: ['settings-sync'],
     queryFn: () => fetch(`${API}/api/settings/sync-staffing`, { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` } }).then(r => r.ok ? r.json() : { syncStaffingBetit: false }),
@@ -276,8 +287,8 @@ export default function ManagerLayout() {
             )}
             {/* Manager Portal text — fades + shrinks when collapsed */}
             <div style={{ flex: 1, overflow: 'hidden', maxWidth: collapsed ? 0 : 200, opacity: collapsed ? 0 : 1, pointerEvents: collapsed ? 'none' : 'auto', whiteSpace: 'nowrap', transition: `max-width 0.3s ${EASE}, opacity 0.18s ${EASE}` }}>
-              <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#2B1D1A', lineHeight: '17px' }}>Manager</p>
-              <p style={{ margin: 0, fontSize: 10, fontWeight: 500, color: '#A09490', letterSpacing: '0.04em' }}>Portal</p>
+              <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#2B1D1A', lineHeight: '17px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{storeName}</p>
+              <p style={{ margin: 0, fontSize: 10, fontWeight: 500, color: '#A09490', letterSpacing: '0.04em' }}>{user?.role || 'Manager'} Portal</p>
             </div>
           </div>
 
@@ -395,6 +406,11 @@ export default function ManagerLayout() {
                 <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: '#2B1D1A', lineHeight: '16px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.name || 'Manager'}</p>
                 <p style={{ margin: 0, fontSize: 10, fontWeight: 500, color: '#A09490', letterSpacing: '0.03em' }}>{user?.employeeCode || 'Manager'}</p>
               </div>
+              {!collapsed && (
+                <div className="mgr-label" style={{ flexShrink: 0, display: 'flex', alignItems: 'center', padding: '3px 8px', borderRadius: 6, background: 'rgba(212,163,115,0.16)', border: '1px solid rgba(212,163,115,0.4)' }}>
+                  <span style={{ fontSize: 9.5, fontWeight: 700, color: '#B8874F', letterSpacing: '0.05em', textTransform: 'uppercase' }}>{roleLabel}</span>
+                </div>
+              )}
             </div>
 
             {/* Sign-out */}
@@ -468,18 +484,25 @@ export default function ManagerLayout() {
             }
           </div>
           <div>
-            <p style={{ fontSize: 13, fontWeight: 700, color: '#fff', lineHeight: '17px', margin: 0 }}>{user?.name || 'Manager'}</p>
-            <p style={{ fontSize: 11, fontWeight: 500, color: 'rgba(255,255,255,0.55)', margin: 0, letterSpacing: '0.04em' }}>{user?.employeeCode}</p>
+            <p style={{ fontSize: 13, fontWeight: 700, color: '#fff', lineHeight: '17px', margin: 0 }}>{storeName}</p>
+            <p style={{ fontSize: 10.5, fontWeight: 500, color: 'rgba(255,255,255,0.55)', margin: 0, letterSpacing: '0.03em' }}>{user?.name || 'Manager'}</p>
           </div>
         </div>
 
-        {/* Menu button — opens right-side drawer */}
-        <button
-          onClick={() => setMenuOpen(true)}
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: 9, background: 'rgba(255,255,255,0.12)', border: '1.5px solid rgba(255,255,255,0.18)', cursor: 'pointer', flexShrink: 0 }}
-        >
-          <MenuIcon sx={{ fontSize: 20, color: '#fff' }} />
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* Role flag */}
+          <div style={{ display: 'flex', alignItems: 'center', padding: '4px 9px', borderRadius: 6, background: 'rgba(212,163,115,0.18)', border: '1px solid rgba(212,163,115,0.4)', flexShrink: 0 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: '#D4A373', letterSpacing: '0.05em', textTransform: 'uppercase' }}>{roleLabel}</span>
+          </div>
+
+          {/* Menu button — opens right-side drawer */}
+          <button
+            onClick={() => setMenuOpen(true)}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: 9, background: 'rgba(255,255,255,0.12)', border: '1.5px solid rgba(255,255,255,0.18)', cursor: 'pointer', flexShrink: 0 }}
+          >
+            <MenuIcon sx={{ fontSize: 20, color: '#fff' }} />
+          </button>
+        </div>
       </header>
 
       {/* Page content */}
@@ -505,7 +528,7 @@ export default function ManagerLayout() {
           );
         })}
 
-        <button onClick={() => setMenuOpen(true)} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', padding: '8px 0 6px' }}>
+        <button onClick={() => setMenuOpen((prev) => !prev)} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', padding: '8px 0 6px' }}>
           <MenuIcon sx={{ fontSize: 28, color: isMenuRoute ? '#3E2723' : '#A09490', transition: 'color 0.2s' }} />
           <span style={{ fontSize: 11, fontWeight: isMenuRoute ? 700 : 500, color: isMenuRoute ? '#3E2723' : '#A09490', letterSpacing: '0.02em', lineHeight: '14px', transition: 'color 0.2s' }}>Menu</span>
         </button>

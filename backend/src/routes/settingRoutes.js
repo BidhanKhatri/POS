@@ -72,6 +72,27 @@ router.patch('/stock-tracking', protect, managerOrAdmin, async (req, res, next) 
   } catch (e) { next(e); }
 });
 
+// GET /api/settings/store-name — any authenticated user (shown in headers)
+router.get('/store-name', protect, async (req, res, next) => {
+  try {
+    const doc = await Setting.findById('global');
+    res.json({ storeName: doc?.storeName ?? '' });
+  } catch (e) { next(e); }
+});
+
+// PATCH /api/settings/store-name — managers only
+router.patch('/store-name', protect, managerOrAdmin, async (req, res, next) => {
+  try {
+    const val = typeof req.body.storeName === 'string' ? req.body.storeName.trim().slice(0, 60) : '';
+    const doc = await Setting.findByIdAndUpdate(
+      'global',
+      { $set: { storeName: val } },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    res.json({ storeName: doc.storeName });
+  } catch (e) { next(e); }
+});
+
 const DEFAULT_REPORT_RECIPIENTS = ['staffingbetit@gmail.com'];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
