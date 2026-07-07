@@ -29,9 +29,16 @@ const server = httpServer.listen(PORT, HOST, () => {
   console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
 });
 
-// Handle unhandled promise rejections
-process.on('unhandledRejection', (err, promise) => {
-  console.log(`Error: ${err.message}`);
-  // Close server & exit process
-  server.close(() => process.exit(1));
+// Log unhandled promise rejections and uncaught exceptions instead of
+// crashing the whole process. A single stray rejection (a slow query, a
+// flaky external call, a rate-limited client retrying aggressively) must
+// never take down every logged-in user's session — only the one request/
+// operation that actually failed should be affected. The process stays up;
+// individual failures are still visible in the logs for investigation.
+process.on('unhandledRejection', (err) => {
+  console.error('[unhandledRejection]', err);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('[uncaughtException]', err);
 });
