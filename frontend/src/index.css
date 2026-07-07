@@ -132,3 +132,23 @@
   background-position: 0 0;
   background-repeat: repeat-x;
 }
+
+/* ── PWA safe-area insets (notch / status bar / home-indicator) ──────────
+   Scoped to `display-mode: standalone|fullscreen|minimal-ui` so this ONLY
+   applies when launched as an installed app (Android/iOS home screen) —
+   a regular Safari/Chrome browser tab always reports `display-mode: browser`
+   and is completely unaffected. Extends each bar's own background color
+   up into the notch / down into the gesture-bar area instead of leaving a
+   plain white/black gap, so the status bar reads as part of the app's UI. */
+@media all and (display-mode: standalone), (display-mode: fullscreen), (display-mode: minimal-ui) {
+  .pos-safe-header {
+    padding-top: calc(var(--pos-header-pt, 10px) + env(safe-area-inset-top)) !important;
+  }
+  .pos-safe-bottom-nav {
+    height: calc(70px + env(safe-area-inset-bottom)) !important;
+    padding-bottom: env(safe-area-inset-bottom) !important;
+  }
+  .pos-safe-main {
+    padding-bottom: calc(var(--pos-main-pb, 78px) + env(safe-area-inset-bottom)) !important;
+  }
+}

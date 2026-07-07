@@ -528,6 +528,7 @@ export default function EmployeeLayout() {
       {/* ── Top header ── */}
       <header
         ref={headerRef}
+        className="pos-safe-header"
         style={{
           position: 'relative',
           zIndex: 600,
@@ -570,12 +571,13 @@ export default function EmployeeLayout() {
       </header>
 
       {/* ── Page content ── */}
-      <main style={{ flex: 1, overflowY: menuOpen ? 'hidden' : 'auto', paddingBottom: 78 }}>
+      <main className="pos-safe-main" style={{ flex: 1, overflowY: menuOpen ? 'hidden' : 'auto', paddingBottom: 78 }}>
         <Outlet />
       </main>
 
       {/* ── Bottom navigation ── */}
       <nav
+        className="pos-safe-bottom-nav"
         style={{
           position: 'fixed',
           bottom: 0, left: 0, right: 0,

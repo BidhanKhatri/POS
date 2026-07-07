@@ -474,7 +474,7 @@ export default function ManagerLayout() {
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh', background: '#F5F3F1', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
 
       {/* Top header */}
-      <header ref={headerRef} style={{ position: 'relative', zIndex: 600, background: '#3E2723', borderBottom: '1px solid #2A1715', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+      <header ref={headerRef} className="pos-safe-header" style={{ position: 'relative', zIndex: 600, background: '#3E2723', borderBottom: '1px solid #2A1715', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {/* Store logo replaces the "M" initial when available */}
           <div style={{ width: 34, height: 34, borderRadius: 9, overflow: 'hidden', background: storeLogo ? 'transparent' : 'rgba(255,255,255,0.15)', border: '1.5px solid rgba(255,255,255,0.20)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -506,12 +506,12 @@ export default function ManagerLayout() {
       </header>
 
       {/* Page content */}
-      <main style={{ flex: 1, overflowY: 'auto', paddingBottom: 78 }}>
+      <main className="pos-safe-main" style={{ flex: 1, overflowY: 'auto', paddingBottom: 78 }}>
         <Outlet />
       </main>
 
       {/* Bottom navigation */}
-      <nav style={{ position: 'fixed', bottom: 0, left: 0, right: 0, height: 70, background: '#ffffff', borderTop: '1px solid #DDD2CC', display: 'flex', alignItems: 'stretch', zIndex: 600 }}>
+      <nav className="pos-safe-bottom-nav" style={{ position: 'fixed', bottom: 0, left: 0, right: 0, height: 70, background: '#ffffff', borderTop: '1px solid #DDD2CC', display: 'flex', alignItems: 'stretch', zIndex: 600 }}>
         {activeIndex >= 0 && (
           <span style={{ position: 'absolute', top: 0, left: `${(activeIndex / (MOBILE_NAV_ITEMS.length + 1)) * 100}%`, width: `${100 / (MOBILE_NAV_ITEMS.length + 1)}%`, display: 'flex', justifyContent: 'center', pointerEvents: 'none', transition: 'left 0.28s cubic-bezier(0.4, 0, 0.2, 1)' }}>
             <span style={{ width: 48, height: 3, borderRadius: '0 0 4px 4px', background: '#D4A373' }} />
