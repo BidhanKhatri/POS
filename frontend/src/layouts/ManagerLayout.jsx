@@ -471,7 +471,7 @@ export default function ManagerLayout() {
     <>
     <SessionMonitor />
     <BiometricPromptModal />
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh', background: '#F5F3F1', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', overflow: 'hidden', background: '#F5F3F1', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
 
       {/* Top header */}
       <header ref={headerRef} className="pos-safe-header" style={{ position: 'relative', zIndex: 600, background: '#3E2723', borderBottom: '1px solid #2A1715', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
@@ -495,9 +495,9 @@ export default function ManagerLayout() {
             <span style={{ fontSize: 10, fontWeight: 700, color: '#D4A373', letterSpacing: '0.05em', textTransform: 'uppercase' }}>{roleLabel}</span>
           </div>
 
-          {/* Menu button — opens right-side drawer */}
+          {/* Menu button — toggles right-side drawer */}
           <button
-            onClick={() => setMenuOpen(true)}
+            onClick={() => setMenuOpen((prev) => !prev)}
             style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: 9, background: 'rgba(255,255,255,0.12)', border: '1.5px solid rgba(255,255,255,0.18)', cursor: 'pointer', flexShrink: 0 }}
           >
             <MenuIcon sx={{ fontSize: 20, color: '#fff' }} />
@@ -506,7 +506,7 @@ export default function ManagerLayout() {
       </header>
 
       {/* Page content */}
-      <main className="pos-safe-main" style={{ flex: 1, overflowY: 'auto', paddingBottom: 78 }}>
+      <main className="pos-safe-main" style={{ flex: 1, minHeight: 0, overflowY: menuOpen ? 'hidden' : 'auto', paddingBottom: 78 }}>
         <Outlet />
       </main>
 

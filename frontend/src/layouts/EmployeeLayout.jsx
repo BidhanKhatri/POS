@@ -520,7 +520,8 @@ export default function EmployeeLayout() {
       style={{
         display: 'flex',
         flexDirection: 'column',
-        minHeight: '100dvh',
+        height: '100dvh',
+        overflow: 'hidden',
         background: '#F5F3F1',
         fontFamily: "'Plus Jakarta Sans', sans-serif",
       }}
@@ -571,7 +572,7 @@ export default function EmployeeLayout() {
       </header>
 
       {/* ── Page content ── */}
-      <main className="pos-safe-main" style={{ flex: 1, overflowY: menuOpen ? 'hidden' : 'auto', paddingBottom: 78 }}>
+      <main className="pos-safe-main" style={{ flex: 1, minHeight: 0, overflowY: menuOpen ? 'hidden' : 'auto', paddingBottom: 78 }}>
         <Outlet />
       </main>
 

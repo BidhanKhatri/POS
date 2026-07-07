@@ -1132,19 +1132,20 @@ export default function ManagerOverallReportPage() {
         return (
           <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden', marginTop: 16 }}>
             {/* Section header */}
-            <div style={{ padding: '14px 20px 10px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <GroupsOutlinedIcon sx={{ fontSize: 18, color: C.accent }} />
-                <div>
+            <div style={{ padding: '14px 20px 10px', borderBottom: `1px solid ${C.border}`, display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: 10, justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                <GroupsOutlinedIcon sx={{ fontSize: 18, color: C.accent, flexShrink: 0 }} />
+                <div style={{ minWidth: 0 }}>
                   <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: C.textPri }}>Group Sales Report</p>
                   <p style={{ margin: '2px 0 0', fontSize: 11, color: C.textDim }}>POS group performance · ranked by net revenue</p>
                 </div>
               </div>
               {topGroup && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 14px', borderRadius: 8, background: `${C.success}12`, border: `1px solid ${C.success}30` }}>
-                  <EmojiEventsOutlinedIcon sx={{ fontSize: 14, color: C.success }} />
-                  <span style={{ fontSize: 11, fontWeight: 700, color: C.success }}>Top: {topGroup.groupName}</span>
-                  <span style={{ fontSize: 11, fontWeight: 800, color: C.success }}>{fmt$(topGroup.stats.revenue)}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 14px', borderRadius: 8, background: `${C.success}12`, border: `1px solid ${C.success}30`, minWidth: 0, alignSelf: isMobile ? 'flex-start' : 'center' }}>
+                  <EmojiEventsOutlinedIcon sx={{ fontSize: 14, color: C.success, flexShrink: 0 }} />
+                  <span style={{ fontSize: 11, fontWeight: 700, color: C.success, flexShrink: 0 }}>Top:</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: C.success, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: isMobile ? 110 : 160 }}>{topGroup.groupName}</span>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: C.success, flexShrink: 0 }}>{fmt$(topGroup.stats.revenue)}</span>
                 </div>
               )}
             </div>
@@ -1187,8 +1188,8 @@ export default function ManagerOverallReportPage() {
                             <td style={{ padding: '12px 14px', textAlign: 'center' }}>
                               <span style={{ width: 22, height: 22, borderRadius: 6, background: i === 0 ? C.primary : C.elevated, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, color: i === 0 ? C.accent : C.textDim }}>{i + 1}</span>
                             </td>
-                            <td style={{ padding: '12px 14px' }}>
-                              <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri }}>{g.groupName}</p>
+                            <td style={{ padding: '12px 14px', maxWidth: 160 }}>
+                              <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={g.groupName}>{g.groupName}</p>
                             </td>
                             <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 600, color: C.textSec }}>{g.stats.memberCount}</td>
                             <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 800, color: C.success }}>{fmt$(g.stats.revenue)}</td>
