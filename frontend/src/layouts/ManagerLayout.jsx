@@ -588,6 +588,7 @@ export default function ManagerLayout() {
 
           {/* Menu button — toggles right-side drawer */}
           <button
+            className="pos-touch-icon"
             onClick={() => setMenuOpen((prev) => !prev)}
             style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: 9, background: 'rgba(255,255,255,0.12)', border: '1.5px solid rgba(255,255,255,0.18)', cursor: 'pointer', flexShrink: 0 }}
           >
@@ -612,14 +613,14 @@ export default function ManagerLayout() {
         {MOBILE_NAV_ITEMS.map(({ label, path, icon: Icon }) => {
           const active = pathname === path || pathname.startsWith(path + '/');
           return (
-            <button key={path} onClick={() => navigate(path)} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', padding: '8px 0 6px' }}>
+            <button key={path} className="pos-touch-icon" onClick={() => navigate(path)} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', padding: '8px 0 6px' }}>
               <Icon sx={{ fontSize: 28, color: active ? '#3E2723' : '#A09490', transition: 'color 0.2s' }} />
               <span style={{ fontSize: 11, fontWeight: active ? 700 : 500, color: active ? '#3E2723' : '#A09490', letterSpacing: '0.02em', lineHeight: '14px', transition: 'color 0.2s' }}>{label}</span>
             </button>
           );
         })}
 
-        <button onClick={() => setMenuOpen((prev) => !prev)} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', padding: '8px 0 6px' }}>
+        <button className="pos-touch-icon" onClick={() => setMenuOpen((prev) => !prev)} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', padding: '8px 0 6px' }}>
           <MenuIcon sx={{ fontSize: 28, color: isMenuRoute ? '#3E2723' : '#A09490', transition: 'color 0.2s' }} />
           <span style={{ fontSize: 11, fontWeight: isMenuRoute ? 700 : 500, color: isMenuRoute ? '#3E2723' : '#A09490', letterSpacing: '0.02em', lineHeight: '14px', transition: 'color 0.2s' }}>Menu</span>
         </button>
@@ -639,7 +640,7 @@ export default function ManagerLayout() {
             </div>
             <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: '#2B1D1A' }}>Menu</p>
           </div>
-          <button onClick={() => setMenuOpen(false)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34, borderRadius: 9, border: '1px solid #DDD2CC', background: '#F5F0EC', color: '#3E2723', cursor: 'pointer' }}>
+          <button className="pos-touch-icon" onClick={() => setMenuOpen(false)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34, borderRadius: 9, border: '1px solid #DDD2CC', background: '#F5F0EC', color: '#3E2723', cursor: 'pointer' }}>
             <CloseIcon sx={{ fontSize: 18 }} />
           </button>
         </div>
@@ -659,7 +660,7 @@ export default function ManagerLayout() {
               <p style={{ margin: 0, fontSize: 10, fontWeight: 500, color: '#A09490', letterSpacing: '0.03em' }}>{user?.employeeCode || 'Manager'}</p>
             </div>
           </div>
-          <button onClick={() => { setMenuOpen(false); setLogoutModalOpen(true); }} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '10px 12px', borderRadius: 9, background: 'rgba(183,28,28,0.06)', border: '1px solid rgba(183,28,28,0.22)', color: '#B71C1C', fontSize: 13, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.02em' }}>
+          <button className="pos-touch-row" onClick={() => { setMenuOpen(false); setLogoutModalOpen(true); }} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '10px 12px', borderRadius: 9, background: 'rgba(183,28,28,0.06)', border: '1px solid rgba(183,28,28,0.22)', color: '#B71C1C', fontSize: 13, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.02em' }}>
             <LogoutOutlinedIcon sx={{ fontSize: 16, color: '#B71C1C' }} />
             Sign Out
           </button>
@@ -672,7 +673,7 @@ export default function ManagerLayout() {
           {(() => {
             const active = pathname === '/manager/dashboard' || pathname.startsWith('/manager/dashboard/');
             return (
-              <button onClick={() => goTo('/manager/dashboard')} style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '12px 18px', background: active ? '#F5F0EC' : 'transparent', borderLeft: `3px solid ${active ? '#3E2723' : 'transparent'}`, border: 'none', borderLeftWidth: 3, textAlign: 'left', cursor: 'pointer' }}>
+              <button className="pos-touch-row" onClick={() => goTo('/manager/dashboard')} style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '12px 18px', background: active ? '#F5F0EC' : 'transparent', borderLeft: `3px solid ${active ? '#3E2723' : 'transparent'}`, border: 'none', borderLeftWidth: 3, textAlign: 'left', cursor: 'pointer' }}>
                 <GridViewOutlinedIcon sx={{ fontSize: 20, color: active ? '#3E2723' : '#6B5B57' }} />
                 <span style={{ fontSize: 14, fontWeight: active ? 700 : 600, color: active ? '#3E2723' : '#2B1D1A' }}>Dashboard</span>
               </button>
@@ -691,7 +692,7 @@ export default function ManagerLayout() {
             return (
               <div key={group}>
                 {gi === 0 && <div style={{ height: 1, background: '#F0EAE5', margin: '6px 14px' }} />}
-                <button onClick={() => toggleGroup(group)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '6px 18px 5px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+                <button className="pos-touch-row" onClick={() => toggleGroup(group)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '6px 18px 5px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
                   <span style={{ fontSize: 9, fontWeight: 700, color: groupHasActive ? '#A07850' : '#C0B5B0', letterSpacing: '0.14em', textTransform: 'uppercase' }}>{group}</span>
                   <ExpandMoreIcon sx={{ fontSize: 14, color: '#C0B5B0', transform: groupIsOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.22s cubic-bezier(0.4,0,0.2,1)' }} />
                 </button>
@@ -707,7 +708,7 @@ export default function ManagerLayout() {
                       const childOpen = !!openChildItems[path];
                       return (
                         <div key={path}>
-                          <button onClick={() => toggleChildItem(path)} style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '12px 18px', background: active ? '#F5F0EC' : 'transparent', border: 'none', borderLeft: `3px solid ${active ? '#3E2723' : 'transparent'}`, borderLeftWidth: 3, textAlign: 'left', cursor: 'pointer' }}>
+                          <button className="pos-touch-row" onClick={() => toggleChildItem(path)} style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '12px 18px', background: active ? '#F5F0EC' : 'transparent', border: 'none', borderLeft: `3px solid ${active ? '#3E2723' : 'transparent'}`, borderLeftWidth: 3, textAlign: 'left', cursor: 'pointer' }}>
                             <Icon sx={{ fontSize: 20, color: active ? '#3E2723' : '#6B5B57' }} />
                             <span style={{ fontSize: 14, fontWeight: active ? 700 : 600, color: active ? '#3E2723' : '#2B1D1A', flex: 1 }}>{label}</span>
                             <ExpandMoreIcon sx={{ fontSize: 16, color: active ? '#3E2723' : '#B0A49F', transform: childOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.22s cubic-bezier(0.4,0,0.2,1)', flexShrink: 0 }} />
@@ -720,7 +721,7 @@ export default function ManagerLayout() {
                                   const ca = pathname === cp || pathname.startsWith(cp + '/');
                                   const showSyncChild = syncEnabled && SYNCED_PATHS.has(cp);
                                   return (
-                                    <button key={cp} onClick={() => goTo(cp)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '9px 10px', marginBottom: 1, borderRadius: 8, border: 'none', background: ca ? '#F2EBE5' : 'transparent', cursor: 'pointer', textAlign: 'left' }}>
+                                    <button key={cp} className="pos-touch-row" onClick={() => goTo(cp)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '9px 10px', marginBottom: 1, borderRadius: 8, border: 'none', background: ca ? '#F2EBE5' : 'transparent', cursor: 'pointer', textAlign: 'left' }}>
                                       <CI sx={{ fontSize: 15, color: ca ? '#3E2723' : '#B0A49F', flexShrink: 0 }} />
                                       <span style={{ fontSize: 13, fontWeight: ca ? 700 : 500, color: ca ? '#2B1D1A' : '#7A6E6A', flex: 1 }}>{cl}</span>
                                       {showSyncChild && <span style={{ fontSize: 9, fontWeight: 700, color: '#2E7D4F', background: '#E8F5EE', border: '1px solid #C8E6C9', borderRadius: 4, padding: '1px 5px', letterSpacing: '0.05em', flexShrink: 0, marginRight: 4 }}>SYNCED</span>}
@@ -736,7 +737,7 @@ export default function ManagerLayout() {
 
                     const showSyncItem = syncEnabled && SYNCED_PATHS.has(path);
                     return (
-                      <button key={path} onClick={() => goTo(path)} style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '12px 18px', background: active ? '#F5F0EC' : 'transparent', borderLeft: `3px solid ${active ? '#3E2723' : 'transparent'}`, border: 'none', borderLeftWidth: 3, textAlign: 'left', cursor: 'pointer' }}>
+                      <button key={path} className="pos-touch-row" onClick={() => goTo(path)} style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '12px 18px', background: active ? '#F5F0EC' : 'transparent', borderLeft: `3px solid ${active ? '#3E2723' : 'transparent'}`, border: 'none', borderLeftWidth: 3, textAlign: 'left', cursor: 'pointer' }}>
                         <Icon sx={{ fontSize: 20, color: active ? '#3E2723' : '#6B5B57' }} />
                         <span style={{ fontSize: 14, fontWeight: active ? 700 : 600, color: active ? '#3E2723' : '#2B1D1A', flex: 1 }}>{label}</span>
                         {showSyncItem && <span style={{ fontSize: 9, fontWeight: 700, color: '#2E7D4F', background: '#E8F5EE', border: '1px solid #C8E6C9', borderRadius: 4, padding: '1px 5px', letterSpacing: '0.05em', flexShrink: 0, marginRight: 4 }}>SYNCED</span>}

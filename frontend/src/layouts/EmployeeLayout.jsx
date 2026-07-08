@@ -665,6 +665,7 @@ export default function EmployeeLayout() {
           return (
             <button
               key={path}
+              className="pos-touch-icon"
               onClick={() => navigate(path)}
               style={{
                 flex: 1,
@@ -690,6 +691,7 @@ export default function EmployeeLayout() {
 
         {/* Hamburger */}
         <button
+          className="pos-touch-icon"
           onClick={() => setMenuOpen(prev => !prev)}
           style={{
             flex: 1,
@@ -748,6 +750,7 @@ export default function EmployeeLayout() {
         }}>
           <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: '#2B1D1A' }}>Menu</p>
           <button
+            className="pos-touch-icon"
             onClick={() => setMenuOpen(false)}
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -775,7 +778,7 @@ export default function EmployeeLayout() {
               <p style={{ margin: 0, fontSize: 10, fontWeight: 500, color: '#A09490', letterSpacing: '0.03em' }}>{user?.employeeCode}</p>
             </div>
           </div>
-          <button onClick={() => { setMenuOpen(false); setLogoutModalOpen(true); }} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '10px 12px', borderRadius: 9, background: 'rgba(183,28,28,0.06)', border: '1px solid rgba(183,28,28,0.22)', color: '#B71C1C', fontSize: 13, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.02em' }}>
+          <button className="pos-touch-row" onClick={() => { setMenuOpen(false); setLogoutModalOpen(true); }} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '10px 12px', borderRadius: 9, background: 'rgba(183,28,28,0.06)', border: '1px solid rgba(183,28,28,0.22)', color: '#B71C1C', fontSize: 13, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.02em' }}>
             <LogoutOutlinedIcon sx={{ fontSize: 16, color: '#B71C1C' }} />
             Sign Out
           </button>
@@ -800,6 +803,7 @@ export default function EmployeeLayout() {
                 return (
                   <button
                     key={path}
+                    className="pos-touch-row"
                     onClick={() => goTo(path)}
                     style={{
                       width: '100%',
