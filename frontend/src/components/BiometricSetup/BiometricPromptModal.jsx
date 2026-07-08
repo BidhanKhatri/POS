@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useMediaQuery } from '@mui/material';
 import FingerprintIcon from '@mui/icons-material/Fingerprint';
 import CloseOutlinedIcon from '@mui/icons-material/CloseOutlined';
 import { browserSupportsWebAuthn } from '@simplewebauthn/browser';
@@ -20,6 +21,7 @@ function incrementPromptCount(userId) {
 
 export default function BiometricPromptModal() {
   const navigate = useNavigate();
+  const isDesktop = useMediaQuery('(min-width:1024px)');
   const { user, hasBiometric } = useAuthStore();
   const [visible, setVisible] = useState(false);
 
@@ -61,8 +63,19 @@ export default function BiometricPromptModal() {
         }}
       />
 
-      {/* Bottom sheet */}
-      <div style={{
+      {/* Bottom sheet (mobile) / centered popup (desktop) */}
+      <div style={isDesktop ? {
+        position: 'fixed', top: '50%', left: '50%',
+        transform: 'translate(-50%, -50%)',
+        zIndex: 901,
+        width: '100%', maxWidth: 420,
+        background: '#fff',
+        borderRadius: 16,
+        padding: '24px 24px 28px',
+        fontFamily: FONT,
+        boxShadow: '0 24px 64px rgba(42,23,21,0.22)',
+        animation: 'bmFadeScaleIn 0.22s cubic-bezier(0.32,0.72,0,1)',
+      } : {
         position: 'fixed', bottom: 0, left: 0, right: 0,
         zIndex: 901,
         background: '#fff',
@@ -77,14 +90,20 @@ export default function BiometricPromptModal() {
             from { transform: translateY(100%); }
             to   { transform: translateY(0); }
           }
+          @keyframes bmFadeScaleIn {
+            from { opacity: 0; transform: translate(-50%, -50%) scale(0.96); }
+            to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+          }
         `}</style>
 
-        {/* Drag handle */}
-        <div style={{
-          width: 40, height: 4, borderRadius: 2,
-          background: '#DDD2CC',
-          margin: '0 auto 20px',
-        }} />
+        {/* Drag handle — mobile only */}
+        {!isDesktop && (
+          <div style={{
+            width: 40, height: 4, borderRadius: 2,
+            background: '#DDD2CC',
+            margin: '0 auto 20px',
+          }} />
+        )}
 
         {/* Dismiss × */}
         <button

@@ -138,9 +138,34 @@ export default function EmployeeLayout() {
     return () => ro.disconnect();
   }, []);
 
+  // Lock body scroll when drawer is open. `overflow:hidden` alone doesn't
+  // reliably block touch/rubber-band scrolling on mobile Safari — pinning
+  // the body in place with position:fixed (and restoring scroll position
+  // on close) is the technique that actually holds on real devices.
   useEffect(() => {
-    document.body.style.overflow = menuOpen ? 'hidden' : '';
-    return () => { document.body.style.overflow = ''; };
+    if (menuOpen) {
+      const scrollY = window.scrollY;
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.left = '0';
+      document.body.style.right = '0';
+      document.body.style.overflow = 'hidden';
+    } else {
+      const scrollY = document.body.style.top;
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.left = '';
+      document.body.style.right = '';
+      document.body.style.overflow = '';
+      if (scrollY) window.scrollTo(0, -parseInt(scrollY, 10));
+    }
+    return () => {
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.left = '';
+      document.body.style.right = '';
+      document.body.style.overflow = '';
+    };
   }, [menuOpen]);
 
   const handleLogout = () => {

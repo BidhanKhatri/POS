@@ -9,6 +9,7 @@ import PersonAddAltIcon from '@mui/icons-material/PersonAddAlt';
 import FingerprintIcon from '@mui/icons-material/Fingerprint';
 import HourglassEmptyOutlinedIcon from '@mui/icons-material/HourglassEmptyOutlined';
 import BlockOutlinedIcon from '@mui/icons-material/BlockOutlined';
+import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import useAuthStore, { getOrCreateDeviceId } from '../store/useAuthStore';
 import { useWebAuthn } from '../hooks/useWebAuthn';
 import { useLoading } from '../context/LoadingContext';
@@ -166,16 +167,19 @@ const LoginScreen = () => {
     setTimeout(() => setPinError(false), 1200);
   };
 
+  // PIN entry stays responsive even while a login request is in flight
+  // (slow/stalled network) — only the actual submit is gated on `loading`,
+  // via handleClockIn's own guard below.
   const handleNumber = (num) => {
-    if (pin.length < 4 && !isLocked && !loading) setPin(prev => prev + num);
+    if (pin.length < 4 && !isLocked) setPin(prev => prev + num);
   };
-  const handleClear = () => { if (!isLocked && !loading) setPin(''); };
-  const handleBackspace = () => { if (!isLocked && !loading) setPin(prev => prev.slice(0, -1)); };
+  const handleClear = () => { if (!isLocked) setPin(''); };
+  const handleBackspace = () => { if (!isLocked) setPin(prev => prev.slice(0, -1)); };
 
   // Keyboard support
   useEffect(() => {
     const onKeyDown = (e) => {
-      if (isLocked || loading) return;
+      if (isLocked) return;
       const tag = document.activeElement?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
       if (e.key >= '0' && e.key <= '9') { handleNumber(e.key); flashKey(e.key); }
@@ -194,6 +198,10 @@ const LoginScreen = () => {
     if (pin.length < 4) return;
 
     setLoading(true);
+    // Slow/stalled connections must not leave the keypad disabled forever —
+    // give up after 15s so the user gets a clear error and can retry.
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
     try {
       const deviceId   = getOrCreateDeviceId();
       const deviceName = navigator.userAgent.slice(0, 120);
@@ -201,6 +209,7 @@ const LoginScreen = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim(), pin, deviceId, deviceName }),
+        signal: controller.signal,
       });
       const data = await res.json();
 
@@ -238,13 +247,16 @@ const LoginScreen = () => {
         : '/employee/terminal';
       navigate(home, { replace: true });
     } catch (err) {
-      // Network / parse errors — show generic message, no attempt penalty
-      const msg = 'Invalid email or PIN';
+      // Network / timeout errors — distinct message, no attempt penalty
+      const msg = err.name === 'AbortError'
+        ? 'Connection is slow — please try again'
+        : 'Connection error — please try again';
       setErrorMsg(msg);
       toast.error(msg, { duration: 2500, style: { fontSize: 11, padding: '8px 12px', maxWidth: 280 } });
       setPin('');
       triggerShake();
     } finally {
+      clearTimeout(timeout);
       setLoading(false);
     }
   };
@@ -320,7 +332,7 @@ const LoginScreen = () => {
           <button
             key={n}
             onClick={() => handleNumber(n.toString())}
-            className={`${numKey} ${isLocked || loading ? disabledKey : 'cursor-pointer'}`}
+            className={`${numKey} ${isLocked ? disabledKey : 'cursor-pointer'}`}
             style={{ height: keyH, fontSize: 32, fontWeight: 700, color: '#2B1D1A', lineHeight: '36px', ...digitPressed(n.toString()) }}
           >
             {n}
@@ -329,7 +341,7 @@ const LoginScreen = () => {
 
         <button
           onClick={handleClear}
-          className={`flex items-center justify-center rounded-2xl select-none transition-all duration-150 active:translate-y-[4px] ${isLocked || loading ? disabledKey : 'cursor-pointer'}`}
+          className={`flex items-center justify-center rounded-2xl select-none transition-all duration-150 active:translate-y-[4px] ${isLocked ? disabledKey : 'cursor-pointer'}`}
           style={{
             height: keyH, fontSize: 13, fontWeight: 700, lineHeight: '16px', letterSpacing: '0.1em',
             background: '#B71C1C', color: '#fff', border: '1px solid #991717',
@@ -343,7 +355,7 @@ const LoginScreen = () => {
 
         <button
           onClick={() => handleNumber('0')}
-          className={`${numKey} ${isLocked || loading ? disabledKey : 'cursor-pointer'}`}
+          className={`${numKey} ${isLocked ? disabledKey : 'cursor-pointer'}`}
           style={{ height: keyH, fontSize: 32, fontWeight: 700, color: '#2B1D1A', lineHeight: '36px', ...digitPressed('0') }}
         >
           0
@@ -351,7 +363,7 @@ const LoginScreen = () => {
 
         <button
           onClick={handleBackspace}
-          className={`flex items-center justify-center rounded-2xl select-none transition-all duration-150 active:translate-y-[4px] ${isLocked || loading ? disabledKey : 'cursor-pointer'}`}
+          className={`flex items-center justify-center rounded-2xl select-none transition-all duration-150 active:translate-y-[4px] ${isLocked ? disabledKey : 'cursor-pointer'}`}
           style={{
             height: keyH, background: '#F5F0EC', color: '#3E2723', border: '1px solid #DDD2CC',
             ...(pressedKey === 'backspace'
@@ -577,16 +589,29 @@ const LoginScreen = () => {
           }} />
 
           {/* Top badge */}
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: 7,
-            padding: '5px 13px', borderRadius: 20, width: 'fit-content',
-            background: 'rgba(62,39,35,0.08)', border: '1px solid rgba(62,39,35,0.14)',
-          }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#3E2723', flexShrink: 0 }} />
-            <span style={{ fontSize: 10, fontWeight: 700, color: '#3E2723', letterSpacing: '0.16em', textTransform: 'uppercase', fontFamily: FONT }}>
-              Login Page
-            </span>
-          </div>
+          {isLocked ? (
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 7,
+              padding: '5px 13px', borderRadius: 20, width: 'fit-content',
+              background: 'rgba(183,28,28,0.08)', border: '1px solid rgba(183,28,28,0.22)',
+            }}>
+              <LockOutlinedIcon sx={{ fontSize: 11, color: '#B71C1C' }} />
+              <span style={{ fontSize: 10, fontWeight: 700, color: '#B71C1C', letterSpacing: '0.16em', textTransform: 'uppercase', fontFamily: FONT }}>
+                Login Locked
+              </span>
+            </div>
+          ) : (
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 7,
+              padding: '5px 13px', borderRadius: 20, width: 'fit-content',
+              background: 'rgba(62,39,35,0.08)', border: '1px solid rgba(62,39,35,0.14)',
+            }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#3E2723', flexShrink: 0 }} />
+              <span style={{ fontSize: 10, fontWeight: 700, color: '#3E2723', letterSpacing: '0.16em', textTransform: 'uppercase', fontFamily: FONT }}>
+                Login Page
+              </span>
+            </div>
+          )}
 
           {/* Center content */}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 0 }}>

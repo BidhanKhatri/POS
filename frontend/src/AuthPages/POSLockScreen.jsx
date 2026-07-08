@@ -15,24 +15,45 @@ const MAX_ATTEMPTS = 5;
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
+// Slow/stalled connections must not leave the keypad disabled forever —
+// give up after 15s so the user gets a clear error and can retry.
+const NETWORK_TIMEOUT_MS = 15000;
+function withTimeout() {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), NETWORK_TIMEOUT_MS);
+  return { signal: controller.signal, clear: () => clearTimeout(timer) };
+}
+
 async function callRefresh(rawRefreshToken) {
   const deviceId = getOrCreateDeviceId();
-  const res = await fetch(`${API}/api/auth/refresh`, {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ refreshToken: rawRefreshToken, deviceId }),
-  });
-  if (!res.ok) return null;
-  return res.json();
+  const { signal, clear } = withTimeout();
+  try {
+    const res = await fetch(`${API}/api/auth/refresh`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ refreshToken: rawRefreshToken, deviceId }),
+      signal,
+    });
+    if (!res.ok) return null;
+    return res.json();
+  } finally {
+    clear();
+  }
 }
 
 async function callVerifyPin(accessToken, pin) {
-  const res = await fetch(`${API}/api/auth/verify-pin`, {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-    body:    JSON.stringify({ pin }),
-  });
-  return { ok: res.ok, status: res.status, data: await res.json() };
+  const { signal, clear } = withTimeout();
+  try {
+    const res = await fetch(`${API}/api/auth/verify-pin`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+      body:    JSON.stringify({ pin }),
+      signal,
+    });
+    return { ok: res.ok, status: res.status, data: await res.json() };
+  } finally {
+    clear();
+  }
 }
 
 // ── component ─────────────────────────────────────────────────────────────────
@@ -83,8 +104,11 @@ export default function POSLockScreen() {
 
   // ── key handler ───────────────────────────────────────────────────────────
 
+  // PIN entry stays responsive even while a verify request is in flight
+  // (slow/stalled network) — the auto-submit effect below already guards
+  // against a duplicate submit via its own `!loading` check.
   const handleKey = useCallback((key) => {
-    if (loading || authenticating) return;
+    if (authenticating) return;
     if (key === 'DEL')          { setPin(p => p.slice(0, -1)); setError(''); setBioError(''); }
     else if (key === 'CLR')     { setPin(''); setError(''); setBioError(''); }
     else if (/^\d$/.test(key) && pinRef.current.length < 4) {
@@ -92,7 +116,7 @@ export default function POSLockScreen() {
       setError('');
       setBioError('');
     }
-  }, [loading, authenticating]);
+  }, [authenticating]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -246,7 +270,7 @@ export default function POSLockScreen() {
         {[1,2,3,4,5,6,7,8,9].map(n => (
           <button key={n}
             onClick={() => { handleKey(n.toString()); flashKey(n.toString()); }}
-            disabled={loading || authenticating || pin.length >= 4}
+            disabled={authenticating || pin.length >= 4}
             style={{
               ...numKeyBase, height: keyH,
               fontSize: 26, fontWeight: 700, color: '#2B1D1A',
@@ -259,7 +283,7 @@ export default function POSLockScreen() {
 
         <button
           onClick={() => { handleKey('CLR'); flashKey('clr'); }}
-          disabled={loading || authenticating}
+          disabled={authenticating}
           style={{
             ...numKeyBase, height: keyH,
             fontSize: 12, fontWeight: 700, letterSpacing: '0.08em',
@@ -271,7 +295,7 @@ export default function POSLockScreen() {
 
         <button
           onClick={() => { handleKey('0'); flashKey('0'); }}
-          disabled={loading || authenticating || pin.length >= 4}
+          disabled={authenticating || pin.length >= 4}
           style={{
             ...numKeyBase, height: keyH,
             fontSize: 26, fontWeight: 700, color: '#2B1D1A',
@@ -283,7 +307,7 @@ export default function POSLockScreen() {
 
         <button
           onClick={() => { handleKey('DEL'); flashKey('backspace'); }}
-          disabled={loading || authenticating}
+          disabled={authenticating}
           style={{
             ...numKeyBase, height: keyH,
             background: '#F5F0EC', color: '#3E2723', border: '1px solid #DDD2CC',

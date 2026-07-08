@@ -153,6 +153,7 @@ export default function ManagerLayout() {
   const reportsActive = pathname.startsWith('/manager/reports');
   const [reportsOpen,  setReportsOpen]  = useState(false);
   const [menuOpen,     setMenuOpen]     = useState(false);
+  const [logoutModalOpen, setLogoutModalOpen] = useState(false);
   const [collapsed,    setCollapsed]    = useState(false);
 
   const sidebarW = collapsed ? SIDEBAR_COLLAPSED : SIDEBAR_EXPANDED;
@@ -169,10 +170,34 @@ export default function ManagerLayout() {
     return () => ro.disconnect();
   }, []);
 
-  // Lock body scroll when drawer is open
+  // Lock body scroll when drawer is open. `overflow:hidden` alone doesn't
+  // reliably block touch/rubber-band scrolling on mobile Safari — pinning
+  // the body in place with position:fixed (and restoring scroll position
+  // on close) is the technique that actually holds on real devices.
   useEffect(() => {
-    document.body.style.overflow = menuOpen ? 'hidden' : '';
-    return () => { document.body.style.overflow = ''; };
+    if (menuOpen) {
+      const scrollY = window.scrollY;
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.left = '0';
+      document.body.style.right = '0';
+      document.body.style.overflow = 'hidden';
+    } else {
+      const scrollY = document.body.style.top;
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.left = '';
+      document.body.style.right = '';
+      document.body.style.overflow = '';
+      if (scrollY) window.scrollTo(0, -parseInt(scrollY, 10));
+    }
+    return () => {
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.left = '';
+      document.body.style.right = '';
+      document.body.style.overflow = '';
+    };
   }, [menuOpen]);
 
   const [openGroups, setOpenGroups] = useState(() => {
@@ -213,8 +238,73 @@ export default function ManagerLayout() {
   }, [pathname]);
 
   const handleLogout = () => {
+    setLogoutModalOpen(false);
     logout();
     navigate('/login', { replace: true });
+  };
+
+  const renderLogoutModal = () => {
+    if (!logoutModalOpen) return null;
+    return (
+      <div
+        onClick={() => setLogoutModalOpen(false)}
+        style={{
+          position: 'fixed', inset: 0, zIndex: 1200,
+          background: 'rgba(30,18,14,0.45)',
+          backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: '24px 20px', fontFamily: "'Plus Jakarta Sans', sans-serif",
+        }}>
+        <div onClick={(e) => e.stopPropagation()} style={{
+          background: '#fff', borderRadius: 18, padding: '28px 24px 24px',
+          maxWidth: 320, width: '100%', textAlign: 'center',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+        }}>
+          <div style={{
+            width: 52, height: 52, borderRadius: 14,
+            background: 'rgba(178,0,0,0.08)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            margin: '0 auto 16px',
+          }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+              <path d="M16 17l5-5-5-5M21 12H9" stroke="#C0392B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" stroke="#C0392B" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
+          </div>
+          <h3 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 800, color: '#2B1D1A', letterSpacing: '-0.2px' }}>
+            Log Out?
+          </h3>
+          <p style={{ margin: '0 0 24px', fontSize: 13, color: '#6B5B57', lineHeight: 1.55 }}>
+            Are you sure you want to log out of your session?
+          </p>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button
+              onClick={() => setLogoutModalOpen(false)}
+              style={{
+                flex: 1, minHeight: 44, borderRadius: 10,
+                border: '1.5px solid #DDD2CC', background: '#F5F3F1',
+                color: '#6B5B57', fontSize: 14, fontWeight: 600,
+                cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif",
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleLogout}
+              style={{
+                flex: 1, minHeight: 44, borderRadius: 10,
+                border: 'none', background: '#C0392B',
+                color: '#fff', fontSize: 14, fontWeight: 700,
+                cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif",
+                boxShadow: '0 3px 0 #7b1f14',
+              }}
+            >
+              Log Out
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   const activeIndex = MOBILE_NAV_ITEMS.findIndex(
@@ -415,7 +505,7 @@ export default function ManagerLayout() {
 
             {/* Sign-out */}
             <button
-              onClick={handleLogout}
+              onClick={() => setLogoutModalOpen(true)}
               title={collapsed ? 'Sign out' : undefined}
               className="mgr-logout-btn"
               style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: collapsed ? 0 : 6, padding: '8px 12px', borderRadius: 8, background: 'transparent', border: '1px solid #DDD5D0', color: '#8C7E7A', fontSize: 12, fontWeight: 600, cursor: 'pointer', letterSpacing: '0.04em', transition: `gap 0.3s ${EASE}, background 0.15s, border-color 0.15s, color 0.15s` }}
@@ -462,6 +552,7 @@ export default function ManagerLayout() {
           <Outlet />
         </main>
       </div>
+      {renderLogoutModal()}
       </>
     );
   }
@@ -568,7 +659,7 @@ export default function ManagerLayout() {
               <p style={{ margin: 0, fontSize: 10, fontWeight: 500, color: '#A09490', letterSpacing: '0.03em' }}>{user?.employeeCode || 'Manager'}</p>
             </div>
           </div>
-          <button onClick={handleLogout} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '10px 12px', borderRadius: 9, background: 'rgba(183,28,28,0.06)', border: '1px solid rgba(183,28,28,0.22)', color: '#B71C1C', fontSize: 13, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.02em' }}>
+          <button onClick={() => { setMenuOpen(false); setLogoutModalOpen(true); }} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '10px 12px', borderRadius: 9, background: 'rgba(183,28,28,0.06)', border: '1px solid rgba(183,28,28,0.22)', color: '#B71C1C', fontSize: 13, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.02em' }}>
             <LogoutOutlinedIcon sx={{ fontSize: 16, color: '#B71C1C' }} />
             Sign Out
           </button>
@@ -661,6 +752,7 @@ export default function ManagerLayout() {
 
       </aside>
     </div>
+    {renderLogoutModal()}
     </>
   );
 }

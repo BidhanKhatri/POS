@@ -19,9 +19,58 @@
     <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152x152.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
     <link rel="mask-icon" href="/favicon.svg" color="#3E2723" />
+
+    <!-- Static boot splash — pure HTML/CSS, paints before any JS loads or
+         executes, so a PWA cold launch never shows a blank white screen.
+         Lives inside #root so React's first render() call replaces it
+         automatically the instant the JS bundle is ready — no cleanup
+         script needed. Kept visually consistent with SplashScreen.jsx so
+         the handoff from static -> React-rendered splash is seamless. -->
+    <style>
+      html, body { background: #F5F3F1; margin: 0; }
+      #boot-splash {
+        position: fixed; inset: 0; z-index: 99999;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        background: #F5F3F1;
+        font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      }
+      #boot-splash img {
+        width: min(108px, 28vw); height: auto; border-radius: 16px;
+        animation: boot-pulse 2s ease-in-out infinite;
+      }
+      #boot-splash p {
+        margin: 28px 0 0; font-size: 17px; font-weight: 800; color: #2B1D1A;
+        letter-spacing: -0.2px; line-height: 1.2;
+      }
+      #boot-splash span.tagline {
+        margin-top: 2px; font-size: 11px; font-weight: 600; color: #8C7E7A;
+        letter-spacing: 0.14em; text-transform: uppercase;
+      }
+      #boot-splash .dots { display: flex; gap: 6px; margin-top: 12px; }
+      #boot-splash .dots i {
+        width: 6px; height: 6px; border-radius: 50%; background: #D4A373;
+        animation: boot-dot-bounce 1.2s ease-in-out infinite;
+        font-style: normal;
+      }
+      #boot-splash .dots i:nth-child(2) { animation-delay: 0.16s; }
+      #boot-splash .dots i:nth-child(3) { animation-delay: 0.32s; }
+      @keyframes boot-pulse {
+        0%, 100% { transform: scale(1); opacity: 1; }
+        50%      { transform: scale(1.07); opacity: 0.82; }
+      }
+      @keyframes boot-dot-bounce {
+        0%, 80%, 100% { transform: scale(0.6); opacity: 0.35; }
+        40%           { transform: scale(1);   opacity: 1;    }
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root"><div id="boot-splash">
+      <img src="/icons/icon-192x192.png" alt="POS" />
+      <p>POS</p>
+      <span class="tagline">Smart Point of Sale</span>
+      <div class="dots"><i></i><i></i><i></i></div>
+    </div></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
