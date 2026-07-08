@@ -1,45 +1,56 @@
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import SplashScreen from './components/SplashScreen';
 import OfflineScreen from './components/OfflineScreen';
 import { SocketProvider } from './context/SocketContext';
 import { ShiftGateProvider } from './context/ShiftGateContext';
 import { useLoading } from './context/LoadingContext';
-import LoginScreen from './AuthPages/LoginScreen';
-import SignupPage from './AuthPages/SignupPage';
-import VerifiedPage from './AuthPages/VerifiedPage';
-import BiometricOnboardingPage from './AuthPages/BiometricOnboardingPage';
-import EmployeeLayout from './layouts/EmployeeLayout';
-import TerminalPage from './EmployeePages/TerminalPage';
-import TenderPage from './EmployeePages/TenderPage';
-import PriceVariancePage from './EmployeePages/PriceVariancePage';
-import ShiftPage from './EmployeePages/ShiftPage';
-import DashboardPage from './EmployeePages/DashboardPage';
-import InventoryPage from './EmployeePages/InventoryPage';
-import OverridesPage from './EmployeePages/OverridesPage';
-import SettingsPage from './EmployeePages/SettingsPage';
-import ProfilePage from './EmployeePages/ProfilePage';
-import ManagerLayout from './layouts/ManagerLayout';
-import ManagerShiftPage from './ManagerPages/ManagerShiftPage';
-import ManagerDashboardPage from './ManagerPages/ManagerDashboardPage';
-import ManagerInventoryPage from './ManagerPages/ManagerInventoryPage';
-import ManagerOverridePage from './ManagerPages/ManagerOverridePage';
-import ManagerOverrideHistoryPage from './ManagerPages/ManagerOverrideHistoryPage';
-import ManagerOverallReportPage    from './ManagerPages/ManagerOverallReportPage';
-import ManagerIndividualReportPage from './ManagerPages/ManagerIndividualReportPage';
-import ManagerGroupReportPage      from './ManagerPages/ManagerGroupReportPage';
-import ManagerTransactionPage       from './ManagerPages/ManagerTransactionPage';
-import ManagerTransactionDetailPage from './ManagerPages/ManagerTransactionDetailPage';
-import TransactionsPage        from './EmployeePages/TransactionsPage';
-import TransactionDetailPage   from './EmployeePages/TransactionDetailPage';
-// import BarcodeScannerPage      from './EmployeePages/BarcodeScannerPage'; // disabled for now — re-enable when barcode feature returns
-// import ManagerBarcodePage      from './ManagerPages/ManagerBarcodePage'; // disabled for now — re-enable when barcode feature returns
-import ManagerStaffingPage     from './ManagerPages/ManagerStaffingPage';
-import ManagerEmployeePage     from './ManagerPages/ManagerEmployeePage';
-import ManagerSettingsPage     from './ManagerPages/ManagerSettingsPage';
-import ManagerGroupsPage       from './ManagerPages/ManagerGroupsPage';
 import useAuthStore from './store/useAuthStore';
-import POSLockScreen from './AuthPages/POSLockScreen';
+
+// Route-level code splitting — every page/layout is its own lazy chunk
+// instead of one ~2.4MB bundle. `SplashScreen` is a full-screen overlay
+// (mounted eagerly above, controlled via LoadingContext) that already
+// covers the entire cold-start loading window, so a Suspense fallback of
+// `null` is safe here: there is nothing else to mask. This matters most on
+// a first-time PWA launch (no service worker cache yet) — the JS needed to
+// paint the very first screen (usually just the login screen or terminal)
+// is now a small fraction of the previous single bundle.
+const LoginScreen               = lazy(() => import('./AuthPages/LoginScreen'));
+const SignupPage                = lazy(() => import('./AuthPages/SignupPage'));
+const VerifiedPage              = lazy(() => import('./AuthPages/VerifiedPage'));
+const BiometricOnboardingPage   = lazy(() => import('./AuthPages/BiometricOnboardingPage'));
+const POSLockScreen             = lazy(() => import('./AuthPages/POSLockScreen'));
+
+const EmployeeLayout            = lazy(() => import('./layouts/EmployeeLayout'));
+const TerminalPage              = lazy(() => import('./EmployeePages/TerminalPage'));
+const TenderPage                = lazy(() => import('./EmployeePages/TenderPage'));
+const PriceVariancePage         = lazy(() => import('./EmployeePages/PriceVariancePage'));
+const ShiftPage                 = lazy(() => import('./EmployeePages/ShiftPage'));
+const DashboardPage             = lazy(() => import('./EmployeePages/DashboardPage'));
+const InventoryPage             = lazy(() => import('./EmployeePages/InventoryPage'));
+const OverridesPage             = lazy(() => import('./EmployeePages/OverridesPage'));
+const SettingsPage              = lazy(() => import('./EmployeePages/SettingsPage'));
+const ProfilePage               = lazy(() => import('./EmployeePages/ProfilePage'));
+const TransactionsPage          = lazy(() => import('./EmployeePages/TransactionsPage'));
+const TransactionDetailPage     = lazy(() => import('./EmployeePages/TransactionDetailPage'));
+// const BarcodeScannerPage      = lazy(() => import('./EmployeePages/BarcodeScannerPage')); // disabled for now — re-enable when barcode feature returns
+
+const ManagerLayout                 = lazy(() => import('./layouts/ManagerLayout'));
+const ManagerShiftPage              = lazy(() => import('./ManagerPages/ManagerShiftPage'));
+const ManagerDashboardPage          = lazy(() => import('./ManagerPages/ManagerDashboardPage'));
+const ManagerInventoryPage          = lazy(() => import('./ManagerPages/ManagerInventoryPage'));
+const ManagerOverridePage           = lazy(() => import('./ManagerPages/ManagerOverridePage'));
+const ManagerOverrideHistoryPage    = lazy(() => import('./ManagerPages/ManagerOverrideHistoryPage'));
+const ManagerOverallReportPage      = lazy(() => import('./ManagerPages/ManagerOverallReportPage'));
+const ManagerIndividualReportPage   = lazy(() => import('./ManagerPages/ManagerIndividualReportPage'));
+const ManagerGroupReportPage        = lazy(() => import('./ManagerPages/ManagerGroupReportPage'));
+const ManagerTransactionPage        = lazy(() => import('./ManagerPages/ManagerTransactionPage'));
+const ManagerTransactionDetailPage  = lazy(() => import('./ManagerPages/ManagerTransactionDetailPage'));
+// const ManagerBarcodePage      = lazy(() => import('./ManagerPages/ManagerBarcodePage')); // disabled for now — re-enable when barcode feature returns
+const ManagerStaffingPage       = lazy(() => import('./ManagerPages/ManagerStaffingPage'));
+const ManagerEmployeePage       = lazy(() => import('./ManagerPages/ManagerEmployeePage'));
+const ManagerSettingsPage       = lazy(() => import('./ManagerPages/ManagerSettingsPage'));
+const ManagerGroupsPage         = lazy(() => import('./ManagerPages/ManagerGroupsPage'));
 
 function LocalAuthRoutes({ role }) {
   const isManager = role === 'Manager' || role === 'Admin';
@@ -174,7 +185,9 @@ function App() {
         <SplashScreen />
         <OfflineScreen />
         <BrowserRouter>
-          <AuthGate />
+          <Suspense fallback={null}>
+            <AuthGate />
+          </Suspense>
         </BrowserRouter>
       </ShiftGateProvider>
     </SocketProvider>

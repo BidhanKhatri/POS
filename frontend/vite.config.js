@@ -3,6 +3,32 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
+// Converts Vite's injected render-blocking `<link rel="stylesheet">` into the
+// standard async "preload -> swap" pattern, so the app's CSS never delays
+// first paint. This matters most on a cold PWA launch (iOS home-screen tap,
+// no service worker cache yet): the static boot splash in index.html is
+// fully self-styled via an inline <style> block, so it paints instantly
+// regardless — but browsers hold ALL body rendering until every blocking
+// stylesheet finishes loading, so without this the splash itself was stuck
+// behind a full network round-trip for the ~40KB app CSS bundle. The actual
+// stylesheet still loads immediately in parallel (via the preload), it just
+// no longer blocks paint; React almost always finishes mounting after it
+// anyway, so there's no visible unstyled flash in practice.
+function deferRenderBlockingCss() {
+  return {
+    name: 'defer-render-blocking-css',
+    apply: 'build',
+    transformIndexHtml(html) {
+      return html.replace(
+        /<link rel="stylesheet" crossorigin href="([^"]+)">/g,
+        (_match, href) =>
+          `<link rel="preload" as="style" crossorigin href="${href}" onload="this.onload=null;this.rel='stylesheet'">` +
+          `<noscript><link rel="stylesheet" crossorigin href="${href}"></noscript>`
+      );
+    },
+  };
+}
+
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
@@ -10,6 +36,7 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       tailwindcss(),
+      deferRenderBlockingCss(),
       VitePWA({
         strategies: 'injectManifest',
         srcDir: 'src',
