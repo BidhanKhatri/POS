@@ -536,8 +536,7 @@ export default function EmployeeLayout() {
       style={{
         display: 'flex',
         flexDirection: 'column',
-        height: '100dvh',
-        overflow: 'hidden',
+        minHeight: '100dvh',
         background: '#F5F3F1',
         fontFamily: "'Plus Jakarta Sans', sans-serif",
       }}
@@ -547,7 +546,8 @@ export default function EmployeeLayout() {
         ref={headerRef}
         className="pos-safe-header"
         style={{
-          position: 'relative',
+          position: 'sticky',
+          top: 0,
           zIndex: 600,
           background: '#3E2723',
           borderBottom: '1px solid #2A1715',
@@ -595,7 +595,7 @@ export default function EmployeeLayout() {
       </header>
 
       {/* ── Page content ── */}
-      <main className="pos-safe-main" style={{ flex: 1, minHeight: 0, overflowY: menuOpen ? 'hidden' : 'auto', paddingBottom: 78 }}>
+      <main className="pos-safe-main" style={{ flex: 1, paddingBottom: 78 }}>
         <Outlet />
       </main>
 

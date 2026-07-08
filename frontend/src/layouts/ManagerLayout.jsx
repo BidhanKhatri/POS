@@ -471,10 +471,10 @@ export default function ManagerLayout() {
     <>
     <SessionMonitor />
     <BiometricPromptModal />
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', overflow: 'hidden', background: '#F5F3F1', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh', background: '#F5F3F1', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
 
       {/* Top header */}
-      <header ref={headerRef} className="pos-safe-header" style={{ position: 'relative', zIndex: 600, background: '#3E2723', borderBottom: '1px solid #2A1715', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+      <header ref={headerRef} className="pos-safe-header" style={{ position: 'sticky', top: 0, zIndex: 600, background: '#3E2723', borderBottom: '1px solid #2A1715', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {/* Store logo replaces the "M" initial when available */}
           <div style={{ width: 34, height: 34, borderRadius: 9, overflow: 'hidden', background: storeLogo ? 'transparent' : 'rgba(255,255,255,0.15)', border: '1.5px solid rgba(255,255,255,0.20)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -506,7 +506,7 @@ export default function ManagerLayout() {
       </header>
 
       {/* Page content */}
-      <main className="pos-safe-main" style={{ flex: 1, minHeight: 0, overflowY: menuOpen ? 'hidden' : 'auto', paddingBottom: 78 }}>
+      <main className="pos-safe-main" style={{ flex: 1, paddingBottom: 78 }}>
         <Outlet />
       </main>
 
