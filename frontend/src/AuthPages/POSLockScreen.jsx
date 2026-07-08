@@ -232,24 +232,24 @@ export default function POSLockScreen() {
 
   const numKeyBase = {
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    borderRadius: 16, userSelect: 'none', fontFamily: FONT,
-    transition: 'all 0.12s', cursor: 'pointer',
+    borderRadius: 12, userSelect: 'none', fontFamily: FONT,
+    transition: 'background-color 0.1s, border-color 0.1s', cursor: 'pointer',
   };
 
   const NumGrid = ({ keyH }) => {
     const digitStyle = (k) => pressedKey === k
-      ? { transform: 'translateY(4px)', boxShadow: '0 0px 0 #c4b8b2, 0 2px 4px rgba(0,0,0,0.04)', background: '#F5F0EC' }
-      : { boxShadow: '0 4px 0 #c4b8b2, 0 6px 12px rgba(0,0,0,0.06)' };
+      ? { background: '#EFE7E2', borderColor: '#C4B5AE' }
+      : {};
 
     return (
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, width: '100%', paddingBottom: 4 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, width: '100%', paddingBottom: 4 }}>
         {[1,2,3,4,5,6,7,8,9].map(n => (
           <button key={n}
             onClick={() => { handleKey(n.toString()); flashKey(n.toString()); }}
             disabled={loading || authenticating || pin.length >= 4}
             style={{
               ...numKeyBase, height: keyH,
-              fontSize: 32, fontWeight: 700, color: '#2B1D1A',
+              fontSize: 26, fontWeight: 700, color: '#2B1D1A',
               background: '#FFFFFF', border: '1px solid #DDD2CC',
               opacity: (loading || authenticating) ? 0.4 : 1,
               ...digitStyle(n.toString()),
@@ -262,12 +262,10 @@ export default function POSLockScreen() {
           disabled={loading || authenticating}
           style={{
             ...numKeyBase, height: keyH,
-            fontSize: 13, fontWeight: 700, letterSpacing: '0.1em',
-            background: '#B71C1C', color: '#fff', border: '1px solid #991717',
+            fontSize: 12, fontWeight: 700, letterSpacing: '0.08em',
+            background: '#F5F0EC', color: '#6B5B57', border: '1px solid #DDD2CC',
             opacity: (loading || authenticating) ? 0.4 : 1,
-            ...(pressedKey === 'clr'
-              ? { transform: 'translateY(4px)', boxShadow: '0 0px 0 #7a1111, 0 2px 4px rgba(183,28,28,0.12)', background: '#9a1515' }
-              : { boxShadow: '0 4px 0 #7a1111, 0 6px 12px rgba(183,28,28,0.22)' }),
+            ...(pressedKey === 'clr' ? { background: '#EDE6DF', borderColor: '#C4B5AE' } : {}),
           }}
         >CLR</button>
 
@@ -276,7 +274,7 @@ export default function POSLockScreen() {
           disabled={loading || authenticating || pin.length >= 4}
           style={{
             ...numKeyBase, height: keyH,
-            fontSize: 32, fontWeight: 700, color: '#2B1D1A',
+            fontSize: 26, fontWeight: 700, color: '#2B1D1A',
             background: '#FFFFFF', border: '1px solid #DDD2CC',
             opacity: (loading || authenticating) ? 0.4 : 1,
             ...digitStyle('0'),
@@ -290,12 +288,10 @@ export default function POSLockScreen() {
             ...numKeyBase, height: keyH,
             background: '#F5F0EC', color: '#3E2723', border: '1px solid #DDD2CC',
             opacity: (loading || authenticating) ? 0.4 : 1,
-            ...(pressedKey === 'backspace'
-              ? { transform: 'translateY(4px)', boxShadow: '0 0px 0 #c4b8b2, 0 2px 4px rgba(0,0,0,0.04)', background: '#EDE6DF' }
-              : { boxShadow: '0 4px 0 #c4b8b2, 0 6px 12px rgba(0,0,0,0.06)' }),
+            ...(pressedKey === 'backspace' ? { background: '#EDE6DF', borderColor: '#C4B5AE' } : {}),
           }}
         >
-          <BackspaceOutlinedIcon sx={{ fontSize: 20 }} />
+          <BackspaceOutlinedIcon sx={{ fontSize: 19 }} />
         </button>
       </div>
     );
@@ -316,7 +312,6 @@ export default function POSLockScreen() {
             fontSize: 13, fontWeight: 600, letterSpacing: '0.1em',
             cursor: (authenticating || loading) ? 'not-allowed' : 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-            boxShadow: '0 2px 0 #c4b8b2',
           }}
         >
           <FingerprintIcon sx={{ fontSize: 20, color: authenticating ? '#A09490' : '#3E2723' }} />
@@ -372,10 +367,6 @@ export default function POSLockScreen() {
           padding: '44px 40px 36px',
           position: 'relative', overflow: 'hidden', flexShrink: 0,
         }}>
-          {/* Orbs */}
-          <div style={{ position: 'absolute', top: -100, right: -100, width: 320, height: 320, borderRadius: '50%', background: 'rgba(62,39,35,0.05)', pointerEvents: 'none' }} />
-          <div style={{ position: 'absolute', bottom: 40,  left: -80,  width: 260, height: 260, borderRadius: '50%', background: 'rgba(62,39,35,0.04)', pointerEvents: 'none' }} />
-
           {/* Badge */}
           <div style={{
             display: 'inline-flex', alignItems: 'center', gap: 7,
