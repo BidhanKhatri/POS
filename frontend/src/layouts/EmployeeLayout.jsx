@@ -92,6 +92,7 @@ export default function EmployeeLayout() {
   const [logoutModalOpen, setLogoutModalOpen] = useState(false);
   const [headerHeight, setHeaderHeight] = useState(57);
   const headerRef = useRef(null);
+  const drawerRef = useRef(null);
   const isDesktop = useMediaQuery('(min-width:1024px)');
   const { stopLoading } = useLoading();
 
@@ -139,32 +140,25 @@ export default function EmployeeLayout() {
   }, []);
 
   // Lock body scroll when drawer is open. `overflow:hidden` alone doesn't
-  // reliably block touch/rubber-band scrolling on mobile Safari — pinning
-  // the body in place with position:fixed (and restoring scroll position
-  // on close) is the technique that actually holds on real devices.
+  // reliably block touch/rubber-band scrolling on mobile Safari, but pinning
+  // the body with `position:fixed` (the previous approach here) has its own
+  // real-device bug: toggling it can trigger iOS's PWA toolbar/viewport to
+  // resize, which reflows the fixed bottom nav and leaves a gap at the
+  // bottom safe-area. Instead, block background touch-scroll directly via a
+  // `touchmove` listener on `document`, letting anything inside the drawer
+  // itself (which has `ref={drawerRef}`) scroll normally — no position/top/
+  // layout changes on `body` at all, so nothing can reflow or shift.
   useEffect(() => {
-    if (menuOpen) {
-      const scrollY = window.scrollY;
-      document.body.style.position = 'fixed';
-      document.body.style.top = `-${scrollY}px`;
-      document.body.style.left = '0';
-      document.body.style.right = '0';
-      document.body.style.overflow = 'hidden';
-    } else {
-      const scrollY = document.body.style.top;
-      document.body.style.position = '';
-      document.body.style.top = '';
-      document.body.style.left = '';
-      document.body.style.right = '';
-      document.body.style.overflow = '';
-      if (scrollY) window.scrollTo(0, -parseInt(scrollY, 10));
-    }
+    if (!menuOpen) return;
+    document.body.style.overflow = 'hidden';
+    const preventBackgroundTouch = (e) => {
+      if (drawerRef.current && drawerRef.current.contains(e.target)) return;
+      e.preventDefault();
+    };
+    document.addEventListener('touchmove', preventBackgroundTouch, { passive: false });
     return () => {
-      document.body.style.position = '';
-      document.body.style.top = '';
-      document.body.style.left = '';
-      document.body.style.right = '';
       document.body.style.overflow = '';
+      document.removeEventListener('touchmove', preventBackgroundTouch);
     };
   }, [menuOpen]);
 
@@ -718,7 +712,7 @@ export default function EmployeeLayout() {
       <div
         onClick={() => setMenuOpen(false)}
         style={{
-          position: 'fixed', inset: 0, zIndex: 550,
+          position: 'fixed', inset: 0, zIndex: 650,
           background: 'rgba(43,29,26,0.32)',
           backdropFilter: 'blur(3px)',
           WebkitBackdropFilter: 'blur(3px)',
@@ -730,12 +724,13 @@ export default function EmployeeLayout() {
 
       {/* ── Right-side menu drawer ── */}
       <aside
+        ref={drawerRef}
         style={{
           position: 'fixed',
           top: headerHeight, right: 0, bottom: 0,
           width: 'min(70vw, 300px)',
           background: '#ffffff',
-          zIndex: 551,
+          zIndex: 651,
           boxShadow: '-8px 0 28px rgba(42,23,21,0.18)',
           transform: menuOpen ? 'translateX(0)' : 'translateX(100%)',
           transition: 'transform 0.32s cubic-bezier(0.32, 0.72, 0, 1)',

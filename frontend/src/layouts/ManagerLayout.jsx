@@ -159,6 +159,7 @@ export default function ManagerLayout() {
   const sidebarW = collapsed ? SIDEBAR_COLLAPSED : SIDEBAR_EXPANDED;
 
   const headerRef   = useRef(null);
+  const drawerRef   = useRef(null);
   const [headerHeight, setHeaderHeight] = useState(57);
 
   // Measure header height for drawer top offset
@@ -171,32 +172,25 @@ export default function ManagerLayout() {
   }, []);
 
   // Lock body scroll when drawer is open. `overflow:hidden` alone doesn't
-  // reliably block touch/rubber-band scrolling on mobile Safari — pinning
-  // the body in place with position:fixed (and restoring scroll position
-  // on close) is the technique that actually holds on real devices.
+  // reliably block touch/rubber-band scrolling on mobile Safari, but pinning
+  // the body with `position:fixed` (the previous approach here) has its own
+  // real-device bug: toggling it can trigger iOS's PWA toolbar/viewport to
+  // resize, which reflows the fixed bottom nav and leaves a gap at the
+  // bottom safe-area. Instead, block background touch-scroll directly via a
+  // `touchmove` listener on `document`, letting anything inside the drawer
+  // itself (which has `ref={drawerRef}`) scroll normally — no position/top/
+  // layout changes on `body` at all, so nothing can reflow or shift.
   useEffect(() => {
-    if (menuOpen) {
-      const scrollY = window.scrollY;
-      document.body.style.position = 'fixed';
-      document.body.style.top = `-${scrollY}px`;
-      document.body.style.left = '0';
-      document.body.style.right = '0';
-      document.body.style.overflow = 'hidden';
-    } else {
-      const scrollY = document.body.style.top;
-      document.body.style.position = '';
-      document.body.style.top = '';
-      document.body.style.left = '';
-      document.body.style.right = '';
-      document.body.style.overflow = '';
-      if (scrollY) window.scrollTo(0, -parseInt(scrollY, 10));
-    }
+    if (!menuOpen) return;
+    document.body.style.overflow = 'hidden';
+    const preventBackgroundTouch = (e) => {
+      if (drawerRef.current && drawerRef.current.contains(e.target)) return;
+      e.preventDefault();
+    };
+    document.addEventListener('touchmove', preventBackgroundTouch, { passive: false });
     return () => {
-      document.body.style.position = '';
-      document.body.style.top = '';
-      document.body.style.left = '';
-      document.body.style.right = '';
       document.body.style.overflow = '';
+      document.removeEventListener('touchmove', preventBackgroundTouch);
     };
   }, [menuOpen]);
 
@@ -626,11 +620,14 @@ export default function ManagerLayout() {
         </button>
       </nav>
 
-      {/* Backdrop — above content (550) but below header+nav (600) */}
-      <div onClick={() => setMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 550, background: 'rgba(43,29,26,0.32)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', opacity: menuOpen ? 1 : 0, pointerEvents: menuOpen ? 'auto' : 'none', transition: 'opacity 0.3s ease' }} />
+      {/* Backdrop — must sit above the fixed bottom nav (600), otherwise the
+          nav bar renders on top of the backdrop/drawer and shows through as
+          a stray strip over the drawer's bottom safe-area. */}
+      <div onClick={() => setMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 650, background: 'rgba(43,29,26,0.32)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', opacity: menuOpen ? 1 : 0, pointerEvents: menuOpen ? 'auto' : 'none', transition: 'opacity 0.3s ease' }} />
 
-      {/* Right-side menu drawer — starts below header (551 < header/nav 600) */}
-      <aside style={{ position: 'fixed', top: headerHeight, right: 0, bottom: 0, width: 'min(75vw, 300px)', background: '#ffffff', zIndex: 551, boxShadow: '-8px 0 28px rgba(42,23,21,0.18)', transform: menuOpen ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.32s cubic-bezier(0.32, 0.72, 0, 1)', display: 'flex', flexDirection: 'column' }}>
+      {/* Right-side menu drawer — above the bottom nav (600) so it fully
+          covers it instead of the nav bar poking through at the bottom. */}
+      <aside ref={drawerRef} style={{ position: 'fixed', top: headerHeight, right: 0, bottom: 0, width: 'min(75vw, 300px)', background: '#ffffff', zIndex: 651, boxShadow: '-8px 0 28px rgba(42,23,21,0.18)', transform: menuOpen ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.32s cubic-bezier(0.32, 0.72, 0, 1)', display: 'flex', flexDirection: 'column' }}>
 
         {/* Drawer header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '28px 16px 18px', borderBottom: '1px solid #DDD2CC' }}>
