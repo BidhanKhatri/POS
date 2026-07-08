@@ -162,11 +162,19 @@ export default function ManagerLayout() {
   const drawerRef   = useRef(null);
   const [headerHeight, setHeaderHeight] = useState(57);
 
-  // Measure header height for drawer top offset
+  // Measure header height for drawer top offset. ResizeObserver's
+  // contentRect excludes padding — but the header's safe-area padding-top
+  // (env(safe-area-inset-top), added in standalone PWA mode for the
+  // notch/status bar) is real height the drawer needs to sit below. Read
+  // the actual border-box height instead so the drawer's top offset is
+  // never short, which was hiding its own "Menu" title/close button under
+  // the header on notched devices.
   useEffect(() => {
     const el = headerRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(([entry]) => setHeaderHeight(entry.contentRect.height));
+    const measure = () => setHeaderHeight(el.getBoundingClientRect().height);
+    measure();
+    const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
@@ -183,6 +191,13 @@ export default function ManagerLayout() {
   useEffect(() => {
     if (!menuOpen) return;
     document.body.style.overflow = 'hidden';
+    // Belt-and-suspenders alongside the CSS `overscrollBehavior: 'contain'`
+    // on the drawer's own scroll container: without this, dragging the
+    // drawer's internal list past its own scroll limit can chain the
+    // gesture up to the document, triggering iOS's elastic rubber-band
+    // bounce on the (sticky) header — which visually "stretches" away from
+    // the drawer since the drawer itself is `position:fixed` and unaffected.
+    document.documentElement.style.overscrollBehavior = 'none';
     const preventBackgroundTouch = (e) => {
       if (drawerRef.current && drawerRef.current.contains(e.target)) return;
       e.preventDefault();
@@ -190,6 +205,7 @@ export default function ManagerLayout() {
     document.addEventListener('touchmove', preventBackgroundTouch, { passive: false });
     return () => {
       document.body.style.overflow = '';
+      document.documentElement.style.overscrollBehavior = '';
       document.removeEventListener('touchmove', preventBackgroundTouch);
     };
   }, [menuOpen]);
@@ -664,7 +680,7 @@ export default function ManagerLayout() {
         </div>
 
         {/* Grouped drawer nav — paddingBottom clears the fixed bottom nav (70px) */}
-        <div className="mgr-nav-scroll" style={{ flex: 1, overflowY: 'auto', padding: '6px 0 78px' }}>
+        <div className="mgr-nav-scroll" style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', padding: '6px 0 78px' }}>
 
           {/* Dashboard shortcut */}
           {(() => {
