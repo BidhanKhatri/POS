@@ -567,7 +567,7 @@ export default function EmployeeLayout() {
         style={{
           position: 'sticky',
           top: 0,
-          zIndex: 600,
+          zIndex: 700,
           background: '#3E2723',
           borderBottom: '1px solid #2A1715',
           padding: '10px 16px',
