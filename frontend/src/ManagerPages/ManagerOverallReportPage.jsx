@@ -27,7 +27,7 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import {
   useReportSummary, useReportTrend, useReportPayments,
   useReportProducts, useReportAnomalies, useReportInsights,
-  useReportCashiers, useReportPosGroups, buildDateRange, useExportCSV,
+  useReportCashiers, useReportProductSalesDetail, useReportPosGroups, buildDateRange, useExportCSV,
 } from '../hooks/useReportQuery';
 import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined';
 
@@ -655,6 +655,7 @@ export default function ManagerOverallReportPage() {
   const payments = useReportPayments({ start, end });
   const products = useReportProducts({ start, end, limit: 10, sortBy: 'revenue' });
   const cashiers = useReportCashiers({ start, end });
+  const productSales = useReportProductSalesDetail({ start, end, limit: 50 });
   const posGroups = useReportPosGroups({ start, end });
   const anomalies = useReportAnomalies({ start, end });
   const insights  = useReportInsights({ start, end });
@@ -1118,6 +1119,63 @@ export default function ManagerOverallReportPage() {
           </>
         ) : (
           <p style={{ textAlign: 'center', padding: '32px 0', fontSize: 12, color: C.textDim }}>No employee sales data for this period</p>
+        )}
+      </div>
+
+      {/* Product Sales Detail — which product, how much, how many units, sold by whom */}
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden', marginTop: 16 }}>
+        <div style={{ padding: '14px 20px 10px', borderBottom: `1px solid ${C.border}` }}>
+          <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: C.textPri }}>Product Sales Detail</p>
+          <p style={{ margin: '2px 0 0', fontSize: 11, color: C.textDim }}>Every product × employee combination sold · ranked by net revenue</p>
+        </div>
+        {productSales.isLoading ? (
+          <div style={{ overflowX: 'auto' }}>
+            <div style={{ minWidth: 640 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 20px', background: C.tableHdr, borderBottom: `1px solid ${C.border}` }}>
+                <SkeletonBlock h={9} w={22} radius={3} />
+                <SkeletonBlock h={9} w="26%" radius={3} />
+                <div style={{ flex: 1 }} />
+                {[70, 58, 62].map((w, i) => <SkeletonBlock key={i} h={9} w={w} radius={3} />)}
+              </div>
+              {[1, 2, 3, 4, 5].map(i => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 20px', borderBottom: `1px solid ${C.border}`, background: i % 2 === 0 ? '#FDFCFB' : C.surface }}>
+                  <SkeletonBlock h={22} w={22} radius={6} />
+                  <SkeletonBlock h={13} w="28%" />
+                  <div style={{ flex: 1 }} />
+                  {[70, 58, 62].map((j, k) => <SkeletonBlock key={k} h={13} w={j} />)}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : productSales.data?.length ? (
+          <div style={{ overflowX: 'auto' }}>
+            <div style={{ minWidth: 720 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '32px 1.2fr 1fr 90px 100px', gap: 8, padding: '8px 20px', background: C.tableHdr, borderBottom: `1px solid ${C.border}` }}>
+                {['#', 'Product', 'Sold By', 'Units', 'Amount'].map(h => (
+                  <span key={h} style={{ fontSize: 10, fontWeight: 700, color: C.primary, textTransform: 'uppercase', letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>{h}</span>
+                ))}
+              </div>
+              {productSales.data.map((r, i) => (
+                <div key={`${r.productId}-${r.employeeId}`} style={{ display: 'grid', gridTemplateColumns: '32px 1.2fr 1fr 90px 100px', gap: 8, alignItems: 'center', padding: '12px 20px', borderBottom: i < productSales.data.length - 1 ? `1px solid ${C.border}` : 'none', background: i % 2 ? '#FDFCFB' : C.surface }}>
+                  <span style={{ width: 22, height: 22, borderRadius: 6, background: i === 0 ? C.primary : C.elevated, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, color: i === 0 ? C.accent : C.textDim }}>
+                    {i + 1}
+                  </span>
+                  <div>
+                    <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri }}>{r.productName}</p>
+                    {r.sku && <p style={{ margin: '1px 0 0', fontSize: 10, fontWeight: 600, color: C.textDim, fontFamily: 'monospace' }}>{r.sku}</p>}
+                  </div>
+                  <div>
+                    <p style={{ margin: 0, fontSize: 12.5, fontWeight: 600, color: C.textSec }}>{r.employeeName}</p>
+                    {r.employeeCode && <p style={{ margin: '1px 0 0', fontSize: 10, fontWeight: 600, color: C.textDim, fontFamily: 'monospace' }}>{r.employeeCode}</p>}
+                  </div>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: C.textSec }}>{r.qtySold}</span>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: C.success }}>{fmt$(r.netRevenue)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <p style={{ textAlign: 'center', padding: '32px 0', fontSize: 12, color: C.textDim }}>No product sales detail for this period</p>
         )}
       </div>
 

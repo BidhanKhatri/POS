@@ -1,9 +1,17 @@
 /**
- * Daily report — triggered at 18:00 America/New_York (see cron/index.js).
- * Covers the full previous calendar day in NEPAL time (Asia/Kathmandu, UTC+5:45) —
- * that's where the store and staff operate, so a "sales day" means midnight-to-
- * midnight Nepal time regardless of the server's own timezone or the US
- * recipient's timezone. Compares against the same Nepal day last week.
+ * Daily report — send time/timezone are manager-configurable via
+ * Setting.dailyReport (Manager → Settings → Email), evaluated every minute
+ * by cron/dailyReportScheduler.cron.js. This file only builds the report
+ * *content* and sends it; it has no opinion on schedule.
+ *
+ * Covers TODAY so far — Nepal midnight (Asia/Kathmandu, UTC+5:45, where the
+ * store/staff operate) up through the instant the report is generated —
+ * rather than the previous full day, so same-day sales actually appear in
+ * today's report instead of only showing up tomorrow. Numbers are partial
+ * if sent before close of business; that's expected for an intraday send
+ * time. Compares against the same Nepal day last week, cut off at the same
+ * local wall-clock time, so the delta is apples-to-apples rather than a
+ * partial day vs. a full one.
  */
 
 import { generateAndSendReport } from '../services/cronReportService.js';
@@ -16,31 +24,32 @@ function nepalDateParts(instant) {
   return { y: shifted.getUTCFullYear(), m: shifted.getUTCMonth(), d: shifted.getUTCDate() };
 }
 
-// Midnight-to-midnight range (Nepal wall clock) for the Nepal calendar day
-// that `instant` falls on, expressed as real UTC Date instants.
-function nepalDayRange(instant) {
+// Nepal-wall-clock midnight for the Nepal calendar day that `instant` falls
+// on, expressed as a real UTC Date instant.
+function nepalDayStart(instant) {
   const { y, m, d } = nepalDateParts(instant);
-  const start = new Date(Date.UTC(y, m, d, 0, 0, 0, 0) - NEPAL_OFFSET_MS);
-  const end   = new Date(Date.UTC(y, m, d, 23, 59, 59, 999) - NEPAL_OFFSET_MS);
-  return { start, end };
+  return new Date(Date.UTC(y, m, d, 0, 0, 0, 0) - NEPAL_OFFSET_MS);
 }
 
 function getRange() {
-  const now       = new Date();
-  const yesterday = new Date(now.getTime() - 86_400_000); // lands safely within the just-closed Nepal day
+  const now = new Date(); // the instant the report is generated — also the "up to" cutoff
 
-  const { start, end } = nepalDayRange(yesterday);
-  const { start: compareStart, end: compareEnd } = nepalDayRange(new Date(yesterday.getTime() - 7 * 86_400_000));
+  const start = nepalDayStart(now);
+  const end   = now;
 
-  const { y, m, d } = nepalDateParts(yesterday);
+  const compareNow   = new Date(now.getTime() - 7 * 86_400_000); // same wall-clock time, 7 days earlier
+  const compareStart = nepalDayStart(compareNow);
+  const compareEnd   = compareNow;
+
+  const { y, m, d } = nepalDateParts(now);
   const label = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`; // "YYYY-MM-DD" in Nepal time
 
   return { start, end, compareStart, compareEnd, label };
 }
 
-export async function runDailyReport() {
+export async function runDailyReport({ force = false } = {}) {
   const { start, end, compareStart, compareEnd, label } = getRange();
-  await generateAndSendReport({
+  return generateAndSendReport({
     type: 'DAILY',
     label,
     start,
@@ -48,5 +57,6 @@ export async function runDailyReport() {
     compareStart,
     compareEnd,
     groupBy: 'hour',
+    force,
   });
 }

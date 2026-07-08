@@ -16,6 +16,7 @@ import {
   getPayments,
   getProducts,
   getCashiers,
+  getProductSalesDetail,
   getRefunds,
 } from './reportService.js';
 import { getPosGroupsSummary } from './posGroupReportService.js';
@@ -65,6 +66,11 @@ async function getReportRecipients() {
  * @param {Date}   [opts.compareStart]– prior period start for delta %
  * @param {Date}   [opts.compareEnd]  – prior period end
  * @param {string} [opts.groupBy]     – 'hour'|'day'|'week'|'month' for trend chart
+ * @param {boolean}[opts.force]      – bypass the "already sent today" idempotency
+ *   check and send a single attempt with no retry/backoff delay. Used by the
+ *   manager-facing "Send Report Now" button, which is a synchronous HTTP call
+ *   that shouldn't block for the scheduled job's multi-minute backoff window.
+ * @returns {Promise<{success: boolean, recipients?: string[], error?: string}>}
  */
 export async function generateAndSendReport({
   type,
@@ -74,12 +80,13 @@ export async function generateAndSendReport({
   compareStart,
   compareEnd,
   groupBy = 'day',
+  force = false,
 }) {
-  // ── Idempotency: skip if this period already succeeded ──
+  // ── Idempotency: skip if this period already succeeded (unless forced) ──
   const existing = await ReportLog.findOne({ type, periodStart: start });
-  if (existing?.status === 'SUCCESS') {
+  if (!force && existing?.status === 'SUCCESS') {
     console.log(`[CRON] ${type} report for ${label} already sent — skipping`);
-    return;
+    return { success: true, skipped: true, recipients: existing.recipients ?? [] };
   }
 
   // Upsert the log entry (creates on first attempt, reuses on retry)
@@ -99,19 +106,24 @@ export async function generateAndSendReport({
   // Product/cashier limits by report type
   const productLimit = type === 'DAILY' ? 5 : 10;
 
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+  // A forced/manual send is a synchronous request a manager is waiting on —
+  // one attempt, no multi-minute backoff sleep between retries.
+  const attempts = force ? 1 : MAX_RETRIES;
+
+  for (let attempt = 0; attempt < attempts; attempt++) {
     try {
       log.attemptCount = (log.attemptCount ?? 0) + 1;
       log.status = 'PENDING';
       await log.save();
 
       // ── 1. Aggregate all report data in parallel ──
-      const [summary, trend, payments, products, cashiers, refunds, groupsData] = await Promise.all([
+      const [summary, trend, payments, products, cashiers, productSales, refunds, groupsData] = await Promise.all([
         getSummary({ start: s, end: e, compareStart: cs, compareEnd: ce }),
         getTrend({ start: s, end: e, groupBy }),
         getPayments({ start: s, end: e }),
         getProducts({ start: s, end: e, limit: productLimit }),
         getCashiers({ start: s, end: e }),
+        getProductSalesDetail({ start: s, end: e }),
         getRefunds({ start: s, end: e }),
         getPosGroupsSummary({ start: s, end: e }).catch(() => ({ groups: [] })),
       ]);
@@ -125,12 +137,12 @@ export async function generateAndSendReport({
         log.sentAt     = new Date();
         log.recipients = [];
         await log.save();
-        return;
+        return { success: true, recipients: [] };
       }
 
       // ── 3. Build HTML + plain-text alternative ──
-      const html    = buildReportHtml({ type, label, start, end, summary, payments, products, cashiers, refunds, trend, groups });
-      const text    = buildReportText({ type, label, start, end, summary, payments, products, cashiers, refunds, trend, groups });
+      const html    = buildReportHtml({ type, label, start, end, summary, payments, products, cashiers, productSales, refunds, trend, groups });
+      const text    = buildReportText({ type, label, start, end, summary, payments, products, cashiers, productSales, refunds, trend, groups });
       const subject = reportSubject(type, label);
 
       // ── 4. Send to every admin ──
@@ -154,7 +166,7 @@ export async function generateAndSendReport({
       console.log(
         `[CRON] ✓ ${type} report "${label}" sent to ${recipients.length} recipient(s): ${recipients.map((r) => r.email).join(', ')}`
       );
-      return;
+      return { success: true, recipients: recipients.map((r) => r.email) };
 
     } catch (err) {
       console.error(`[CRON] ${type} report "${label}" attempt ${attempt + 1} failed:`, err.message);
@@ -162,7 +174,7 @@ export async function generateAndSendReport({
       log.lastError = err.message;
       await log.save();
 
-      if (attempt < MAX_RETRIES - 1) {
+      if (attempt < attempts - 1) {
         const delay = RETRY_DELAYS[attempt];
         console.log(`[CRON] Retrying in ${delay / 1000}s…`);
         await sleep(delay);
@@ -171,6 +183,7 @@ export async function generateAndSendReport({
   }
 
   console.error(
-    `[CRON] ✗ ${type} report "${label}" permanently failed after ${MAX_RETRIES} attempts — check ReportLog collection`
+    `[CRON] ✗ ${type} report "${label}" ${force ? 'failed' : `permanently failed after ${attempts} attempts`} — check ReportLog collection`
   );
+  return { success: false, error: log.lastError };
 }

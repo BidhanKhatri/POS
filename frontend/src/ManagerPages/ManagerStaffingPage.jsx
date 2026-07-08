@@ -1506,13 +1506,18 @@ export default function ManagerStaffingPage() {
       }}>
         {/* Mobile header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
-          <div style={{ minWidth: 0 }}>
-            <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: C.textDim, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
-              Manager Portal
-            </p>
-            <h1 style={{ margin: '1px 0 0', fontSize: 16, fontWeight: 800, color: C.textPri }}>
-              Schedule
-            </h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+            <div style={{ width: 34, height: 34, borderRadius: 9, background: C.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <CalendarMonthOutlinedIcon sx={{ fontSize: 17, color: C.accent }} />
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: C.textDim, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+                Manager Portal
+              </p>
+              <h1 style={{ margin: '1px 0 0', fontSize: 16, fontWeight: 800, color: C.textPri }}>
+                Schedule
+              </h1>
+            </div>
           </div>
           <button
             onClick={syncEnabled ? fetchEmsWeek : fetchLocalWeek}
@@ -1746,16 +1751,21 @@ export default function ManagerStaffingPage() {
 
         {/* Title + nav row */}
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-          <div>
-            <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: C.textDim, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
-              Manager Portal
-            </p>
-            <h1 style={{ margin: '3px 0 0', fontSize: 20, fontWeight: 800, color: C.textPri, letterSpacing: '-0.2px' }}>
-              Staffing Schedule
-            </h1>
-            <p style={{ margin: '2px 0 0', fontSize: 12, fontWeight: 500, color: C.textSec }}>
-              {syncEnabled ? 'Read-only view sourced from Staffing Betit (EMS)' : 'Local schedule management — create and edit shifts directly'}
-            </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 9, background: C.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <CalendarMonthOutlinedIcon sx={{ fontSize: 18, color: C.accent }} />
+            </div>
+            <div>
+              <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: C.textDim, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
+                Manager Portal
+              </p>
+              <h1 style={{ margin: '3px 0 0', fontSize: 20, fontWeight: 800, color: C.textPri, letterSpacing: '-0.2px' }}>
+                Staffing Schedule
+              </h1>
+              <p style={{ margin: '2px 0 0', fontSize: 12, fontWeight: 500, color: C.textSec }}>
+                {syncEnabled ? 'Read-only view sourced from Staffing Betit (EMS)' : 'Local schedule management — create and edit shifts directly'}
+              </p>
+            </div>
           </div>
 
           <div style={{

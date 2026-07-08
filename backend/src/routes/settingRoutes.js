@@ -3,6 +3,8 @@ import { protect, managerOrAdmin } from '../middleware/authMiddleware.js';
 import Setting from '../models/Setting.js';
 import { imageUpload } from '../middleware/uploadMiddleware.js';
 import { uploadBuffer, deleteFile } from '../services/imagekitService.js';
+import { isValidTimeZone, computeNextRunUtc } from '../utils/timezone.js';
+import { runDailyReport } from '../cron/dailyReport.cron.js';
 
 const router = express.Router();
 
@@ -126,6 +128,77 @@ router.patch('/report-recipients', protect, managerOrAdmin, async (req, res, nex
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
     res.json({ recipients: doc.reportRecipients });
+  } catch (e) { next(e); }
+});
+
+const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+function shapeDailyReport(doc) {
+  const cfg = doc?.dailyReport ?? {};
+  return {
+    enabled:    cfg.enabled    ?? true,
+    time:       cfg.time       ?? '18:00',
+    timezone:   cfg.timezone   ?? 'America/New_York',
+    lastSentAt: cfg.lastSentAt ?? null,
+  };
+}
+
+// GET /api/settings/daily-report — managers/admins only
+router.get('/daily-report', protect, managerOrAdmin, async (req, res, next) => {
+  try {
+    const doc = await Setting.findById('global').select('dailyReport').lean();
+    const cfg = shapeDailyReport(doc);
+    res.json({ ...cfg, nextRunAt: cfg.enabled ? computeNextRunUtc(cfg.time, cfg.timezone) : null });
+  } catch (e) { next(e); }
+});
+
+// PATCH /api/settings/daily-report — managers/admins only
+// Body: { enabled?, time?, timezone? } — any subset; takes effect on the very
+// next cron tick (max 1 minute), no server restart required.
+router.patch('/daily-report', protect, managerOrAdmin, async (req, res, next) => {
+  try {
+    const { enabled, time, timezone } = req.body;
+
+    if (time !== undefined && !TIME_RE.test(time)) {
+      return res.status(400).json({ message: 'time must be in 24-hour HH:mm format.' });
+    }
+    if (timezone !== undefined && !isValidTimeZone(timezone)) {
+      return res.status(400).json({ message: `Invalid IANA timezone: "${timezone}".` });
+    }
+
+    const update = {};
+    if (enabled !== undefined) update['dailyReport.enabled'] = Boolean(enabled);
+    if (time !== undefined) update['dailyReport.time'] = time;
+    if (timezone !== undefined) update['dailyReport.timezone'] = timezone;
+
+    if (Object.keys(update).length === 0) {
+      return res.status(400).json({ message: 'No valid fields provided.' });
+    }
+
+    const doc = await Setting.findByIdAndUpdate(
+      'global',
+      { $set: update },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    const cfg = shapeDailyReport(doc);
+    res.json({ ...cfg, nextRunAt: cfg.enabled ? computeNextRunUtc(cfg.time, cfg.timezone) : null });
+  } catch (e) { next(e); }
+});
+
+// POST /api/settings/daily-report/send-now — managers/admins only
+// Manually triggers today's Daily Report immediately: one send attempt, no
+// retry/backoff delay, and bypasses the once-per-day dedupe (so it's usable
+// right after changing the schedule/recipients without waiting for tomorrow).
+// Does NOT touch dailyReport.lastSentAt, so it never interferes with — or
+// counts as — the automatic scheduled send for today.
+router.post('/daily-report/send-now', protect, managerOrAdmin, async (req, res, next) => {
+  try {
+    const result = await runDailyReport({ force: true });
+    if (result?.success) {
+      res.json({ success: true, message: 'Report sent.', recipients: result.recipients ?? [] });
+    } else {
+      res.status(502).json({ success: false, message: result?.error || 'Report failed to send. Check server logs.' });
+    }
   } catch (e) { next(e); }
 });
 

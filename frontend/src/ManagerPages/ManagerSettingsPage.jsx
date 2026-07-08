@@ -41,7 +41,7 @@ const C = {
 
 const TABS = [
   { key: 'biometric', label: 'Biometric',           mobileLabel: 'Biometric', icon: FingerprintOutlinedIcon },
-  { key: 'email',     label: 'Email Recipients',    mobileLabel: 'Email',     icon: EmailOutlinedIcon },
+  { key: 'email',     label: 'Report Config',       mobileLabel: 'Reports',   icon: EmailOutlinedIcon },
   { key: 'managers',  label: 'Manager Management',  mobileLabel: 'Managers',  icon: AdminPanelSettingsOutlinedIcon },
   { key: 'inventory', label: 'Inventory',           mobileLabel: 'Inventory', icon: Inventory2OutlinedIcon },
   { key: 'profile',   label: 'Profile',             mobileLabel: 'Profile',   icon: ManageAccountsOutlinedIcon },
@@ -262,6 +262,198 @@ function SyncDataTab({ token }) {
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════
+   TAB: Daily Report Schedule
+══════════════════════════════════ */
+const COMMON_TIMEZONES = [
+  'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',
+  'America/Anchorage', 'Pacific/Honolulu', 'America/Sao_Paulo',
+  'Europe/London', 'Europe/Paris', 'Europe/Berlin', 'Europe/Madrid',
+  'Asia/Kathmandu', 'Asia/Kolkata', 'Asia/Dhaka', 'Asia/Dubai', 'Asia/Karachi',
+  'Asia/Shanghai', 'Asia/Tokyo', 'Asia/Singapore', 'Asia/Jakarta',
+  'Australia/Sydney', 'Australia/Perth', 'Pacific/Auckland', 'UTC',
+];
+
+function DailyReportScheduleCard({ token, isMobile }) {
+  const authHeaders = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+  const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+  const [cfg, setCfg]           = useState(null); // { enabled, time, timezone, lastSentAt, nextRunAt }
+  const [loading, setLoading]   = useState(true);
+  const [saving, setSaving]     = useState(false);
+  const [sendingNow, setSendingNow] = useState(false);
+  const [msg, setMsg]           = useState(null);
+
+  useEffect(() => {
+    setLoading(true);
+    fetch(`${API}/api/settings/daily-report`, { headers: authHeaders })
+      .then(r => r.json())
+      .then(setCfg)
+      .catch(() => setMsg({ type: 'error', text: 'Failed to load report schedule.' }))
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  const save = async (patch) => {
+    setSaving(true); setMsg(null);
+    try {
+      const res = await fetch(`${API}/api/settings/daily-report`, {
+        method: 'PATCH', headers: authHeaders, body: JSON.stringify(patch),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Save failed');
+      setCfg(data);
+      setMsg({ type: 'success', text: 'Report schedule updated.' });
+    } catch (err) {
+      setMsg({ type: 'error', text: err.message });
+    } finally {
+      setSaving(false);
+      setTimeout(() => setMsg(null), 4000);
+    }
+  };
+
+  const sendNow = async () => {
+    setSendingNow(true); setMsg(null);
+    try {
+      const res = await fetch(`${API}/api/settings/daily-report/send-now`, {
+        method: 'POST', headers: authHeaders,
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.message || 'Failed to send report.');
+      setMsg({ type: 'success', text: data.recipients?.length ? `Report sent to ${data.recipients.join(', ')}.` : 'Report sent.' });
+    } catch (err) {
+      setMsg({ type: 'error', text: err.message });
+    } finally {
+      setSendingNow(false);
+      setTimeout(() => setMsg(null), 6000);
+    }
+  };
+
+  if (loading || !cfg) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', padding: '40px 0' }}>
+        <span style={{ fontSize: 13, color: C.textDim }}>Loading report schedule…</span>
+      </div>
+    );
+  }
+
+  const nextRunLabel = cfg.enabled && cfg.nextRunAt
+    ? new Date(cfg.nextRunAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+    : 'Disabled';
+  const lastSentLabel = cfg.lastSentAt
+    ? new Date(cfg.lastSentAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+    : 'Never';
+
+  return (
+    <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '20px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+        <p style={{ margin: 0, fontSize: 11, fontWeight: 800, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+          Daily Report Schedule
+        </p>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: saving ? 'not-allowed' : 'pointer' }}>
+          <span style={{ fontSize: 11.5, fontWeight: 700, color: cfg.enabled ? C.success : C.textDim }}>
+            {cfg.enabled ? 'Enabled' : 'Disabled'}
+          </span>
+          <input
+            type="checkbox"
+            checked={cfg.enabled}
+            disabled={saving}
+            onChange={(e) => save({ enabled: e.target.checked })}
+            style={{ width: 34, height: 20, cursor: saving ? 'not-allowed' : 'pointer' }}
+          />
+        </label>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 14 }}>
+        <div style={{ flex: 1 }}>
+          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.textSec, marginBottom: 6 }}>
+            Report Time (24-hour)
+          </label>
+          <input
+            type="time"
+            value={cfg.time}
+            disabled={saving}
+            onChange={(e) => setCfg({ ...cfg, time: e.target.value })}
+            onBlur={(e) => e.target.value && save({ time: e.target.value })}
+            style={{ width: '100%', minHeight: 42, padding: '0 12px', border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 13, background: C.elevated, color: C.textPri, boxSizing: 'border-box' }}
+          />
+        </div>
+        <div style={{ flex: 1 }}>
+          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.textSec, marginBottom: 6 }}>
+            Timezone
+          </label>
+          <select
+            value={cfg.timezone}
+            disabled={saving}
+            onChange={(e) => save({ timezone: e.target.value })}
+            style={{ width: '100%', minHeight: 42, padding: '0 12px', border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 13, background: C.elevated, color: C.textPri, boxSizing: 'border-box' }}
+          >
+            {!COMMON_TIMEZONES.includes(cfg.timezone) && <option value={cfg.timezone}>{cfg.timezone}</option>}
+            {COMMON_TIMEZONES.map((tz) => (
+              <option key={tz} value={tz}>{tz.replace(/_/g, ' ')}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {cfg.timezone !== browserTz && (
+        <button
+          onClick={() => save({ timezone: browserTz })}
+          disabled={saving}
+          style={{ alignSelf: 'flex-start', background: 'none', border: 'none', padding: 0, fontSize: 11.5, fontWeight: 700, color: C.primary, cursor: saving ? 'not-allowed' : 'pointer', textDecoration: 'underline' }}
+        >
+          Use my timezone ({browserTz})
+        </button>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 10 }}>
+        <div style={{ flex: 1, background: C.elevated, borderRadius: 8, padding: '10px 14px' }}>
+          <p style={{ margin: '0 0 2px', fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Next Send (your local time)</p>
+          <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri }}>{nextRunLabel}</p>
+        </div>
+        <div style={{ flex: 1, background: C.elevated, borderRadius: 8, padding: '10px 14px' }}>
+          <p style={{ margin: '0 0 2px', fontSize: 10, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Last Sent</p>
+          <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textPri }}>{lastSentLabel}</p>
+        </div>
+      </div>
+
+      <button
+        onClick={sendNow}
+        disabled={sendingNow || saving}
+        style={{
+          alignSelf: isMobile ? 'stretch' : 'flex-end',
+          minHeight: 40, padding: '0 18px', background: 'transparent', color: C.primary,
+          border: `1.5px solid ${C.primary}`, borderRadius: 8, fontSize: 12.5, fontWeight: 700,
+          cursor: (sendingNow || saving) ? 'not-allowed' : 'pointer',
+          opacity: (sendingNow || saving) ? 0.6 : 1,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+        }}
+      >
+        <MarkEmailReadOutlinedIcon sx={{ fontSize: 15 }} />
+        {sendingNow ? 'Sending…' : 'Send Report Now'}
+      </button>
+      <p style={{ margin: '-10px 0 0', fontSize: 10.5, color: C.textDim, textAlign: isMobile ? 'left' : 'right' }}>
+        Sends today's report immediately for testing — doesn't affect or count as the scheduled send above.
+      </p>
+
+      {msg && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          background: msg.type === 'success' ? 'rgba(46,125,79,0.08)' : 'rgba(183,28,28,0.07)',
+          border: `1px solid ${msg.type === 'success' ? 'rgba(46,125,79,0.25)' : 'rgba(183,28,28,0.22)'}`,
+          borderRadius: 8, padding: '9px 14px',
+        }}>
+          {msg.type === 'success'
+            ? <CheckCircleOutlineIcon sx={{ fontSize: 15, color: C.success }} />
+            : <WarningAmberOutlinedIcon sx={{ fontSize: 15, color: C.error }} />}
+          <span style={{ fontSize: 12, fontWeight: 600, color: msg.type === 'success' ? C.success : C.error }}>
+            {msg.text}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
@@ -2152,10 +2344,15 @@ export default function ManagerSettingsPage() {
           <h1 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: C.textPri }}>Settings</h1>
         </div>
       ) : (
-        <div>
-          <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: C.textDim, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Manager Portal</p>
-          <h1 style={{ margin: '3px 0 0', fontSize: 20, fontWeight: 800, color: C.textPri, letterSpacing: '-0.2px' }}>Settings</h1>
-          <p style={{ margin: '2px 0 0', fontSize: 12, fontWeight: 500, color: C.textSec }}>Manage integrations, notifications, and system configuration</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 9, background: C.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <AdminPanelSettingsOutlinedIcon sx={{ fontSize: 18, color: C.accent }} />
+          </div>
+          <div>
+            <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: C.textDim, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Manager Portal</p>
+            <h1 style={{ margin: '3px 0 0', fontSize: 20, fontWeight: 800, color: C.textPri, letterSpacing: '-0.2px' }}>Settings</h1>
+            <p style={{ margin: '2px 0 0', fontSize: 12, fontWeight: 500, color: C.textSec }}>Manage integrations, notifications, and system configuration</p>
+          </div>
         </div>
       )}
 
@@ -2198,7 +2395,12 @@ export default function ManagerSettingsPage() {
       </div>
 
       {/* Tab content */}
-      {activeTab === 'email'     && <EmailRecipientsTab    token={token} isMobile={isMobile} />}
+      {activeTab === 'email'     && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <DailyReportScheduleCard token={token} isMobile={isMobile} />
+          <EmailRecipientsTab      token={token} isMobile={isMobile} />
+        </div>
+      )}
       {activeTab === 'managers'  && <ManagerManagementTab  token={token} currentUserId={user?._id} isMobile={isMobile} />}
       {activeTab === 'sync'      && <SyncDataTab           token={token} />}
       {activeTab === 'inventory' && <InventoryTab          token={token} />}

@@ -26,6 +26,18 @@ const fmt = {
   },
 };
 
+// DAILY reports cover a single Nepal calendar day (see dailyReport.cron.js),
+// but `start`/`end` are UTC instants that can straddle two different UTC
+// calendar dates depending on time of day — formatting each endpoint in UTC
+// independently produced misleading two-date ranges like "Jul 7 – Jul 8" for
+// what is really one Nepal-local day. Format DAILY as a single date in Nepal
+// time; WEEKLY/MONTHLY/YEARLY keep the UTC start–end range as before.
+function formatDateRangeLabel(type, start, end) {
+  const fmtDate = (d, timeZone) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone });
+  if (type === 'DAILY') return fmtDate(start, 'Asia/Kathmandu');
+  return `${fmtDate(start, 'UTC')} – ${fmtDate(end, 'UTC')}`;
+}
+
 const periodNoun = (type) => ({
   DAILY: 'today', WEEKLY: 'this week', MONTHLY: 'this month', YEARLY: 'this year',
 }[type] || 'in this period');
@@ -73,7 +85,7 @@ function htmlShell(title, body) {
   <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;opacity:0">${title}</div>
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${T.bg};padding:24px 12px">
     <tr><td align="center">
-      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;border:1px solid ${T.border};border-radius:14px">
         ${body}
       </table>
     </td></tr>
@@ -231,6 +243,31 @@ function cashierTable(cashiers, limit = 10) {
     </tr>`).join('');
 
   return tableShell(['cashier', 'net revenue', 'trans', 'avg ticket', 'ref rate'], dataRows);
+}
+
+// Flat product × cashier detail — one row per (product, employee) combo that
+// was sold, answering "which product sold for how much, in what quantity,
+// and who sold it" in a single scannable table. Distinct from topProductsTable
+// (product totals only) and cashierTable (employee totals only).
+function productSalesDetailTable(rows, limit = 15) {
+  const shown = (rows || []).slice(0, limit);
+  if (!shown.length) return infoCard('No product sales detail available for this period.', '🧾');
+
+  const dataRows = shown.map((r, i) => `
+    <tr style="background:${i % 2 === 0 ? T.surface : '#FDFBFA'}">
+      <td style="padding:10px 16px;border-bottom:1px solid #F0E8E3">
+        <span style="font-size:13px;font-weight:600;color:${T.textPri}">${r.productName ?? '—'}</span>
+        ${r.sku ? `<span style="font-size:10px;color:${T.textDim};margin-left:5px">${r.sku}</span>` : ''}
+      </td>
+      <td style="padding:10px 16px;border-bottom:1px solid #F0E8E3">
+        <span style="font-size:12.5px;font-weight:600;color:${T.textSec}">${r.employeeName ?? '—'}</span>
+        ${r.employeeCode ? `<span style="font-size:10px;color:${T.textDim};margin-left:5px">${r.employeeCode}</span>` : ''}
+      </td>
+      <td style="padding:10px 16px;font-size:12px;font-weight:600;color:${T.textSec};text-align:right;border-bottom:1px solid #F0E8E3;white-space:nowrap">${fmt.number(r.qtySold)}</td>
+      <td style="padding:10px 16px;font-size:13px;font-weight:700;color:${T.textPri};text-align:right;border-bottom:1px solid #F0E8E3;white-space:nowrap">${fmt.currency(r.netRevenue)}</td>
+    </tr>`).join('');
+
+  return tableShell(['product', 'sold by', 'units', 'amount'], dataRows);
 }
 
 function refundSummaryBlock(refunds) {
@@ -403,8 +440,8 @@ function shapeReport({ type, summary, payments, products, cashiers, refunds, tre
 
 // ─── Main export — HTML ───────────────────────────────────────────────────────
 
-export function buildReportHtml({ type, label, start, end, summary, payments, products, cashiers, refunds, trend, groups }) {
-  const dateRange = `${new Date(start).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })} – ${new Date(end).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}`;
+export function buildReportHtml({ type, label, start, end, summary, payments, products, cashiers, productSales, refunds, trend, groups }) {
+  const dateRange = formatDateRangeLabel(type, start, end);
   const generatedAt = new Date().toISOString();
 
   const groupByMap = { DAILY: 'hour', WEEKLY: 'day', MONTHLY: 'week', YEARLY: 'month' };
@@ -443,11 +480,17 @@ export function buildReportHtml({ type, label, start, end, summary, payments, pr
 
       ${divider()}
 
-      <!-- Cashier Performance (weekly+ only) -->
-      ${type !== 'DAILY' ? sectionTitle('Cashier Performance', '🧑‍💼') : ''}
-      ${type !== 'DAILY' ? cashierTable(cashiers, cashierLimit) : ''}
+      <!-- Individual Sales Report (per-cashier breakdown) -->
+      ${sectionTitle('Individual Sales Report', '🧑‍💼')}
+      ${cashierTable(cashiers, cashierLimit)}
 
-      ${type !== 'DAILY' ? divider() : ''}
+      ${divider()}
+
+      <!-- Product Sales Detail (which product, how much, sold by whom) -->
+      ${sectionTitle('Product Sales Detail', '🧾')}
+      ${productSalesDetailTable(productSales)}
+
+      ${divider()}
 
       <!-- Group Sales Report -->
       ${sectionTitle('Group Sales Report', '👥')}
@@ -478,8 +521,8 @@ export function buildReportHtml({ type, label, start, end, summary, payments, pr
 
 // ─── Plain-text alternative (multipart/alternative — required for deliverability) ──
 
-export function buildReportText({ type, label, start, end, summary, payments, products, cashiers, refunds, trend, groups }) {
-  const dateRange = `${new Date(start).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })} – ${new Date(end).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}`;
+export function buildReportText({ type, label, start, end, summary, payments, products, cashiers, productSales, refunds, trend, groups }) {
+  const dateRange = formatDateRangeLabel(type, start, end);
   const { cur, hasActivity, productLimit, cashierLimit } = shapeReport({ type, summary, payments, products, cashiers, refunds, trend, groups });
 
   const lines = [];
@@ -511,14 +554,19 @@ export function buildReportText({ type, label, start, end, summary, payments, pr
       : 'No products sold in this period.');
     lines.push('');
 
-    if (type !== 'DAILY') {
-      const topCashiers = (cashiers || []).slice(0, cashierLimit);
-      lines.push('CASHIER PERFORMANCE');
-      lines.push(topCashiers.length
-        ? topCashiers.map((c) => `${c.name ?? '—'}: ${fmt.currency(c.netRevenue)} (${fmt.number(c.txnCount)} txns)`).join('\n')
-        : 'No cashier activity recorded.');
-      lines.push('');
-    }
+    const topCashiers = (cashiers || []).slice(0, cashierLimit);
+    lines.push('INDIVIDUAL SALES REPORT');
+    lines.push(topCashiers.length
+      ? topCashiers.map((c) => `${c.name ?? '—'}: ${fmt.currency(c.netRevenue)} (${fmt.number(c.txnCount)} txns)`).join('\n')
+      : 'No cashier activity recorded.');
+    lines.push('');
+
+    const productSalesRows = (productSales || []).slice(0, 15);
+    lines.push('PRODUCT SALES DETAIL');
+    lines.push(productSalesRows.length
+      ? productSalesRows.map((r) => `${r.productName ?? '—'} — ${fmt.currency(r.netRevenue)} (${fmt.number(r.qtySold)} units) — sold by ${r.employeeName ?? '—'}`).join('\n')
+      : 'No product sales detail available for this period.');
+    lines.push('');
   }
 
   lines.push('GROUP SALES');

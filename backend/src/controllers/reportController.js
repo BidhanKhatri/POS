@@ -62,6 +62,17 @@ const getCashiers = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+// GET /api/reports/product-sales-detail — flat product × cashier rows: which
+// product, how much, how many units, sold by whom.
+const getProductSalesDetail = async (req, res, next) => {
+  try {
+    const { start, end } = parseDateRange(req.query);
+    const { limit = 50 } = req.query;
+    const data = await reportService.getProductSalesDetail({ start, end, limit });
+    res.json(data);
+  } catch (err) { next(err); }
+};
+
 // GET /api/reports/refunds
 const getRefunds = async (req, res, next) => {
   try {
@@ -152,6 +163,7 @@ export {
   getPayments,
   getProducts,
   getCashiers,
+  getProductSalesDetail,
   getRefunds,
   getHeatmap,
   getShiftGroups,

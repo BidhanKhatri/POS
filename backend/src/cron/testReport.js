@@ -18,7 +18,7 @@ import mongoose from 'mongoose';
 import connectDB from '../config/db.js';
 import {
   getSummary, getTrend, getPayments,
-  getProducts, getCashiers, getRefunds,
+  getProducts, getCashiers, getProductSalesDetail, getRefunds,
 } from '../services/reportService.js';
 import { getPosGroupsSummary } from '../services/posGroupReportService.js';
 import { buildReportHtml, buildReportText } from '../services/reportEmailService.js';
@@ -60,12 +60,13 @@ async function main() {
   const cs = compareStart.toISOString();
   const ce = compareEnd.toISOString();
 
-  const [summary, trend, payments, products, cashiers, refunds, groupsData] = await Promise.all([
+  const [summary, trend, payments, products, cashiers, productSales, refunds, groupsData] = await Promise.all([
     getSummary({ start: s, end: e, compareStart: cs, compareEnd: ce }),
     getTrend({ start: s, end: e, groupBy: 'hour' }),
     getPayments({ start: s, end: e }),
     getProducts({ start: s, end: e, limit: 10, sortBy: 'revenue' }),
     getCashiers({ start: s, end: e }),
+    getProductSalesDetail({ start: s, end: e }),
     getRefunds({ start: s, end: e }),
     getPosGroupsSummary({ start: s, end: e }).catch(() => ({ groups: [] })),
   ]);
@@ -80,8 +81,8 @@ async function main() {
   console.log(`       Products     : ${products.length}`);
   console.log(`       Cashiers     : ${cashiers.length}`);
 
-  const html    = buildReportHtml({ type: 'DAILY', label, start, end, summary, payments, products, cashiers, refunds, trend, groups });
-  const text    = buildReportText({ type: 'DAILY', label, start, end, summary, payments, products, cashiers, refunds, trend, groups });
+  const html    = buildReportHtml({ type: 'DAILY', label, start, end, summary, payments, products, cashiers, productSales, refunds, trend, groups });
+  const text    = buildReportText({ type: 'DAILY', label, start, end, summary, payments, products, cashiers, productSales, refunds, trend, groups });
   const subject = `Daily Sales Report — ${label}`;
 
   console.log(`\n[TEST] Sending to ${TEST_RECIPIENT}…`);

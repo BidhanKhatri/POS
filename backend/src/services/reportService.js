@@ -557,6 +557,65 @@ async function getCashiers({ start, end }) {
   return result;
 }
 
+// Flat product × cashier sales detail — one row per (product, employee)
+// combination sold in the period: which product, how many units, for how
+// much, and who sold it. Distinct from getProducts (product totals across
+// all cashiers) and getCashiers (employee totals across all products) — this
+// is the join of the two, for when a manager needs "who sold what."
+async function getProductSalesDetail({ start, end, limit = 50 }) {
+  const key = cacheKey('productSalesDetail', { start, end, limit });
+  const cached = getCached(key);
+  if (cached) return cached;
+
+  const { start: s, end: e } = parseRange(start, end);
+
+  const rows = await Sale.aggregate([
+    {
+      $match: {
+        createdAt: { $gte: s, $lte: e },
+        paymentStatus: { $in: ['PAID', 'PARTIAL', 'REFUNDED'] },
+      },
+    },
+    { $unwind: '$items' },
+    {
+      $group: {
+        _id:         { employeeId: '$employeeId', productId: '$items.productId' },
+        productName: { $first: '$items.productName' },
+        sku:         { $first: '$items.sku' },
+        qtySold:     { $sum: '$items.quantity' },
+        netRevenue:  { $sum: { $subtract: ['$items.total', '$items.refundedAmount'] } },
+      },
+    },
+    { $sort: { netRevenue: -1 } },
+    { $limit: Number(limit) },
+    {
+      $lookup: {
+        from: 'users',
+        localField: '_id.employeeId',
+        foreignField: '_id',
+        as: 'employeeDoc',
+      },
+    },
+  ]);
+
+  const result = rows.map((r) => {
+    const emp = r.employeeDoc?.[0];
+    return {
+      productId:    r._id.productId,
+      productName:  r.productName,
+      sku:          r.sku,
+      employeeId:   r._id.employeeId,
+      employeeName: emp?.name || 'Unknown',
+      employeeCode: emp?.employeeCode || '—',
+      qtySold:      r.qtySold,
+      netRevenue:   Math.round(r.netRevenue * 100) / 100,
+    };
+  });
+
+  setCached(key, result, ttlFor(end));
+  return result;
+}
+
 // ─── 6. REFUND ANALYSIS ──────────────────────────────────────────────────────
 
 async function getRefunds({ start, end }) {
@@ -1360,6 +1419,7 @@ export {
   getPayments,
   getProducts,
   getCashiers,
+  getProductSalesDetail,
   getRefunds,
   getHeatmap,
   getShiftGroups,

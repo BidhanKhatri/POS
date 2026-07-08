@@ -160,6 +160,19 @@ export function useReportCashiers({ start, end }, options = {}) {
   });
 }
 
+export function useReportProductSalesDetail({ start, end, limit = 50 }, options = {}) {
+  const token = useAuthStore(s => s.token);
+  const live  = isLivePeriod(end);
+  return useQuery({
+    queryKey:       ['report', 'product-sales-detail', start, end, limit],
+    queryFn:        () => reportFetch(`product-sales-detail${qs({ start, end, limit })}`, token),
+    enabled:        !!token && !!start && !!end,
+    staleTime:      0,
+    refetchInterval: live ? 60 * 1000 : false,
+    ...options,
+  });
+}
+
 export function useReportRefunds({ start, end }, options = {}) {
   const token = useAuthStore(s => s.token);
   return useQuery({

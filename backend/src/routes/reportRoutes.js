@@ -6,6 +6,7 @@ import {
   getPayments,
   getProducts,
   getCashiers,
+  getProductSalesDetail,
   getRefunds,
   getHeatmap,
   getShiftGroups,
@@ -26,6 +27,7 @@ router.get('/trend',     getTrend);
 router.get('/payments',  getPayments);
 router.get('/products',  getProducts);
 router.get('/cashiers',  getCashiers);
+router.get('/product-sales-detail', getProductSalesDetail);
 router.get('/refunds',   getRefunds);
 router.get('/heatmap',   getHeatmap);
 router.get('/groups',    getShiftGroups);
