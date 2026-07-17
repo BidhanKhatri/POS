@@ -18,7 +18,7 @@ mongoose.connection.once('open', () => {
   }
 });
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5002;
 const HOST = process.env.HOST || '0.0.0.0';
 
 // Attach Socket.IO to the same HTTP server so it shares the port with Express

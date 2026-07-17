@@ -8,7 +8,8 @@
  * to EMS for high-frequency reads like "current shift".
  */
 
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL_MS = 30 * 1000; // 30 seconds
+const DEFAULT_LOCAL_EMS_API_URL = 'http://localhost:5001/api';
 
 const cache = new Map(); // key → { data, expiresAt }
 
@@ -39,20 +40,50 @@ export function clearAllCache() {
 
 // ─── internal fetch helper ────────────────────────────────────────────────────
 
-async function emsRequest(path, params = {}) {
-  const baseUrl = process.env.STAFFING_API_URL;
-  const token = process.env.STAFFING_API_TOKEN;
+function getEmsApiBaseUrl() {
+  const configured = (process.env.STAFFING_API_URL || process.env.EMS_API_URL || '').trim();
 
-  if (!baseUrl || !token) {
+  if (!configured && process.env.NODE_ENV !== 'production') {
+    return DEFAULT_LOCAL_EMS_API_URL;
+  }
+
+  if (!configured) {
     throw new Error('STAFFING_API_URL and STAFFING_API_TOKEN must be set in environment');
   }
 
-  const url = new URL(`${baseUrl}${path}`);
+  const url = new URL(configured);
+  url.pathname = url.pathname.replace(/\/+$/, '');
+
+  if (!url.pathname || url.pathname === '/') {
+    url.pathname = '/api';
+  } else if (!url.pathname.endsWith('/api')) {
+    url.pathname = `${url.pathname}/api`;
+  }
+
+  return url.toString().replace(/\/+$/, '');
+}
+
+function buildEmsUrl(path, params = {}) {
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  const url = new URL(`${getEmsApiBaseUrl()}${normalizedPath}`);
+
   for (const [k, v] of Object.entries(params)) {
-    if (v !== undefined && v !== null) {
+    if (v !== undefined && v !== null && v !== '') {
       url.searchParams.set(k, v);
     }
   }
+
+  return url;
+}
+
+async function emsRequest(path, params = {}) {
+  const token = process.env.STAFFING_API_TOKEN;
+
+  if (!token) {
+    throw new Error('STAFFING_API_URL and STAFFING_API_TOKEN must be set in environment');
+  }
+
+  const url = buildEmsUrl(path, params);
 
   const response = await fetch(url.toString(), {
     method: 'GET',

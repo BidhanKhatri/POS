@@ -258,7 +258,7 @@ const registerUser = async ({ name, email, pin, role = 'Employee' }) => {
       expiresAt,
     });
 
-    const backendUrl = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 5001}`;
+    const backendUrl = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 5002}`;
     const verifyUrl = `${backendUrl}/api/auth/verify-email?token=${token}`;
     await sendVerificationEmail({ to: normalizedEmail, name, verifyUrl });
 

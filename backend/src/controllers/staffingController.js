@@ -34,15 +34,12 @@ export const getMySchedule = async (req, res, next) => {
     const setting = await Setting.findById('global').lean();
     const synced  = setting?.syncStaffingBetit === true;
 
+    const { staffingBetitEmployeeId, email } = req.user;
+    const linked = Boolean(staffingBetitEmployeeId || email);
+
     let data = [];
 
-    if (synced) {
-      const { staffingBetitEmployeeId, email } = req.user;
-
-      if (!staffingBetitEmployeeId && !email) {
-        return res.json({ success: true, synced: true, linked: false, startDate, endDate, data: [] });
-      }
-
+    if (synced && linked) {
       const raw = await staffingService.fetchMySchedule({
         staffingBetitEmployeeId,
         email,
@@ -69,6 +66,8 @@ export const getMySchedule = async (req, res, next) => {
           title: s.title ?? 'Shift',
           color: s.color ?? '#3E2723',
           scheduledHours: +(mins / 60).toFixed(2),
+          startUtc: s.startUtc,
+          endUtc: s.endUtc,
         };
       });
     } else {
@@ -98,11 +97,13 @@ export const getMySchedule = async (req, res, next) => {
           title: doc.title,
           color: doc.color,
           scheduledHours: +(mins / 60).toFixed(2),
+          startUtc: doc.startUtc,
+          endUtc: doc.endUtc,
         };
       });
     }
 
-    res.json({ success: true, synced, linked: true, startDate, endDate, data });
+    res.json({ success: true, synced, linked, startDate, endDate, data });
   } catch (err) {
     if (err.message?.includes('EMS API error')) {
       return res.status(502).json({ success: false, message: 'EMS service unavailable. Check that the staffing portal is running.' });
