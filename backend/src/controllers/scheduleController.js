@@ -90,7 +90,7 @@ export const listSchedules = async (req, res, next) => {
 
 /**
  * POST /api/schedules
- * Body: { employeeId, date, startTime, endTime, title?, color? }
+ * Body: { employeeId, date, startTime, endTime, title?, color?, timezone?, startUtc?, endUtc? }
  * Access: Manager, Admin
  */
 export const createSchedule = async (req, res, next) => {
@@ -101,7 +101,7 @@ export const createSchedule = async (req, res, next) => {
       });
     }
 
-    const { employeeId, date, startTime, endTime, title, color } = req.body;
+    const { employeeId, date, startTime, endTime, title, color, timezone, startUtc, endUtc } = req.body;
 
     if (!employeeId || !date || !startTime || !endTime) {
       return res.status(400).json({ message: 'employeeId, date, startTime, and endTime are required.' });
@@ -128,6 +128,9 @@ export const createSchedule = async (req, res, next) => {
       endTime,
       title: title?.trim() || 'Regular Shift',
       color: color || '#3E2723',
+      timezone: timezone || 'UTC',
+      startUtc,
+      endUtc,
       createdBy: req.user._id,
     });
 
@@ -143,7 +146,7 @@ export const createSchedule = async (req, res, next) => {
 
 /**
  * PUT /api/schedules/:id
- * Body: { date?, startTime?, endTime?, title?, color? }
+ * Body: { date?, startTime?, endTime?, title?, color?, timezone?, startUtc?, endUtc? }
  * Access: Manager, Admin
  */
 export const updateSchedule = async (req, res, next) => {
@@ -157,7 +160,7 @@ export const updateSchedule = async (req, res, next) => {
     const existing = await PosSchedule.findById(req.params.id);
     if (!existing) return res.status(404).json({ message: 'Schedule not found.' });
 
-    const { date, startTime, endTime, title, color } = req.body;
+    const { date, startTime, endTime, title, color, timezone, startUtc, endUtc } = req.body;
 
     const newStart = startTime ?? existing.startTime;
     const newEnd   = endTime   ?? existing.endTime;
@@ -171,6 +174,9 @@ export const updateSchedule = async (req, res, next) => {
     if (endTime)   updates.endTime   = endTime;
     if (title !== undefined) updates.title = title?.trim() || 'Regular Shift';
     if (color)     updates.color     = color;
+    if (timezone)  updates.timezone  = timezone;
+    if (startUtc)  updates.startUtc  = startUtc;
+    if (endUtc)    updates.endUtc    = endUtc;
 
     const updated = await PosSchedule.findByIdAndUpdate(
       req.params.id,
@@ -244,6 +250,7 @@ export const copyWeekSchedule = async (req, res, next) => {
       await PosSchedule.deleteMany(deleteFilter);
 
       for (const s of sourceSchedules) {
+        const dayDiff = Math.round((new Date(targetYMD) - new Date(sourceDate)) / (1000 * 60 * 60 * 24));
         toInsert.push({
           employeeId: s.employeeId,
           date: targetYMD,
@@ -251,6 +258,9 @@ export const copyWeekSchedule = async (req, res, next) => {
           endTime: s.endTime,
           title: s.title,
           color: s.color,
+          timezone: s.timezone || 'UTC',
+          startUtc: s.startUtc ? new Date(s.startUtc.getTime() + dayDiff * 86400000) : undefined,
+          endUtc: s.endUtc ? new Date(s.endUtc.getTime() + dayDiff * 86400000) : undefined,
           createdBy: req.user._id,
         });
       }
@@ -306,6 +316,7 @@ export const bulkCopySchedules = async (req, res, next) => {
         const originalDate = parseYMD(s.date);
         const dayOffset = Math.round((originalDate - sourceStart) / (1000 * 60 * 60 * 24));
         const targetDate = toYMD(addDays(sourceStart, weekOffset + dayOffset));
+        const dayDiff = weekOffset + dayOffset;
 
         await PosSchedule.deleteMany({ date: targetDate, employeeId: s.employeeId });
 
@@ -316,6 +327,9 @@ export const bulkCopySchedules = async (req, res, next) => {
           endTime: s.endTime,
           title: s.title,
           color: s.color,
+          timezone: s.timezone || 'UTC',
+          startUtc: s.startUtc ? new Date(s.startUtc.getTime() + dayDiff * 86400000) : undefined,
+          endUtc: s.endUtc ? new Date(s.endUtc.getTime() + dayDiff * 86400000) : undefined,
           createdBy: req.user._id,
         });
       }
@@ -335,7 +349,7 @@ export const bulkCopySchedules = async (req, res, next) => {
 
 /**
  * POST /api/schedules/batch
- * Body: { employeeId, weekStart, days: [{ dayIndex, enabled, startTime, endTime, title, color }], repeatPeriod }
+ * Body: { employeeId, weekStart, days: [{ dayIndex, enabled, startTime, endTime, title, color, timezone, startUtc, endUtc }], repeatPeriod }
  * repeatPeriod: '1week' | '1month' | '6months' | '1year'
  * Creates (or replaces) shifts for an entire week pattern, optionally repeated forward.
  * Access: Manager, Admin
@@ -369,10 +383,11 @@ export const batchCreateSchedules = async (req, res, next) => {
     for (let w = 0; w < totalWeeks; w++) {
       for (const day of days) {
         if (!day?.enabled) continue;
-        const { dayIndex, startTime, endTime, title, color } = day;
+        const { dayIndex, startTime, endTime, title, color, timezone, startUtc, endUtc } = day;
         if (!startTime || !endTime || startTime === endTime) continue;
 
-        const date = toYMD(addDays(weekStartDate, w * 7 + Number(dayIndex)));
+        const dayOffset = w * 7;
+        const date = toYMD(addDays(weekStartDate, dayOffset + Number(dayIndex)));
         datesToDel.add(date);
         toCreate.push({
           employeeId,
@@ -381,6 +396,9 @@ export const batchCreateSchedules = async (req, res, next) => {
           endTime,
           title: title?.trim() || 'Regular Shift',
           color: color || '#3E2723',
+          timezone: timezone || 'UTC',
+          startUtc: startUtc ? new Date(new Date(startUtc).getTime() + dayOffset * 86400000) : undefined,
+          endUtc: endUtc ? new Date(new Date(endUtc).getTime() + dayOffset * 86400000) : undefined,
           createdBy: req.user._id,
         });
       }

@@ -39,6 +39,16 @@ const posScheduleSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
     },
+    timezone: {
+      type: String,
+      default: 'UTC',
+    },
+    startUtc: {
+      type: Date,
+    },
+    endUtc: {
+      type: Date,
+    },
   },
   { timestamps: true }
 );

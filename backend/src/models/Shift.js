@@ -55,6 +55,7 @@ const shiftSchema = new mongoose.Schema({
   scheduleSource: { type: String, enum: ['EMS', 'POS', 'MANUAL'], default: 'MANUAL' },
   scheduledStart: { type: String, default: null },  // HH:mm — copied from schedule
   scheduledEnd:   { type: String, default: null },  // HH:mm
+  scheduledEndUtc:{ type: Date, default: null },    // Absolute UTC end time
   scheduledDate:  { type: String, default: null },  // YYYY-MM-DD
 
   // ── Clock-out metadata ────────────────────────────────────────────────────

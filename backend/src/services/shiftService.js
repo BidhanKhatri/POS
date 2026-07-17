@@ -11,6 +11,7 @@ const openShift = async (employeeId, {
   scheduleSource = 'MANUAL',
   scheduledStart = null,
   scheduledEnd   = null,
+  scheduledEndUtc= null,
   scheduledDate  = null,
 } = {}) => {
   const existing = await Shift.findOne({ employeeId, status: 'OPEN' });
@@ -24,6 +25,7 @@ const openShift = async (employeeId, {
     scheduleSource,
     scheduledStart,
     scheduledEnd,
+    scheduledEndUtc,
     scheduledDate,
   });
 };
@@ -40,14 +42,13 @@ const closeShift = async (employeeId, { closingCash = 0, clockOutReason = null }
   const now = new Date();
   let earlyClockOut = false;
 
-  if (shift.scheduledEnd) {
-    const [h, m] = shift.scheduledEnd.split(':').map(Number);
-    const base = new Date(shift.clockInTime);
-    const scheduledEndTime = new Date(base.getFullYear(), base.getMonth(), base.getDate(), h, m, 0, 0);
-    // If scheduledEnd <= clockIn time (overnight shift), the end is on the next calendar day
-    if (scheduledEndTime <= base) scheduledEndTime.setDate(scheduledEndTime.getDate() + 1);
-    // More than 10 minutes before scheduled end = early
-    earlyClockOut = now.getTime() < scheduledEndTime.getTime() - 10 * 60 * 1000;
+  if (shift.scheduledEndUtc) {
+    earlyClockOut = now.getTime() < shift.scheduledEndUtc.getTime() - 10 * 60 * 1000;
+  } else if (shift.scheduledEnd) {
+    // Legacy shifts lack scheduledEndUtc. Because server timezone may differ from 
+    // the store's timezone, computing local time based on the server's Date constructor 
+    // produces false positives. We disable the strict early clock-out check for legacy shifts.
+    earlyClockOut = false;
   }
 
   if (earlyClockOut && !clockOutReason?.trim()) {

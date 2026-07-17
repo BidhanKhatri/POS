@@ -90,6 +90,11 @@ function fmt12(hhmm) {
   return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
 }
 
+function fmtLocal12(utcString, fallbackHhmm) {
+  if (!utcString) return fmt12(fallbackHhmm);
+  return new Date(utcString).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+}
+
 function weekLabel(weekStart) {
   const end = addDays(weekStart, 6);
   const sm = MONTHS[weekStart.getMonth()];
@@ -933,10 +938,28 @@ function WeeklyScheduleModal({
     if (!selectedEmpId) { alert('Please select an employee.'); return; }
     if (!validate()) return;
     if (enabledCount === 0) { alert('Enable at least one day.'); return; }
+
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const baseStart = toYMD(weekStart);
+
     onSave({
       employeeId: selectedEmpId,
-      weekStart: toYMD(weekStart),
-      days: dayPlans.map((d, i) => ({ dayIndex: i, ...d })),
+      weekStart: baseStart,
+      days: dayPlans.map((d, i) => {
+        if (!d.enabled) return { dayIndex: i, ...d };
+        
+        const dDate = toYMD(addDays(weekStart, i));
+        const startD = new Date(`${dDate}T${d.startTime}:00`);
+        const endD = new Date(`${dDate}T${d.endTime}:00`);
+        if (endD <= startD) endD.setDate(endD.getDate() + 1);
+
+        return {
+          dayIndex: i, ...d,
+          timezone: tz,
+          startUtc: startD.toISOString(),
+          endUtc: endD.toISOString()
+        };
+      }),
       repeatPeriod,
     });
   }
@@ -1312,7 +1335,18 @@ export default function ManagerStaffingPage() {
     if (modalStart === modalEnd) return;
     setModalSaving(true);
     try {
-      const body = { employeeId: modalEmpId, date: modalDate, startTime: modalStart, endTime: modalEnd, title: modalTitle, color: modalColor };
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const startD = new Date(`${modalDate}T${modalStart}:00`);
+      const endD = new Date(`${modalDate}T${modalEnd}:00`);
+      if (endD <= startD) endD.setDate(endD.getDate() + 1);
+
+      const body = { 
+        employeeId: modalEmpId, date: modalDate, startTime: modalStart, endTime: modalEnd, 
+        title: modalTitle, color: modalColor,
+        timezone: tz,
+        startUtc: startD.toISOString(),
+        endUtc: endD.toISOString()
+      };
       const url  = modalMode === 'edit' ? `${API}/api/schedules/${modalEventId}` : `${API}/api/schedules`;
       const method = modalMode === 'edit' ? 'PUT' : 'POST';
       const res = await fetch(url, { method, headers: authHeaders, body: JSON.stringify(body) });
@@ -1688,7 +1722,7 @@ export default function ManagerStaffingPage() {
                                 <span style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
                                   <AccessTimeOutlinedIcon sx={{ fontSize: 13, color: accent, flexShrink: 0 }} />
                                   <span style={{ fontSize: 11, fontWeight: 900, color: accent, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                    {fmt12(shift.startTime)} – {fmt12(shift.endTime)}
+                                    {fmtLocal12(shift.startUtc, shift.startTime)} – {fmtLocal12(shift.endUtc, shift.endTime)}
                                   </span>
                                 </span>
                                 <span style={{ display: 'block', marginTop: 5, fontSize: 11, fontWeight: 700, color: accent, opacity: 0.86, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -2017,7 +2051,7 @@ export default function ManagerStaffingPage() {
                                   <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                     <AccessTimeOutlinedIcon sx={{ fontSize: 12, color: accent, flexShrink: 0 }} />
                                     <span style={{ fontSize: 11, fontWeight: 800, color: accent, letterSpacing: '0.01em', lineHeight: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                      {fmt12(shift.startTime)} – {fmt12(shift.endTime)}
+                                      {fmtLocal12(shift.startUtc, shift.startTime)} – {fmtLocal12(shift.endUtc, shift.endTime)}
                                     </span>
                                     {shift.isOvernight && (
                                       <span style={{ fontSize: 8, fontWeight: 900, color: accent, background: `${accent}25`, borderRadius: 3, padding: '1px 3px', flexShrink: 0, letterSpacing: '0.02em' }}>+1</span>

@@ -46,11 +46,17 @@ function getWeekStart(date) {
   return d;
 }
 function addDays(date, n) { return new Date(date.getTime() + n * 86400000); }
-function fmt12(time24) {
-  const [h, m] = time24.split(':').map(Number);
+function fmt12(hhmm) {
+  if (!hhmm) return '—';
+  const [h, m] = hhmm.split(':').map(Number);
   const ampm = h >= 12 ? 'PM' : 'AM';
   const h12  = h % 12 || 12;
   return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
+}
+
+function fmtLocal12(utcString, fallbackHhmm) {
+  if (!utcString) return fmt12(fallbackHhmm);
+  return new Date(utcString).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
 }
 function parseHHmm(t) {
   const [h, m] = t.split(':').map(Number);
@@ -85,25 +91,37 @@ function computeScheduleState(todayShifts, yesterdayShifts = []) {
 
   // Check yesterday's overnight shifts that extend past midnight into today
   for (const s of yesterdayShifts) {
-    const [sy, sm, sd] = s.date.split('-').map(Number);
-    const [startH, startM] = s.startTime.split(':').map(Number);
-    const [endH, endM] = s.endTime.split(':').map(Number);
-    const startDT = new Date(sy, sm - 1, sd, startH, startM, 0, 0);
-    let endDT = new Date(sy, sm - 1, sd, endH, endM, 0, 0);
-    if (endDT <= startDT) { // overnight
-      endDT.setDate(endDT.getDate() + 1);
+    let startDT, endDT;
+    if (s.startUtc && s.endUtc) {
+      startDT = new Date(s.startUtc);
+      endDT = new Date(s.endUtc);
+    } else {
+      const [sy, sm, sd] = s.date.split('-').map(Number);
+      const [startH, startM] = s.startTime.split(':').map(Number);
+      const [endH, endM] = s.endTime.split(':').map(Number);
+      startDT = new Date(sy, sm - 1, sd, startH, startM, 0, 0);
+      endDT = new Date(sy, sm - 1, sd, endH, endM, 0, 0);
+      if (endDT <= startDT) endDT.setDate(endDT.getDate() + 1);
+    }
+    if (endDT > startDT) { // overnight conceptually
       if (now <= endDT) return 'IN_WINDOW';
     }
   }
 
   if (!todayShifts || todayShifts.length === 0) return 'NO_SHIFT';
   const s = todayShifts[0];
-  const [sy, sm, sd] = s.date.split('-').map(Number);
-  const [startH, startM] = s.startTime.split(':').map(Number);
-  const [endH, endM] = s.endTime.split(':').map(Number);
-  const startDT = new Date(sy, sm - 1, sd, startH, startM, 0, 0);
-  let endDT = new Date(sy, sm - 1, sd, endH, endM, 0, 0);
-  if (endDT <= startDT) endDT.setDate(endDT.getDate() + 1); // overnight
+  let startDT, endDT;
+  if (s.startUtc && s.endUtc) {
+    startDT = new Date(s.startUtc);
+    endDT = new Date(s.endUtc);
+  } else {
+    const [sy, sm, sd] = s.date.split('-').map(Number);
+    const [startH, startM] = s.startTime.split(':').map(Number);
+    const [endH, endM] = s.endTime.split(':').map(Number);
+    startDT = new Date(sy, sm - 1, sd, startH, startM, 0, 0);
+    endDT = new Date(sy, sm - 1, sd, endH, endM, 0, 0);
+    if (endDT <= startDT) endDT.setDate(endDT.getDate() + 1); // overnight
+  }
   if (now < startDT) return 'UPCOMING';
   if (now <= endDT)  return 'IN_WINDOW';
   return 'PAST';
@@ -261,9 +279,14 @@ export default function ShiftPage() {
   const countdownLabel = (() => {
     if (scheduleState !== 'UPCOMING' || todayShifts.length === 0) return null;
     const s = todayShifts[0];
-    const [sy, sm, sd] = s.date.split('-').map(Number);
-    const [startH, startM] = s.startTime.split(':').map(Number);
-    const startDT = new Date(sy, sm - 1, sd, startH, startM, 0, 0);
+    let startDT;
+    if (s.startUtc) {
+      startDT = new Date(s.startUtc);
+    } else {
+      const [sy, sm, sd] = s.date.split('-').map(Number);
+      const [startH, startM] = s.startTime.split(':').map(Number);
+      startDT = new Date(sy, sm - 1, sd, startH, startM, 0, 0);
+    }
     return fmtDuration(startDT.getTime() - Date.now());
   })();
 
@@ -377,6 +400,7 @@ export default function ShiftPage() {
           scheduleSource: sched ? (synced ? 'EMS' : 'POS') : 'MANUAL',
           scheduledStart: sched?.startTime      ?? null,
           scheduledEnd:   sched?.endTime        ?? null,
+          scheduledEndUtc:sched?.endUtc         ?? null,
           scheduledDate:  todayYMD,
         }),
       });
@@ -483,7 +507,7 @@ export default function ShiftPage() {
     if (scheduleState === 'UPCOMING') {
       const s = todayShifts[0];
       return (
-        <StatusBanner icon={TimerOutlinedIcon} color={C.info} bg="rgba(21,101,192,0.05)" title={`Shift starts in ${countdownLabel}`} subtitle={`Scheduled ${fmt12(s.startTime)} – ${fmt12(s.endTime)}`}>
+        <StatusBanner icon={TimerOutlinedIcon} color={C.info} bg="rgba(21,101,192,0.05)" title={`Shift starts in ${countdownLabel}`} subtitle={`Scheduled ${fmtLocal12(s.startUtc, s.startTime)} – ${fmtLocal12(s.endUtc, s.endTime)}`}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', background: 'rgba(21,101,192,0.07)', borderRadius: 8 }}>
             <PointOfSaleIcon sx={{ fontSize: 14, color: C.info }} />
             <span style={{ fontSize: 12, fontWeight: 600, color: C.info }}>Sales access opens when your shift begins.</span>
@@ -503,7 +527,7 @@ export default function ShiftPage() {
             </div>
             <div>
               <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: C.textPri }}>Shift in progress — clock in to start</p>
-              <p style={{ margin: '1px 0 0', fontSize: 12, fontWeight: 500, color: C.textSec }}>{fmt12(s.startTime)} – {fmt12(s.endTime)} · {s.scheduledHours}h scheduled</p>
+              <p style={{ margin: '1px 0 0', fontSize: 12, fontWeight: 500, color: C.textSec }}>{fmtLocal12(s.startUtc, s.startTime)} – {fmtLocal12(s.endUtc, s.endTime)} · {s.scheduledHours}h scheduled</p>
             </div>
           </div>
           <div style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -687,7 +711,7 @@ export default function ShiftPage() {
               display: 'flex', gap: 20,
             }}>
               {[
-                { label: 'Scheduled', value: `${fmt12(s.startTime)} – ${fmt12(s.endTime)}${s.isOvernight ? ' (+1)' : ''}` },
+                { label: 'Scheduled', value: `${fmtLocal12(s.startUtc, s.startTime)} – ${fmtLocal12(s.endUtc, s.endTime)}${s.isOvernight ? ' (+1)' : ''}` },
                 { label: 'Hours',     value: `${s.scheduledHours}h` },
                 { label: 'Source',    value: activeShift.scheduleSource || 'POS' },
               ].map(({ label, value }) => (
@@ -767,7 +791,7 @@ export default function ShiftPage() {
       return (
         <StatusBanner
           icon={CheckCircleOutlineOutlinedIcon} color={C.textMute} bg="#FAF7F5"
-          title="Shift ended" subtitle={s ? `${fmt12(s.startTime)} – ${fmt12(s.endTime)}` : ''}
+          title="Shift ended" subtitle={s ? `${fmtLocal12(s.startUtc, s.startTime)} – ${fmtLocal12(s.endUtc, s.endTime)}` : ''}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', background: C.elevated, borderRadius: 8 }}>
             <BlockOutlinedIcon sx={{ fontSize: 14, color: C.textMute }} />
@@ -850,7 +874,7 @@ export default function ShiftPage() {
                 dayShifts.map((s) => (
                   <div key={s.scheduleId} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 6, background: `${s.color}18`, border: `1px solid ${s.color}40` }}>
                     <span style={{ width: 6, height: 6, borderRadius: '50%', background: s.color, flexShrink: 0 }} />
-                    <span style={{ fontSize: 12, fontWeight: 700, color: C.textPri }}>{fmt12(s.startTime)} – {fmt12(s.endTime)}</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: C.textPri }}>{fmtLocal12(s.startUtc, s.startTime)} – {fmtLocal12(s.endUtc, s.endTime)}</span>
                     {s.isOvernight && (
                       <span style={{ fontSize: 9, fontWeight: 800, color: s.color, background: `${s.color}20`, borderRadius: 4, padding: '1px 4px', letterSpacing: '0.02em' }}>+1</span>
                     )}

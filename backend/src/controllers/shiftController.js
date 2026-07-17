@@ -12,7 +12,7 @@ const clockIn = async (req, res, next) => {
     const {
       openingCash,
       scheduleId, scheduleSource,
-      scheduledStart, scheduledEnd, scheduledDate,
+      scheduledStart, scheduledEnd, scheduledEndUtc, scheduledDate,
     } = req.body;
 
     const shift = await shiftService.openShift(req.user._id, {
@@ -21,6 +21,7 @@ const clockIn = async (req, res, next) => {
       scheduleSource: scheduleSource ?? 'MANUAL',
       scheduledStart: scheduledStart ?? null,
       scheduledEnd:   scheduledEnd   ?? null,
+      scheduledEndUtc:scheduledEndUtc?? null,
       scheduledDate:  scheduledDate  ?? null,
     });
 
