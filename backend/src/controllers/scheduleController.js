@@ -46,6 +46,9 @@ function toApiShape(doc) {
     title: doc.title,
     color: doc.color,
     scheduledHours: scheduledHours(doc.startTime, doc.endTime),
+    timezone: doc.timezone,
+    startUtc: doc.startUtc,
+    endUtc: doc.endUtc,
     employee: emp
       ? { _id: emp._id, name: emp.name, email: emp.email }
       : null,

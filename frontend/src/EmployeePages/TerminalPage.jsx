@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useMediaQuery } from '@mui/material';
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
@@ -7,8 +7,10 @@ import ShoppingCartCheckoutIcon from '@mui/icons-material/ShoppingCartCheckout';
 import SwapHorizRoundedIcon from '@mui/icons-material/SwapHorizRounded';
 import CloseIcon from '@mui/icons-material/Close';
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
+import ReceiptOutlinedIcon from '@mui/icons-material/ReceiptOutlined';
 import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined';
-import CornerCard from '../components/CornerCard/CornerCard';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import useAuthStore from '../store/useAuthStore';
 import { useLoading } from '../context/LoadingContext';
 import { useSocketEvent } from '../context/SocketContext';
@@ -27,6 +29,41 @@ const NUM_KEY =
 function toDisplay(raw) {
   return parseInt(raw || '0', 10).toString();
 }
+
+/**
+ * Fluid sizing for the mobile Terminal screen: instead of one fixed px value
+ * that only fits one device (tuned against iPhone 14's 844px logical
+ * viewport height), every scaling element is a clamp() anchored to that
+ * baseline plus a fraction of whatever extra/short viewport height the
+ * actual device has. Shorter phones shrink toward `min` (no scroll); taller
+ * phones (Pro Max / Pixel Pro sizes) grow toward `max` (no empty space at
+ * the bottom) — continuously, for any device height, not a per-model table.
+ */
+const TERMINAL_BASE_VH = 844;
+function fluid(basePx, slope, minPx, maxPx) {
+  return `clamp(${minPx}px, calc(${basePx}px + (100dvh - ${TERMINAL_BASE_VH}px) * ${slope}), ${maxPx}px)`;
+}
+
+// ── Product Entry / Amount Entry fill-to-viewport measurement ──────────────
+// clamp()-based fluid sizing gets the direction right but under-fills tall
+// devices (iPhone Pro Max, Pixel Pro) because it can only approximate the
+// real gap with a hand-tuned slope. Instead, measure the real distance
+// between this page and the fixed bottom nav at runtime and hand the exact
+// leftover pixels to these two grids (split by row count, so cell sizes
+// stay visually consistent between them) — the screen fills exactly on any
+// device, with a safe floor so short devices never scroll.
+const PRODUCT_ROWS = 2;
+const NUMPAD_ROWS = 4;
+const PRODUCT_GRID_GAP = 6;
+const NUMPAD_GRID_GAP = 8;
+const PRODUCT_CELL_MIN = 44;
+const NUMPAD_CELL_MIN = 46;
+const PRODUCT_CELL_MAX = 76;
+const NUMPAD_CELL_MAX = 80;
+const PRODUCT_BASE_HEIGHT = PRODUCT_ROWS * PRODUCT_CELL_MIN + (PRODUCT_ROWS - 1) * PRODUCT_GRID_GAP;
+const NUMPAD_BASE_HEIGHT  = NUMPAD_ROWS  * NUMPAD_CELL_MIN  + (NUMPAD_ROWS - 1) * NUMPAD_GRID_GAP;
+const PRODUCT_MAX_HEIGHT  = PRODUCT_ROWS * PRODUCT_CELL_MAX + (PRODUCT_ROWS - 1) * PRODUCT_GRID_GAP;
+const NUMPAD_MAX_HEIGHT   = NUMPAD_ROWS  * NUMPAD_CELL_MAX  + (NUMPAD_ROWS - 1) * NUMPAD_GRID_GAP;
 
 export default function TerminalPage() {
   const navigate          = useNavigate();
@@ -59,10 +96,17 @@ export default function TerminalPage() {
   const [toast, setToast]               = useState(null);
   const [products, setProducts]         = useState([]);
   const [productsLoading, setProductsLoading] = useState(true);
+  const [productPage, setProductPage]   = useState(0); // mobile Product Entry carousel — 2x2 page
 
   const toastTimer  = useRef(null);
   const audioCtx    = useRef(null);
   const itemIdRef   = useRef(0);
+
+  // ── Mobile Product Entry / Amount Entry fill-to-viewport ──
+  const mPageRef       = useRef(null);
+  const mProductWrapRef = useRef(null);
+  const mNumpadWrapRef  = useRef(null);
+  const [fillHeights, setFillHeights] = useState({ product: PRODUCT_BASE_HEIGHT, numpad: NUMPAD_BASE_HEIGHT });
 
   /* ── Pre-select product from barcode scanner ── */
   useEffect(() => {
@@ -348,8 +392,97 @@ export default function TerminalPage() {
   /* ── Amount field display ── */
   const numpadDisabled = !currentProduct;
   const displayValue = amountRaw ? toDisplay(amountRaw) : '';
+
+  /* ── Mobile Product Entry carousel — 2x2 page at a time ── */
+  const PRODUCTS_PER_PAGE = 8; // 4 per row × 2 rows
+  const totalProductPages = Math.max(1, Math.ceil(products.length / PRODUCTS_PER_PAGE));
+  const safeProductPage = Math.min(productPage, totalProductPages - 1);
+  const pagedProducts = products.slice(safeProductPage * PRODUCTS_PER_PAGE, safeProductPage * PRODUCTS_PER_PAGE + PRODUCTS_PER_PAGE);
+  const goPrevProductPage = () => setProductPage((p) => Math.max(0, Math.min(p, totalProductPages - 1) - 1));
+  const goNextProductPage = () => setProductPage((p) => Math.min(totalProductPages - 1, Math.min(p, totalProductPages - 1) + 1));
+
+  const SWIPE_THRESHOLD = 40; // px
+  const swipeStartX = useRef(null);
+  const handleCarouselTouchStart = (e) => { swipeStartX.current = e.touches[0].clientX; };
+  const handleCarouselTouchEnd = (e) => {
+    if (swipeStartX.current === null) return;
+    const deltaX = e.changedTouches[0].clientX - swipeStartX.current;
+    swipeStartX.current = null;
+    if (deltaX <= -SWIPE_THRESHOLD) goNextProductPage();
+    else if (deltaX >= SWIPE_THRESHOLD) goPrevProductPage();
+  };
   const fieldBorder  = canAddToCart ? '#2E7D4F' : '#DDD2CC';
   const labelColor   = canAddToCart ? '#2E7D4F' : '#6B5B57';
+
+  /* ── Mobile fill-to-viewport: measure the real gap to the fixed bottom nav
+     and hand the leftover pixels to Product Entry / Amount Entry (see the
+     PRODUCT_/NUMPAD_ constants above for why). ── */
+  const recalcFillHeights = useCallback(() => {
+    const page = mPageRef.current;
+    const productEl = mProductWrapRef.current;
+    const numpadEl = mNumpadWrapRef.current;
+    if (!page || !productEl || !numpadEl) return;
+
+    const navEl = document.querySelector('.pos-safe-bottom-nav');
+    // `navEl.getBoundingClientRect().top` and `page.getBoundingClientRect().top`
+    // are both viewport-relative — but the nav is `position: fixed` (stays put
+    // as the page scrolls) while the page is a normal in-flow element (moves
+    // up as the page scrolls). Left uncorrected, scrolling down makes the gap
+    // between them look artificially larger, which was inflating the button
+    // sizes on every scroll. Adding scrollY back converts both measurements
+    // to the same scroll-invariant (document) coordinate space.
+    const scrollY = window.scrollY ?? document.documentElement.scrollTop ?? 0;
+    const bottomLimit = (navEl ? navEl.getBoundingClientRect().top : window.innerHeight) + scrollY;
+    const containerTop = page.getBoundingClientRect().top + scrollY;
+    // Small safety margin so subpixel/rounding differences can never let
+    // content overlap the nav, even on the exact boundary case.
+    const SAFETY_MARGIN = 6;
+    const available = bottomLimit - containerTop - SAFETY_MARGIN;
+
+    // Subtracting the CURRENT (possibly already-grown) flexible heights from
+    // the page's total rendered height isolates the true fixed-content
+    // height, so this stays correct no matter what the last computed sizes
+    // were — no iteration/convergence needed.
+    const currentProductH = productEl.getBoundingClientRect().height;
+    const currentNumpadH  = numpadEl.getBoundingClientRect().height;
+    const fixedContentHeight = page.scrollHeight - currentProductH - currentNumpadH;
+
+    const flexBudget = Math.max(0, available - fixedContentHeight);
+    const totalRows = PRODUCT_ROWS + NUMPAD_ROWS;
+    const rawProduct = flexBudget * (PRODUCT_ROWS / totalRows);
+    const rawNumpad  = flexBudget * (NUMPAD_ROWS / totalRows);
+
+    const nextProduct = Math.min(PRODUCT_MAX_HEIGHT, Math.max(PRODUCT_BASE_HEIGHT, rawProduct));
+    const nextNumpad  = Math.min(NUMPAD_MAX_HEIGHT,  Math.max(NUMPAD_BASE_HEIGHT,  rawNumpad));
+
+    setFillHeights((prev) => (
+      Math.abs(prev.product - nextProduct) < 1 && Math.abs(prev.numpad - nextNumpad) < 1
+        ? prev
+        : { product: nextProduct, numpad: nextNumpad }
+    ));
+  }, []);
+
+  useLayoutEffect(() => {
+    if (isDesktop) return;
+    recalcFillHeights();
+    // Re-check shortly after mount to catch late layout settling (webfonts,
+    // the browser's toolbar finishing its show/hide animation, PWA
+    // standalone-mode chrome) that the first synchronous measurement can
+    // land in the middle of.
+    const t = setTimeout(recalcFillHeights, 250);
+    return () => clearTimeout(t);
+  }, [isDesktop, totalProductPages, shiftEndingWarning, recalcFillHeights]);
+
+  useEffect(() => {
+    if (isDesktop) return;
+    // Deliberately NOT listening for 'scroll' or re-measuring while the page
+    // is mid-scroll — this screen is designed to never need to scroll, and
+    // scroll-triggered measurements are exactly what caused buttons to grow
+    // while scrolling (see the scrollY correction above; this listener list
+    // is the remaining defense: only genuine viewport-shape changes).
+    window.addEventListener('orientationchange', recalcFillHeights);
+    return () => window.removeEventListener('orientationchange', recalcFillHeights);
+  }, [isDesktop, recalcFillHeights]);
 
   // ── Shared sub-components (used by both layouts) ────────────────────────────
 
@@ -1084,9 +1217,23 @@ export default function TerminalPage() {
     );
   }
 
-  // ── Mobile layout ─────────────────────────────────────────────────────────────
+  // ── Mobile layout: fluid sizing (see `fluid()` — scales with viewport height
+  //    so the screen fills large phones and stays scroll-free on small ones) ──
+  const mContainerPadTop    = fluid(10, 0.012, 8, 18);
+  const mContainerPadBottom = fluid(12, 0.020, 10, 22);
+  const mSaleCardPadTop     = fluid(10, 0.020, 8, 18);
+  const mSaleCardPadBottom  = fluid(8,  0.020, 6, 16);
+  const mSaleCardMarginBot  = fluid(10, 0.022, 8, 20);
+  const mBillingBoxHeight   = fluid(30, 0.012, 26, 42);
+  const mSectionHeaderMB    = fluid(8,  0.010, 6, 16);
+  const mProductWrapMB      = fluid(10, 0.020, 8, 20);
+  const mNumpadGridMB       = fluid(10, 0.020, 8, 20);
+  const mQuickActionHeaderMB = fluid(2, 0.006, 2, 8);
+  const mBannerPadV         = fluid(14, 0.020, 12, 22);
+
+  // ── Mobile layout ────────────────────────────────────────────────────────────
   return (
-    <div style={{ padding: '14px 12px 20px', maxWidth: 480, margin: '0 auto', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+    <div ref={mPageRef} style={{ padding: `${mContainerPadTop} 12px ${mContainerPadBottom}`, maxWidth: 480, margin: '0 auto', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
       {renderGateOverlay()}
       {renderShiftEndingBanner()}
 
@@ -1112,8 +1259,8 @@ export default function TerminalPage() {
         background: 'linear-gradient(145deg, #ffffff 0%, #f5f0ec 100%)',
         border: '1px solid #DDD2CC',
         borderRadius: 12,
-        padding: '14px 14px 12px',
-        marginBottom: 14,
+        padding: `${mSaleCardPadTop} 14px ${mSaleCardPadBottom}`,
+        marginBottom: mSaleCardMarginBot,
         boxShadow: '0 4px 0 #c8bdb8, 0 6px 16px rgba(62,39,35,0.10), inset 0 1px 0 rgba(255,255,255,0.9)',
       }}>
 
@@ -1122,7 +1269,7 @@ export default function TerminalPage() {
           position: 'relative', background: '#ffffff',
           border: `1.5px solid ${fieldBorder}`, borderRadius: 8,
           boxShadow: 'inset 0 2px 4px rgba(62,39,35,0.06)',
-          padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8,
+          padding: '7px 14px', display: 'flex', alignItems: 'center', gap: 8,
           transition: 'border-color 0.2s',
         }}>
           <span style={{
@@ -1134,10 +1281,10 @@ export default function TerminalPage() {
           }}>
             Sale Amount
           </span>
-          <AttachMoneyIcon sx={{ fontSize: 22, color: displayValue ? '#3E2723' : '#A09490', flexShrink: 0 }} />
+          <AttachMoneyIcon sx={{ fontSize: 21, color: displayValue ? '#3E2723' : '#A09490', flexShrink: 0 }} />
           <span style={{
             flex: 1, textAlign: 'right',
-            fontSize: 30, fontWeight: 800,
+            fontSize: 27, fontWeight: 800,
             color: displayValue ? '#2B1D1A' : '#C4B5B0',
             letterSpacing: '-0.5px', lineHeight: 1, fontVariantNumeric: 'tabular-nums',
           }}>
@@ -1145,66 +1292,166 @@ export default function TerminalPage() {
           </span>
         </div>
 
+        {/* ── Billing data (cart items), merged into the Sale Amount card — no subtotal row.
+             Fixed height sized for the single current line item (only one product is
+             selectable at a time in this system) so adding it never changes the card's
+             height or pushes Product Entry / Amount Entry down the page. ── */}
+        <div style={{ marginTop: 5, paddingTop: 4, borderTop: '1px dashed #DDD2CC', height: mBillingBoxHeight, overflowY: 'auto' }}>
+          {cartItems.length === 0 ? (
+            <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', fontSize: 11, fontWeight: 500, color: '#C4B5B0', fontStyle: 'italic' }}>
+              No items yet — select a product and press ENT
+            </div>
+          ) : cartItems.map((item) => {
+            const lineTotal = item.sellingPrice;
+            return (
+              <div key={item.id} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '2px 0', borderBottom: '1px solid #F0E8E3',
+              }}>
+                {/* Left: name + qty breakdown */}
+                <div style={{ minWidth: 0, flex: 1, display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: '#2B1D1A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {item.product.name}
+                  </span>
+                  <span style={{ fontSize: 10, color: '#A09490', fontWeight: 500, flexShrink: 0 }}>
+                    {item.qty} × ${item.sellingPrice}
+                  </span>
+                </div>
+
+                {/* Right: total + remove */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, marginLeft: 8 }}>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: '#2B1D1A', fontVariantNumeric: 'tabular-nums' }}>
+                    ${lineTotal}
+                  </span>
+                  <button
+                    onClick={() => removeCartItem(item.id)}
+                    style={{
+                      width: 16, height: 16, borderRadius: '50%',
+                      border: '1px solid #DDD2CC', background: '#F5F0EC',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      cursor: 'pointer', padding: 0, flexShrink: 0,
+                    }}
+                  >
+                    <CloseIcon sx={{ fontSize: 10, color: '#A09490' }} />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
       </div>
 
       {/* ══════════════════════════════════════════
-          SECTION 1 — PRODUCT ENTRY (always active)
+          SECTION 2 — PRODUCT ENTRY (swipe carousel)
           ══════════════════════════════════════════ */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-        <div style={{ flex: 1, height: 1, background: '#DDD2CC' }} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: mSectionHeaderMB }}>
+        <div style={{ width: 14, height: 1, background: '#DDD2CC' }} />
         <span style={{ fontSize: 10, fontWeight: 700, color: '#A09490', letterSpacing: '0.12em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
           Product Entry
         </span>
-        <div style={{ flex: 1, height: 1, background: '#DDD2CC' }} />
+
+        {/* Right side of the section border — carousel nav ── */}
+        {totalProductPages > 1 ? (
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              {Array.from({ length: totalProductPages }).map((_, i) => (
+                <div key={i} style={{
+                  width: i === safeProductPage ? 14 : 5, height: 5, borderRadius: 3,
+                  background: i === safeProductPage ? '#5D4037' : '#DDD2CC',
+                  transition: 'all 0.15s',
+                }} />
+              ))}
+            </div>
+            <button
+              onClick={goPrevProductPage}
+              disabled={safeProductPage === 0}
+              className="flex items-center justify-center select-none rounded-full active:translate-y-[1px] transition-all duration-75"
+              style={{
+                width: 24, height: 24, padding: 0, flexShrink: 0,
+                background: safeProductPage === 0 ? '#F0EAE6' : '#ffffff',
+                border: '1px solid #DDD2CC',
+                boxShadow: safeProductPage === 0 ? 'none' : '0 2px 0 #c4b8b2, 0 2px 5px rgba(0,0,0,0.06)',
+                cursor: safeProductPage === 0 ? 'default' : 'pointer',
+              }}
+            >
+              <ChevronLeftIcon sx={{ fontSize: 16, color: safeProductPage === 0 ? '#C4B5B0' : '#5D4037' }} />
+            </button>
+            <button
+              onClick={goNextProductPage}
+              disabled={safeProductPage >= totalProductPages - 1}
+              className="flex items-center justify-center select-none rounded-full active:translate-y-[1px] transition-all duration-75"
+              style={{
+                width: 24, height: 24, padding: 0, flexShrink: 0,
+                background: safeProductPage >= totalProductPages - 1 ? '#F0EAE6' : '#ffffff',
+                border: '1px solid #DDD2CC',
+                boxShadow: safeProductPage >= totalProductPages - 1 ? 'none' : '0 2px 0 #c4b8b2, 0 2px 5px rgba(0,0,0,0.06)',
+                cursor: safeProductPage >= totalProductPages - 1 ? 'default' : 'pointer',
+              }}
+            >
+              <ChevronRightIcon sx={{ fontSize: 16, color: safeProductPage >= totalProductPages - 1 ? '#C4B5B0' : '#5D4037' }} />
+            </button>
+          </div>
+        ) : (
+          <div style={{ flex: 1, height: 1, background: '#DDD2CC' }} />
+        )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 18 }}>
-        {productsLoading
-          ? Array.from({ length: 9 }).map((_, i) => (
-              <div
-                key={i}
-                className="animate-pulse rounded-xl"
-                style={{ height: 62, background: '#EFE7E2', border: '1px solid #DDD2CC' }}
-              />
-            ))
-          : products.length === 0
-            ? (
-              <div style={{ gridColumn: 'span 4', textAlign: 'center', padding: '16px 0', fontSize: 12, fontWeight: 600, color: '#A09490' }}>
-                No quick-slot products configured.
-              </div>
-            )
-            : products.map((product) => {
-                const { code, name } = product;
-                const isSelected = currentProduct?.code === code;
-                return (
-                  <button
-                    key={code}
-                    onClick={() => handleProduct(product)}
-                    className="flex flex-col items-center justify-center select-none rounded-xl border transition-all duration-75"
-                    style={{
-                      height: 62, cursor: 'pointer',
-                      background: isSelected ? '#6d4c41' : '#ffffff',
-                      border: isSelected ? '2px solid #D4A373' : '1px solid #DDD2CC',
-                      boxShadow: isSelected
-                        ? '0 4px 0 #3E2723, 0 6px 12px rgba(62,39,35,0.28), 0 0 0 1px #D4A373'
-                        : '0 4px 0 #c4b8b2, 0 6px 12px rgba(0,0,0,0.06)',
-                      padding: '0 4px',
-                    }}
-                    onMouseDown={(e) => { e.currentTarget.style.transform = 'translateY(4px)'; }}
-                    onMouseUp={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
-                  >
-                    <span style={{ fontSize: 11, fontWeight: 700, color: isSelected ? '#fff' : '#2B1D1A', textAlign: 'center', lineHeight: 1.3 }}>{name}</span>
-                  </button>
-                );
-              })
-        }
+      <div
+        ref={mProductWrapRef}
+        onTouchStart={handleCarouselTouchStart}
+        onTouchEnd={handleCarouselTouchEnd}
+        style={{ marginBottom: mProductWrapMB, height: fillHeights.product }}
+      >
+        {/* 3×2 product grid — fills exactly whatever height was measured above */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gridTemplateRows: 'repeat(2, 1fr)', gap: PRODUCT_GRID_GAP, height: '100%' }}>
+          {productsLoading
+            ? Array.from({ length: 8 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="animate-pulse rounded-xl"
+                  style={{ height: '100%', background: '#EFE7E2', border: '1px solid #DDD2CC' }}
+                />
+              ))
+            : products.length === 0
+              ? (
+                <div style={{ gridColumn: 'span 4', gridRow: 'span 2', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '10px 0', fontSize: 12, fontWeight: 600, color: '#A09490' }}>
+                  No quick-slot products configured.
+                </div>
+              )
+              : pagedProducts.map((product) => {
+                  const { code, name } = product;
+                  const isSelected = currentProduct?.code === code;
+                  return (
+                    <button
+                      key={code}
+                      onClick={() => handleProduct(product)}
+                      className="flex flex-col items-center justify-center select-none rounded-xl border transition-all duration-75"
+                      style={{
+                        height: '100%', cursor: 'pointer',
+                        background: isSelected ? '#6d4c41' : '#ffffff',
+                        border: isSelected ? '2px solid #D4A373' : '1px solid #DDD2CC',
+                        boxShadow: isSelected
+                          ? '0 4px 0 #3E2723, 0 6px 12px rgba(62,39,35,0.28), 0 0 0 1px #D4A373'
+                          : '0 4px 0 #c4b8b2, 0 6px 12px rgba(0,0,0,0.06)',
+                        padding: '4px 6px',
+                      }}
+                      onMouseDown={(e) => { e.currentTarget.style.transform = 'translateY(4px)'; }}
+                      onMouseUp={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
+                    >
+                      <span style={{ fontSize: 12, fontWeight: 700, color: isSelected ? '#fff' : '#2B1D1A', textAlign: 'center', lineHeight: 1.3 }}>{name}</span>
+                    </button>
+                  );
+                })
+          }
+        </div>
       </div>
 
       {/* ══════════════════════════════════════════
-          SECTION 2 — AMOUNT ENTRY
+          SECTION 3 — AMOUNT ENTRY
           ══════════════════════════════════════════ */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: mSectionHeaderMB }}>
         <div style={{ flex: 1, height: 1, background: '#DDD2CC' }} />
         <span style={{ fontSize: 10, fontWeight: 700, color: '#A09490', letterSpacing: '0.12em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
           Amount Entry
@@ -1212,12 +1459,18 @@ export default function TerminalPage() {
         <div style={{ flex: 1, height: 1, background: '#DDD2CC' }} />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 18 }}>
+      <div
+        ref={mNumpadWrapRef}
+        style={{
+          display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gridTemplateRows: 'repeat(4, 1fr)',
+          gap: NUMPAD_GRID_GAP, marginBottom: mNumpadGridMB, height: fillHeights.numpad,
+        }}
+      >
 
         {/* Row 1 — 7 8 9 | ENT (spans rows 1-2) */}
         {['7', '8', '9'].map((d) => (
           <button key={d} onClick={() => numpadDisabled ? showToast('Select a product first.') : pushDigit(d)} className={NUM_KEY}
-            style={{ height: 62, fontSize: 26, fontWeight: 700, color: '#2B1D1A' }}>
+            style={{ height: '100%', fontSize: 22, fontWeight: 700, color: '#2B1D1A' }}>
             {d}
           </button>
         ))}
@@ -1225,7 +1478,7 @@ export default function TerminalPage() {
           onClick={handleENT}
           className="flex items-center justify-center select-none rounded-xl active:translate-y-[4px] transition-all duration-75"
           style={{
-            gridRow: 'span 2', fontSize: 15, fontWeight: 800, letterSpacing: '0.08em',
+            gridRow: 'span 2', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em',
             cursor: canAddToCart ? 'pointer' : 'default',
             background: 'linear-gradient(180deg, #3E2723 0%, #2A1715 100%)',
             color: canAddToCart ? '#fff' : 'rgba(255,255,255,0.45)',
@@ -1242,7 +1495,7 @@ export default function TerminalPage() {
         {/* Row 2 — 4 5 6 */}
         {['4', '5', '6'].map((d) => (
           <button key={d} onClick={() => numpadDisabled ? showToast('Select a product first.') : pushDigit(d)} className={NUM_KEY}
-            style={{ height: 62, fontSize: 26, fontWeight: 700, color: '#2B1D1A' }}>
+            style={{ height: '100%', fontSize: 22, fontWeight: 700, color: '#2B1D1A' }}>
             {d}
           </button>
         ))}
@@ -1250,7 +1503,7 @@ export default function TerminalPage() {
         {/* Row 3 — 1 2 3 | RF */}
         {['1', '2', '3'].map((d) => (
           <button key={d} onClick={() => numpadDisabled ? showToast('Select a product first.') : pushDigit(d)} className={NUM_KEY}
-            style={{ height: 62, fontSize: 26, fontWeight: 700, color: '#2B1D1A' }}>
+            style={{ height: '100%', fontSize: 22, fontWeight: 700, color: '#2B1D1A' }}>
             {d}
           </button>
         ))}
@@ -1258,7 +1511,7 @@ export default function TerminalPage() {
           onClick={() => handleTransactionType('RF')}
           className="flex items-center justify-center select-none cursor-pointer rounded-xl active:translate-y-[4px] transition-all duration-75"
           style={{
-            height: 62, fontSize: 13, fontWeight: 800, letterSpacing: '0.08em',
+            height: '100%', fontSize: 12, fontWeight: 800, letterSpacing: '0.08em',
             background: transactionType === 'RF'
               ? 'linear-gradient(180deg, #5a3a33 0%, #4a2820 100%)'
               : 'linear-gradient(180deg, #4E342E 0%, #3E2723 100%)',
@@ -1274,23 +1527,23 @@ export default function TerminalPage() {
         {/* Row 4 — ⌫ 0 CLR | SL */}
         <button onClick={() => numpadDisabled ? showToast('Select a product first.') : handleBackspace()}
           className="flex items-center justify-center select-none cursor-pointer rounded-xl active:translate-y-[4px] transition-all duration-75"
-          style={{ height: 62, background: '#F5F0EC', color: '#3E2723', border: '1px solid #DDD2CC', boxShadow: '0 4px 0 #c4b8b2, 0 6px 12px rgba(0,0,0,0.06)' }}>
-          <BackspaceOutlinedIcon sx={{ fontSize: 22 }} />
+          style={{ height: '100%', background: '#F5F0EC', color: '#3E2723', border: '1px solid #DDD2CC', boxShadow: '0 4px 0 #c4b8b2, 0 6px 12px rgba(0,0,0,0.06)' }}>
+          <BackspaceOutlinedIcon sx={{ fontSize: 18 }} />
         </button>
         <button onClick={() => numpadDisabled ? showToast('Select a product first.') : pushDigit('0')} className={NUM_KEY}
-          style={{ height: 62, fontSize: 26, fontWeight: 700, color: '#2B1D1A' }}>
+          style={{ height: '100%', fontSize: 22, fontWeight: 700, color: '#2B1D1A' }}>
           0
         </button>
         <button onClick={handleClear}
           className="flex items-center justify-center select-none cursor-pointer rounded-xl active:translate-y-[4px] transition-all duration-75"
-          style={{ height: 62, fontSize: 13, fontWeight: 800, letterSpacing: '0.1em', background: '#B71C1C', color: '#fff', border: '1px solid #991717', boxShadow: '0 4px 0 #7a1111, 0 6px 12px rgba(183,28,28,0.22)' }}>
+          style={{ height: '100%', fontSize: 12, fontWeight: 800, letterSpacing: '0.1em', background: '#B71C1C', color: '#fff', border: '1px solid #991717', boxShadow: '0 4px 0 #7a1111, 0 6px 12px rgba(183,28,28,0.22)' }}>
           CLR
         </button>
         <button
           onClick={() => handleTransactionType('SL')}
           className="flex items-center justify-center select-none cursor-pointer rounded-xl active:translate-y-[4px] transition-all duration-75"
           style={{
-            height: 62, fontSize: 13, fontWeight: 800, letterSpacing: '0.08em',
+            height: '100%', fontSize: 12, fontWeight: 800, letterSpacing: '0.08em',
             background: transactionType === 'SL' ? '#6d4c41' : '#5D4037',
             color: '#fff',
             border: transactionType === 'SL' ? '2px solid #D4A373' : '1px solid #4a3329',
@@ -1303,108 +1556,75 @@ export default function TerminalPage() {
       </div>
 
       {/* ══════════════════════════════════════════
-          SECTION 3 — BILLING DETAILS (receipt style)
+          SECTION 4 — QUICK ACTION
           ══════════════════════════════════════════ */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: mQuickActionHeaderMB }}>
         <div style={{ flex: 1, height: 1, background: '#DDD2CC' }} />
         <span style={{ fontSize: 10, fontWeight: 700, color: '#A09490', letterSpacing: '0.12em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-          Billing Details
+          Quick Action
         </span>
         <div style={{ flex: 1, height: 1, background: '#DDD2CC' }} />
       </div>
 
-      <CornerCard borderColor="#DDD2CC" style={{ marginBottom: 18 }}>
-        {/* Receipt header strip */}
-        <div style={{
-          background: '#FAF7F5', borderBottom: '1px solid #DDD2CC',
-          padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 6,
-        }}>
-          <ReceiptLongOutlinedIcon style={{ fontSize: 14, color: '#A09490' }} />
-          <span style={{ fontSize: 10, fontWeight: 700, color: '#A09490', letterSpacing: '0.14em', textTransform: 'uppercase' }}>
-            Billing Details
-          </span>
-        </div>
-
-        <div style={{ padding: '4px 16px 12px' }}>
-          {cartItems.length === 0 ? (
-            <div style={{ padding: '14px 0', textAlign: 'center', fontSize: 12, fontWeight: 500, color: '#C4B5B0', fontStyle: 'italic' }}>
-              No items yet — select a product and press ENT
-            </div>
-          ) : (
-            <>
-              {/* Line items */}
-              {cartItems.map((item) => {
-                const lineTotal = item.sellingPrice;
-                return (
-                  <div key={item.id} style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '9px 0', borderBottom: '1px solid #F0E8E3',
-                  }}>
-                    {/* Left: name + qty breakdown */}
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: '#2B1D1A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {item.product.name}
-                      </div>
-                      <div style={{ fontSize: 11, color: '#A09490', fontWeight: 500, marginTop: 1 }}>
-                        {item.qty} × ${item.sellingPrice}
-                      </div>
-                    </div>
-
-                    {/* Right: total + remove */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 10 }}>
-                      <span style={{ fontSize: 14, fontWeight: 800, color: '#2B1D1A', fontVariantNumeric: 'tabular-nums' }}>
-                        ${lineTotal}
-                      </span>
-                      <button
-                        onClick={() => removeCartItem(item.id)}
-                        style={{
-                          width: 22, height: 22, borderRadius: '50%',
-                          border: '1px solid #DDD2CC', background: '#F5F0EC',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          cursor: 'pointer', padding: 0,
-                        }}
-                      >
-                        <CloseIcon sx={{ fontSize: 13, color: '#A09490' }} />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-
-              {/* Dashed divider */}
-              <div style={{ borderTop: '1.5px dashed #E6DAD5', margin: '8px 0' }} />
-
-              {/* Subtotal row */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0' }}>
-                <span style={{ fontSize: 11, fontWeight: 600, color: '#A09490', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                  Subtotal · {cartItems.length} item{cartItems.length > 1 ? 's' : ''}
-                </span>
-                <span style={{ fontSize: 18, fontWeight: 800, color: '#2B1D1A', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.4px' }}>
-                  ${cartSubtotal}
-                </span>
-              </div>
-            </>
-          )}
-        </div>
-      </CornerCard>
-
-      {/* ── Checkout button ── */}
+      {/* ── Sale / Refund — full-bleed banner (edge-to-edge, square corners), taps through to Select Tender once RF/SL is locked ── */}
       <button
         onClick={handleCheckout}
-        className="w-full flex items-center justify-center gap-2 rounded-xl transition-all duration-75 active:translate-y-[4px]"
+        disabled={!canCheckout}
+        className="w-full flex items-center select-none transition-all duration-75"
         style={{
-          height: 54, background: '#5D4037', color: '#fff',
-          fontSize: 15, fontWeight: 800, letterSpacing: '0.08em',
-          border: canCheckout ? '2px solid #D4A373' : '1px solid #4a3329',
-          boxShadow: canCheckout
-            ? '0 4px 0 #3E2723, 0 6px 12px rgba(62,39,35,0.28), 0 0 0 1px #D4A373'
-            : '0 4px 0 #3E2723, 0 6px 12px rgba(62,39,35,0.28)',
-          opacity: canCheckout ? 1 : 0.4,
+          marginTop: 8,
+          width: '100%',
+          padding: `${mBannerPadV} 12px`,
+          textAlign: 'left',
+          position: 'relative',
           cursor: canCheckout ? 'pointer' : 'not-allowed',
+          background: transactionType === 'RF' ? '#F7EFEC' : transactionType === 'SL' ? '#F1ECE8' : '#FAF7F5',
+          borderBottom: '1px solid #DDD2CC',
+          borderLeft: 'none',
+          borderRight: 'none',
+          borderRadius: 0,
+          opacity: canCheckout ? 1 : 0.65,
         }}
+        onMouseDown={(e) => { if (canCheckout) e.currentTarget.style.transform = 'translateY(1px)'; }}
+        onMouseUp={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
       >
-        <ShoppingCartCheckoutIcon sx={{ fontSize: 20 }} />
-        {isRefundMode ? 'Refund Product' : `Check Out${cartItems.length > 0 ? ` · $${cartSubtotal}` : ''}`}
+        {/* Left accent bar — carries the mode's color instead of an outlined border */}
+        <div style={{
+          position: 'absolute', left: 0, top: 0, bottom: 0, width: 4,
+          background: transactionType === 'RF' ? '#3E2723' : transactionType === 'SL' ? '#5D4037' : '#D4A373',
+        }} />
+
+        {/* Icon */}
+        <div style={{
+          width: 38, height: 38, borderRadius: 9, flexShrink: 0, marginLeft: 4,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: transactionType === 'RF' ? '#3E2723' : transactionType === 'SL' ? '#5D4037' : '#EFE7E2',
+        }}>
+          {transactionType === 'RF'
+            ? <SwapHorizRoundedIcon sx={{ fontSize: 19, color: '#D4A373' }} />
+            : transactionType === 'SL'
+              ? <ShoppingCartCheckoutIcon sx={{ fontSize: 19, color: '#fff' }} />
+              : <ReceiptOutlinedIcon sx={{ fontSize: 19, color: '#6B5B57' }} />
+          }
+        </div>
+
+        {/* Text */}
+        <div style={{ flex: 1, minWidth: 0, marginLeft: 12 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#2B1D1A', letterSpacing: '-0.1px' }}>
+            {transactionType === 'RF' ? 'Refund — Select Tender' : transactionType === 'SL' ? 'Sale — Select Tender' : 'Select Sale or Refund'}
+          </div>
+          <div style={{
+            fontSize: 12, fontWeight: transactionType ? 700 : 500, marginTop: 2,
+            color: transactionType === 'RF' ? '#3E2723' : transactionType === 'SL' ? '#5D4037' : '#6B5B57',
+          }}>
+            {transactionType
+              ? `Ready to choose payment method · $${transactionType === 'RF' ? (cartItems[0]?.sellingPrice ?? 0) : cartSubtotal}`
+              : 'Lock SL or RF above to continue'}
+          </div>
+        </div>
+
+        <ChevronRightIcon sx={{ fontSize: 20, color: transactionType ? '#5D4037' : '#C4B5B0', flexShrink: 0 }} />
       </button>
 
     </div>

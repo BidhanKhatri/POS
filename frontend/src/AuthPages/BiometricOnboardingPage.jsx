@@ -375,7 +375,7 @@ export default function BiometricOnboardingPage() {
   const location = useLocation();
   const initialEmail = location.state?.email || '';
 
-  const { token, setUser, setToken } = useAuthStore();
+  const { token, setTrustedSession } = useAuthStore();
   const { supported, registering, registerBiometric } = useWebAuthn();
 
   // If already authenticated, skip prompt + login and go straight to registration
@@ -434,8 +434,7 @@ export default function BiometricOnboardingPage() {
       }
 
       // Success — store auth then advance to registration
-      setUser(data);
-      setToken(data.token);
+      setTrustedSession(data, data.token, data.refreshToken);
       setPin('');
       setStep('register');
     } catch {

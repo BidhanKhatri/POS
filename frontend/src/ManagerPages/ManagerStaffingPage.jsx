@@ -23,6 +23,7 @@ import ForceCheckoutDialog from '../components/ForceCheckoutDialog';
 import { useSocketEvent } from '../context/SocketContext';
 
 import { API_URL as API } from '../config/api';
+import { ymdHmToUtc } from '../utils/timezone';
 
 /* ─── Brand palette ──────────────────────────────────────────────────────── */
 const C = {
@@ -833,7 +834,7 @@ const REPEAT_OPTS = [
 ];
 
 function blankDay() {
-  return { enabled: false, startTime: '09:00', endTime: '17:00', title: 'Regular Shift', color: SHIFT_COLORS[0] };
+  return { enabled: false, startTime: '09:00', endTime: '17:00', title: 'Regular Shift', color: SHIFT_COLORS[0], timezone: null };
 }
 
 function WeeklyScheduleModal({
@@ -884,7 +885,7 @@ function WeeklyScheduleModal({
           const date = toYMD(addDays(weekStart, i));
           const ex   = list.find(s => s.date === date);
           return ex
-            ? { enabled: true, startTime: ex.startTime, endTime: ex.endTime, title: ex.title ?? 'Regular Shift', color: ex.color ?? SHIFT_COLORS[0] }
+            ? { enabled: true, startTime: ex.startTime, endTime: ex.endTime, title: ex.title ?? 'Regular Shift', color: ex.color ?? SHIFT_COLORS[0], timezone: ex.timezone ?? null }
             : blankDay();
         }));
       })
@@ -939,7 +940,7 @@ function WeeklyScheduleModal({
     if (!validate()) return;
     if (enabledCount === 0) { alert('Enable at least one day.'); return; }
 
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const baseStart = toYMD(weekStart);
 
     onSave({
@@ -947,10 +948,15 @@ function WeeklyScheduleModal({
       weekStart: baseStart,
       days: dayPlans.map((d, i) => {
         if (!d.enabled) return { dayIndex: i, ...d };
-        
+
+        // Reuse the day's original creation timezone when it already had a
+        // schedule (so resaving an unrelated field elsewhere in the week
+        // doesn't silently shift this day's UTC instant); new days use the
+        // creating browser's tz.
+        const tz = d.timezone || browserTz;
         const dDate = toYMD(addDays(weekStart, i));
-        const startD = new Date(`${dDate}T${d.startTime}:00`);
-        const endD = new Date(`${dDate}T${d.endTime}:00`);
+        const startD = ymdHmToUtc(dDate, d.startTime, tz);
+        const endD = ymdHmToUtc(dDate, d.endTime, tz);
         if (endD <= startD) endD.setDate(endD.getDate() + 1);
 
         return {
@@ -1160,6 +1166,7 @@ export default function ManagerStaffingPage() {
   const [modalEnd,       setModalEnd]       = useState('17:00');
   const [modalTitle,     setModalTitle]     = useState('Regular Shift');
   const [modalColor,     setModalColor]     = useState(SHIFT_COLORS[0]);
+  const [modalTz,        setModalTz]        = useState(null); // original creation timezone when editing; null = use browser tz (create)
   const [modalSaving,    setModalSaving]    = useState(false);
 
   /* ── Bulk ops modal ── */
@@ -1327,6 +1334,7 @@ export default function ManagerStaffingPage() {
     setModalEnd(shift.endTime);
     setModalTitle(shift.title ?? 'Regular Shift');
     setModalColor(shift.color ?? SHIFT_COLORS[0]);
+    setModalTz(shift.timezone ?? null);
     setModalOpen(true);
   }
 
@@ -1335,13 +1343,16 @@ export default function ManagerStaffingPage() {
     if (modalStart === modalEnd) return;
     setModalSaving(true);
     try {
-      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      const startD = new Date(`${modalDate}T${modalStart}:00`);
-      const endD = new Date(`${modalDate}T${modalEnd}:00`);
+      // Preserve the schedule's original creation timezone on edit so
+      // re-saving from a different browser/device doesn't silently shift
+      // the stored UTC instant. New schedules use the creating browser's tz.
+      const tz = modalTz || Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const startD = ymdHmToUtc(modalDate, modalStart, tz);
+      const endD = ymdHmToUtc(modalDate, modalEnd, tz);
       if (endD <= startD) endD.setDate(endD.getDate() + 1);
 
-      const body = { 
-        employeeId: modalEmpId, date: modalDate, startTime: modalStart, endTime: modalEnd, 
+      const body = {
+        employeeId: modalEmpId, date: modalDate, startTime: modalStart, endTime: modalEnd,
         title: modalTitle, color: modalColor,
         timezone: tz,
         startUtc: startD.toISOString(),

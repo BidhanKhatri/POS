@@ -14,6 +14,10 @@
  * than "what is the absolute scheduled end" — don't unify the two.
  */
 export function computeScheduledEndDate(shift) {
+  // Prefer the absolute UTC instant (timezone-correct) when present; only
+  // shifts predating this field fall back to the naive server-local math.
+  if (shift.scheduledEndUtc) return new Date(shift.scheduledEndUtc);
+
   const [h, m] = shift.scheduledEnd.split(':').map(Number);
   const base = shift.scheduledDate
     ? new Date(shift.scheduledDate + 'T00:00:00')

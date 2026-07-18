@@ -88,6 +88,16 @@ export default function POSLockScreen() {
   const role      = display?.role || 'Employee';
   const homeRoute = (role === 'Manager' || role === 'Admin') ? '/manager/dashboard' : '/employee/terminal';
 
+  // Always compute the post-unlock redirect from a specific, freshly-verified
+  // user object rather than the `display`/`homeRoute` above — those can be
+  // sourced from a stale `trustedUser` left on this device by a different
+  // role's earlier login (this component only re-renders after submitPin's
+  // async work settles, so a stale closure would otherwise win the race).
+  const routeFor = (u) => {
+    const r = u?.role || 'Employee';
+    return (r === 'Manager' || r === 'Admin') ? '/manager/dashboard' : '/employee/terminal';
+  };
+
   useEffect(() => { stopLoading(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const flashKey = (key) => {
@@ -161,7 +171,7 @@ export default function POSLockScreen() {
         if (refreshed) {
           applyRefresh(refreshed.user, refreshed.token, refreshed.refreshToken);
           const retry = await callVerifyPin(refreshed.token, enteredPin);
-          if (retry.data.success) { unlock(); startLoading(); navigate(homeRoute, { replace: true }); return; }
+          if (retry.data.success) { unlock(); startLoading(); navigate(routeFor(refreshed.user), { replace: true }); return; }
           handlePinFailure();
           return;
         }
@@ -174,7 +184,12 @@ export default function POSLockScreen() {
       if (ok && data.success) {
         unlock();
         startLoading();
-        navigate(homeRoute, { replace: true });
+        // Route off the freshly verified identity in the store, not the
+        // `display`/`homeRoute` computed at render time — those can still
+        // reflect a stale trustedUser left over from a different role's
+        // login on this device (e.g. Manager) when this session's `user`
+        // was null until the refresh/verify above just repopulated it.
+        navigate(routeFor(useAuthStore.getState().user), { replace: true });
       } else {
         handlePinFailure();
       }
