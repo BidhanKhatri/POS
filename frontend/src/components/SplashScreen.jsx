@@ -51,14 +51,28 @@ export default function SplashScreen() {
     return () => { cancelled = true; };
   }, []);
 
-  // Hard timeout — dismiss after 5 s regardless of loading state
+  // Hard timeout — dismiss after 5 s regardless of loading state. Re-armed
+  // whenever a new loading cycle starts (not just on initial mount), so a
+  // stuck startLoading() after login still self-clears.
   useEffect(() => {
+    if (!loading) return;
     const t = setTimeout(stopLoading, TIMEOUT_MS);
     return () => clearTimeout(t);
-  }, [stopLoading]);
+  }, [loading, stopLoading]);
 
   useEffect(() => {
-    if (loading) return;
+    if (loading) {
+      // `loading` is a reusable global flag — e.g. LoginScreen calls
+      // startLoading() again right before navigating to the terminal, even
+      // after this splash already dismissed once on the login screen. Bring
+      // it back (and reset the min-visible-time clock) instead of staying
+      // permanently hidden, so there's always a cover during route
+      // transitions / lazy-chunk loads instead of a blank white flash.
+      mountedAt.current = Date.now();
+      setFading(false);
+      setVisible(true);
+      return;
+    }
     const elapsed = Date.now() - mountedAt.current;
     const delay   = Math.max(0, MIN_MS - elapsed);
     const t1 = setTimeout(() => setFading(true),  delay);

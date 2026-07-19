@@ -245,89 +245,89 @@ export default function POSLockScreen() {
   // ── sub-components ─────────────────────────────────────────────────────────
 
   const PinDots = () => (
-    <div className={shake ? 'pin-shake' : ''} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0 }}>
-      <div style={{ display: 'flex', gap: 20, justifyContent: 'center' }}>
+    <div className={`flex flex-col items-center ${shake ? 'pin-shake' : ''}`}>
+      <div className="flex gap-5 justify-center">
         {Array.from({ length: 4 }, (_, i) => (
-          <div key={i} style={{
-            width: 18, height: 18, borderRadius: '50%',
-            backgroundColor: pinError
-              ? (i < pin.length ? '#B71C1C' : 'transparent')
-              : (i < pin.length ? '#3E2723' : 'transparent'),
-            border: `2px solid ${pinError ? '#B71C1C' : '#9E8E8A'}`,
-            transition: 'background-color 0.15s, border-color 0.15s',
-          }} />
+          <div
+            key={i}
+            className="rounded-full border-2 transition-colors duration-150"
+            style={{
+              width: 18, height: 18,
+              backgroundColor: pinError
+                ? (i < pin.length ? '#B71C1C' : 'transparent')
+                : (i < pin.length ? '#3E2723' : 'transparent'),
+              borderColor: pinError ? '#B71C1C' : '#9E8E8A',
+            }}
+          />
         ))}
       </div>
       {(error || bioError) && (
-        <p style={{
-          margin: '8px 0 0', textAlign: 'center',
-          fontSize: 11, fontWeight: 600, color: '#B71C1C', letterSpacing: '0.02em',
-        }}>
+        <p style={{ margin: '8px 0 0', textAlign: 'center', fontSize: 11, fontWeight: 600, color: '#B71C1C', letterSpacing: '0.02em' }}>
           {error || bioError}
         </p>
       )}
     </div>
   );
 
-  const numKeyBase = {
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    borderRadius: 12, userSelect: 'none', fontFamily: FONT,
-    transition: 'background-color 0.1s, border-color 0.1s', cursor: 'pointer',
-  };
+  // Same button language as LoginScreen: the 3D shadow + `active:translate-y`
+  // press is native CSS (:active fires the instant a finger touches down,
+  // no JS/state round-trip needed) — this is what actually fixes the input
+  // lag, not just a visual match. `pressedKey`/flashKey stays only for the
+  // physical-keyboard path below, which has no :active pseudo-class to lean on.
+  const numKey =
+    'flex items-center justify-center rounded-2xl select-none transition-all duration-150 ' +
+    'bg-white border border-divider-tone ' +
+    'shadow-[0_4px_0_#c4b8b2,0_6px_12px_rgba(0,0,0,0.06)] ' +
+    'hover:bg-surface-variant/70 ' +
+    'active:translate-y-[4px] active:shadow-[0_0px_0_#c4b8b2,0_2px_4px_rgba(0,0,0,0.04)]';
+  const disabledKey = 'opacity-40 pointer-events-none';
 
   const NumGrid = ({ keyH }) => {
-    const digitStyle = (k) => pressedKey === k
-      ? { background: '#EFE7E2', borderColor: '#C4B5AE' }
+    const digitPressed = (k) => pressedKey === k
+      ? { transform: 'translateY(4px)', boxShadow: '0 0px 0 #c4b8b2, 0 2px 4px rgba(0,0,0,0.04)', background: '#F5F0EC' }
       : {};
+    const keyDisabled = authenticating || loading;
 
     return (
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, width: '100%', paddingBottom: 4 }}>
+      <div className="grid grid-cols-3 gap-3 w-full pb-1">
         {[1,2,3,4,5,6,7,8,9].map(n => (
           <button key={n}
-            onClick={() => { handleKey(n.toString()); flashKey(n.toString()); }}
-            disabled={authenticating || pin.length >= 4}
-            style={{
-              ...numKeyBase, height: keyH,
-              fontSize: 26, fontWeight: 700, color: '#2B1D1A',
-              background: '#FFFFFF', border: '1px solid #DDD2CC',
-              opacity: (loading || authenticating) ? 0.4 : 1,
-              ...digitStyle(n.toString()),
-            }}
+            onClick={() => handleKey(n.toString())}
+            disabled={keyDisabled || pin.length >= 4}
+            className={`${numKey} ${keyDisabled ? disabledKey : 'cursor-pointer'}`}
+            style={{ height: keyH, fontSize: 26, fontWeight: 700, color: '#2B1D1A', fontFamily: FONT, ...digitPressed(n.toString()) }}
           >{n}</button>
         ))}
 
         <button
-          onClick={() => { handleKey('CLR'); flashKey('clr'); }}
-          disabled={authenticating}
+          onClick={() => handleKey('CLR')}
+          disabled={keyDisabled}
+          className={`flex items-center justify-center rounded-2xl select-none transition-all duration-150 active:translate-y-[4px] ${keyDisabled ? disabledKey : 'cursor-pointer'}`}
           style={{
-            ...numKeyBase, height: keyH,
-            fontSize: 12, fontWeight: 700, letterSpacing: '0.08em',
-            background: '#F5F0EC', color: '#6B5B57', border: '1px solid #DDD2CC',
-            opacity: (loading || authenticating) ? 0.4 : 1,
-            ...(pressedKey === 'clr' ? { background: '#EDE6DF', borderColor: '#C4B5AE' } : {}),
+            height: keyH, fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', fontFamily: FONT,
+            background: '#B71C1C', color: '#fff', border: '1px solid #991717',
+            ...(pressedKey === 'clr'
+              ? { transform: 'translateY(4px)', boxShadow: '0 0px 0 #7a1111, 0 2px 4px rgba(183,28,28,0.12)', background: '#9a1515' }
+              : { boxShadow: '0 4px 0 #7a1111, 0 6px 12px rgba(183,28,28,0.22)' }),
           }}
         >CLR</button>
 
         <button
-          onClick={() => { handleKey('0'); flashKey('0'); }}
-          disabled={authenticating || pin.length >= 4}
-          style={{
-            ...numKeyBase, height: keyH,
-            fontSize: 26, fontWeight: 700, color: '#2B1D1A',
-            background: '#FFFFFF', border: '1px solid #DDD2CC',
-            opacity: (loading || authenticating) ? 0.4 : 1,
-            ...digitStyle('0'),
-          }}
+          onClick={() => handleKey('0')}
+          disabled={keyDisabled || pin.length >= 4}
+          className={`${numKey} ${keyDisabled ? disabledKey : 'cursor-pointer'}`}
+          style={{ height: keyH, fontSize: 26, fontWeight: 700, color: '#2B1D1A', fontFamily: FONT, ...digitPressed('0') }}
         >0</button>
 
         <button
-          onClick={() => { handleKey('DEL'); flashKey('backspace'); }}
-          disabled={authenticating}
+          onClick={() => handleKey('DEL')}
+          disabled={keyDisabled}
+          className={`flex items-center justify-center rounded-2xl select-none transition-all duration-150 active:translate-y-[4px] ${keyDisabled ? disabledKey : 'cursor-pointer'}`}
           style={{
-            ...numKeyBase, height: keyH,
-            background: '#F5F0EC', color: '#3E2723', border: '1px solid #DDD2CC',
-            opacity: (loading || authenticating) ? 0.4 : 1,
-            ...(pressedKey === 'backspace' ? { background: '#EDE6DF', borderColor: '#C4B5AE' } : {}),
+            height: keyH, background: '#F5F0EC', color: '#3E2723', border: '1px solid #DDD2CC',
+            ...(pressedKey === 'backspace'
+              ? { transform: 'translateY(4px)', boxShadow: '0 0px 0 #c4b8b2, 0 2px 4px rgba(0,0,0,0.04)', background: '#EDE6DF' }
+              : { boxShadow: '0 4px 0 #c4b8b2, 0 6px 12px rgba(0,0,0,0.06)' }),
           }}
         >
           <BackspaceOutlinedIcon sx={{ fontSize: 19 }} />
@@ -337,25 +337,28 @@ export default function POSLockScreen() {
   };
 
   const ActionArea = () => (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
+    <div className="flex flex-col gap-3 w-full">
       {supported && hasBiometric && (
-        <button
-          onClick={handleBiometric}
-          disabled={authenticating || loading}
-          style={{
-            width: '100%', minHeight: 48,
-            border: '1px solid #DDD2CC',
-            background: authenticating ? '#F5F0EC' : '#FFFFFF',
-            color: authenticating ? '#A09490' : '#3E2723',
-            borderRadius: 8, fontFamily: FONT,
-            fontSize: 13, fontWeight: 600, letterSpacing: '0.1em',
-            cursor: (authenticating || loading) ? 'not-allowed' : 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-          }}
-        >
-          <FingerprintIcon sx={{ fontSize: 20, color: authenticating ? '#A09490' : '#3E2723' }} />
-          {authenticating ? 'WAITING FOR BIOMETRIC…' : 'USE BIOMETRIC LOGIN'}
-        </button>
+        <div className="flex flex-col gap-1 w-full">
+          <button
+            onClick={handleBiometric}
+            disabled={authenticating || loading}
+            className="w-full flex items-center justify-center gap-2 rounded transition-all"
+            style={{
+              minHeight: 44,
+              border: '1px solid #DDD2CC',
+              background: authenticating ? '#F5F0EC' : '#ffffff',
+              color: authenticating ? '#A09490' : '#3E2723',
+              fontFamily: FONT, fontSize: 13, fontWeight: 600, letterSpacing: '0.1em',
+              cursor: (authenticating || loading) ? 'not-allowed' : 'pointer',
+              opacity: loading ? 0.4 : 1,
+              boxShadow: '0 2px 0 #c4b8b2',
+            }}
+          >
+            <FingerprintIcon sx={{ fontSize: 20, color: authenticating ? '#A09490' : '#3E2723' }} />
+            {authenticating ? 'WAITING FOR BIOMETRIC…' : 'USE BIOMETRIC LOGIN'}
+          </button>
+        </div>
       )}
 
       <div style={{ textAlign: 'center', paddingTop: 2 }}>
@@ -365,6 +368,7 @@ export default function POSLockScreen() {
             background: 'none', border: 'none', cursor: 'pointer',
             fontSize: 12, fontWeight: 500, color: '#A09490',
             padding: 0, fontFamily: FONT, transition: 'color 0.15s',
+            WebkitTapHighlightColor: 'transparent',
           }}
           onMouseEnter={e => { e.currentTarget.style.color = '#3E2723'; }}
           onMouseLeave={e => { e.currentTarget.style.color = '#A09490'; }}

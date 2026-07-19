@@ -106,7 +106,7 @@ export default function TerminalPage() {
   const mPageRef       = useRef(null);
   const mProductWrapRef = useRef(null);
   const mNumpadWrapRef  = useRef(null);
-  const [fillHeights, setFillHeights] = useState({ product: PRODUCT_BASE_HEIGHT, numpad: NUMPAD_BASE_HEIGHT });
+  const [fillHeights, setFillHeights] = useState({ product: PRODUCT_BASE_HEIGHT, numpad: NUMPAD_BASE_HEIGHT, extraGap: 0 });
 
   /* ── Pre-select product from barcode scanner ── */
   useEffect(() => {
@@ -455,10 +455,22 @@ export default function TerminalPage() {
     const nextProduct = Math.min(PRODUCT_MAX_HEIGHT, Math.max(PRODUCT_BASE_HEIGHT, rawProduct));
     const nextNumpad  = Math.min(NUMPAD_MAX_HEIGHT,  Math.max(NUMPAD_BASE_HEIGHT,  rawNumpad));
 
+    // A PWA in standalone mode has no browser chrome at all, so its real
+    // available height can exceed what even the MAX cell-size caps can
+    // absorb — the two grids alone can't use up the whole flexBudget
+    // without becoming absurdly large. Whatever's left over is handed to
+    // the banner as extra bottom margin instead, so total content height
+    // always reaches exactly to the nav — no dead gap, ever, regardless of
+    // how tall the viewport is.
+    const usedByGrids = nextProduct + nextNumpad;
+    const nextExtraGap = Math.max(0, flexBudget - usedByGrids);
+
     setFillHeights((prev) => (
-      Math.abs(prev.product - nextProduct) < 1 && Math.abs(prev.numpad - nextNumpad) < 1
+      Math.abs(prev.product - nextProduct) < 1 &&
+      Math.abs(prev.numpad - nextNumpad) < 1 &&
+      Math.abs(prev.extraGap - nextExtraGap) < 1
         ? prev
-        : { product: nextProduct, numpad: nextNumpad }
+        : { product: nextProduct, numpad: nextNumpad, extraGap: nextExtraGap }
     ));
   }, []);
 
@@ -475,13 +487,30 @@ export default function TerminalPage() {
 
   useEffect(() => {
     if (isDesktop) return;
-    // Deliberately NOT listening for 'scroll' or re-measuring while the page
-    // is mid-scroll — this screen is designed to never need to scroll, and
-    // scroll-triggered measurements are exactly what caused buttons to grow
-    // while scrolling (see the scrollY correction above; this listener list
-    // is the remaining defense: only genuine viewport-shape changes).
+    // Deliberately NOT listening for 'scroll' or 'resize' — window 'resize'
+    // fires on mobile Safari/Chrome purely from the browser chrome
+    // show/hide during scroll (that's what caused buttons to grow while
+    // scrolling; see the scrollY correction above). ResizeObserver on the
+    // actual bottom-nav element is the correct, scroll-immune tool instead:
+    // it only fires when the nav's real box actually changes — which is
+    // exactly what happens once a PWA's safe-area-inset-bottom resolves
+    // after launch (that late change was leaving a blank gap between the
+    // Quick Action banner and the nav, since nothing re-measured after it
+    // — window resize wasn't listened to anymore, and the one-time 250ms
+    // settle check could still land before the safe area was ready).
     window.addEventListener('orientationchange', recalcFillHeights);
-    return () => window.removeEventListener('orientationchange', recalcFillHeights);
+
+    let ro;
+    const navEl = document.querySelector('.pos-safe-bottom-nav');
+    if (navEl && typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(recalcFillHeights);
+      ro.observe(navEl);
+    }
+
+    return () => {
+      window.removeEventListener('orientationchange', recalcFillHeights);
+      ro?.disconnect();
+    };
   }, [isDesktop, recalcFillHeights]);
 
   // ── Shared sub-components (used by both layouts) ────────────────────────────
@@ -1574,7 +1603,15 @@ export default function TerminalPage() {
         style={{
           marginTop: 8,
           width: '100%',
-          padding: `${mBannerPadV} 12px`,
+          paddingTop: mBannerPadV,
+          paddingLeft: 12,
+          paddingRight: 12,
+          // Extra bottom padding absorbs whatever the two grids' MAX-height
+          // caps couldn't use up (see recalcFillHeights) — grown INTO the
+          // banner (not as blank margin after it) so its tinted background
+          // and border stay flush all the way to the bottom nav on very
+          // tall / chrome-less PWA viewports, instead of a dead gap.
+          paddingBottom: `calc(${mBannerPadV} + ${fillHeights.extraGap}px)`,
           textAlign: 'left',
           position: 'relative',
           cursor: canCheckout ? 'pointer' : 'not-allowed',
