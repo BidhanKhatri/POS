@@ -90,6 +90,12 @@
   display: none;               /* Chrome, Safari, Opera */
 }
 
+/* Subtle "live" status dot — used by the mobile header's work timer badge */
+@keyframes pos-live-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.45; }
+}
+
 @keyframes pin-shake {
   0%, 100% { transform: translateX(0); }
   15%       { transform: translateX(-7px); }

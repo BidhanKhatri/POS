@@ -20,6 +20,7 @@ import useAuthStore from '../store/useAuthStore';
 import { useLoading } from '../context/LoadingContext';
 import SessionMonitor from '../components/SessionLock/SessionMonitor';
 import BiometricPromptModal from '../components/BiometricSetup/BiometricPromptModal';
+import WorkTimer from '../components/WorkTimer';
 
 // ── Mobile bottom nav (primary 3 tabs) ────────────────────────────────────────
 const NAV_ITEMS = [
@@ -234,6 +235,14 @@ export default function EmployeeLayout() {
     }
     return true;
   })();
+
+  // Work timer visibility — actively clocked in (open shift), within a
+  // non-stale window, with a parseable checkInTime. `_activeShiftData`
+  // being undefined (still loading) leaves _hdrShift null, so the timer
+  // naturally stays hidden until the existing query resolves — no separate
+  // "loading" check needed.
+  const showWorkTimer = user?.role === 'Employee' && !!_hdrShift?.clockInTime &&
+    !_isStale && !Number.isNaN(new Date(_hdrShift.clockInTime).getTime());
 
   const _schedState = (() => {
     const now = new Date();
@@ -622,6 +631,13 @@ export default function EmployeeLayout() {
           <div style={{ display: 'flex', alignItems: 'center', padding: '4px 9px', borderRadius: 6, background: 'rgba(212,163,115,0.18)', border: '1px solid rgba(212,163,115,0.4)', flexShrink: 0 }}>
             <span style={{ fontSize: 10, fontWeight: 700, color: '#D4A373', letterSpacing: '0.05em', textTransform: 'uppercase' }}>{roleLabel}</span>
           </div>
+
+          {/* Live work timer — actively clocked in, within a non-stale shift.
+              Reuses the existing header active-shift query (_hdrShift/_isStale)
+              above instead of a second fetch. Isolated into its own component
+              so its once-a-second tick only re-renders WorkTimer, not this
+              whole header. */}
+          {showWorkTimer && <WorkTimer checkInTime={_hdrShift.clockInTime} />}
 
           {hdrBadge}
         </div>
