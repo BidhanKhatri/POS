@@ -477,12 +477,30 @@ export default function TerminalPage() {
   useLayoutEffect(() => {
     if (isDesktop) return;
     recalcFillHeights();
-    // Re-check shortly after mount to catch late layout settling (webfonts,
-    // the browser's toolbar finishing its show/hide animation, PWA
-    // standalone-mode chrome) that the first synchronous measurement can
-    // land in the middle of.
-    const t = setTimeout(recalcFillHeights, 250);
-    return () => clearTimeout(t);
+
+    // The very first mount — right after login, or a cold PWA launch — can
+    // measure before the environment has actually settled (web fonts
+    // swapping in and changing text metrics, or a fresh installed-PWA
+    // WebView not yet reporting its real env(safe-area-inset-bottom) on the
+    // first layout pass). A single fixed delay wasn't reliably landing
+    // after that settling finished, leaving a stale/too-small measurement
+    // that only ever got corrected by unmounting this page (navigating
+    // away and back). Staggered retries + the fonts-ready signal cover
+    // both fast (fonts) and slow (WebView/safe-area) settling without
+    // guessing one magic number.
+    const timers = [100, 300, 600, 1200].map((ms) => setTimeout(recalcFillHeights, ms));
+    document.fonts?.ready?.then(recalcFillHeights).catch(() => {});
+
+    let raf2 = null;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(recalcFillHeights);
+    });
+
+    return () => {
+      timers.forEach(clearTimeout);
+      cancelAnimationFrame(raf1);
+      if (raf2 !== null) cancelAnimationFrame(raf2);
+    };
   }, [isDesktop, totalProductPages, shiftEndingWarning, recalcFillHeights]);
 
   useEffect(() => {
