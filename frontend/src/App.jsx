@@ -178,39 +178,7 @@ function AuthGate() {
   return <GuestRoutes />;
 }
 
-// On a cold standalone-PWA launch, iOS's WKWebView can finish settling its
-// real window size (status bar / home-indicator chrome) slightly AFTER the
-// first paint. `position: fixed` elements (the bottom tab nav, full-screen
-// overlays) are supposed to be re-resolved against the viewport on every
-// layout pass, but some WebViews don't reliably fire that pass on their own
-// after this late resize — leaving fixed elements anchored to the stale,
-// too-short first-paint viewport and a blank gap below them, until
-// something else (e.g. a route change) forces a fresh layout. Forcing one
-// synchronous reflow shortly after mount is the standard workaround for
-// this exact class of bug. Scoped to standalone mode only — a regular
-// browser tab's viewport is already correct from the first paint.
-function useSettleStandaloneViewport() {
-  useEffect(() => {
-    const isStandalone =
-      window.matchMedia?.('(display-mode: standalone)').matches ||
-      window.navigator.standalone === true; // legacy iOS flag
-    if (!isStandalone) return;
-
-    const nudge = () => {
-      // Reading offsetHeight forces the browser to flush layout
-      // synchronously against whatever the CURRENT real viewport is,
-      // instead of whatever it computed at first paint.
-      void document.documentElement.offsetHeight;
-      window.scrollTo(0, 0);
-    };
-    const timers = [50, 300, 800].map((ms) => setTimeout(nudge, ms));
-    return () => timers.forEach(clearTimeout);
-  }, []);
-}
-
 function App() {
-  useSettleStandaloneViewport();
-
   return (
     <SocketProvider>
       <ShiftGateProvider>

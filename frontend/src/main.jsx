@@ -6,6 +6,24 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { LoadingProvider } from './context/LoadingContext.jsx'
 import { registerSW } from 'virtual:pwa-register'
 
+// `100dvh` alone isn't reliably correct on every mobile/installed-PWA
+// WebView — support and cold-launch timing both vary. `window.visualViewport`
+// is the browser's own continuously-updated, authoritative source of the
+// real visible viewport height, immune to those quirks by design (it's the
+// API built specifically to solve this class of problem). Mirror it into a
+// CSS custom property, kept live for the whole app lifetime (covers
+// orientation changes, on-screen keyboard, and any PWA chrome changes) —
+// full-height layout wrappers use `var(--app-100vh, 100dvh)` so they always
+// match the true screen instead of trusting `dvh` alone. Runs before React
+// mounts so the variable is already correct on the very first paint.
+function setAppViewportHeightVar() {
+  const h = window.visualViewport?.height ?? window.innerHeight;
+  document.documentElement.style.setProperty('--app-100vh', `${h}px`);
+}
+setAppViewportHeightVar();
+window.visualViewport?.addEventListener('resize', setAppViewportHeightVar);
+window.addEventListener('orientationchange', setAppViewportHeightVar);
+
 // Register the service worker. registerType:'autoUpdate' + skipWaiting/clientsClaim
 // in sw.js mean new versions take over silently — no forced reload of the
 // current session, no update prompts interrupting an in-progress sale.
