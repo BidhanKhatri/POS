@@ -54,9 +54,23 @@
 }
 
 @layer base {
+  html, body, #root {
+    height: 100%;
+  }
   body {
     @apply bg-background text-on-background font-sans antialiased;
   }
+}
+
+/* `dvh` needs a `vh` fallback for full-height layout wrappers — a plain
+   inline style object can only hold one value per property, so it can't
+   express "fall back to vh if dvh isn't understood" the way stacked CSS
+   declarations can (the second, unsupported line is simply ignored,
+   leaving the first in effect). Used by EmployeeLayout/ManagerLayout's
+   full-height page wrappers instead of an inline `minHeight: '100dvh'`. */
+.pos-min-vh-fill {
+  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 /* Hide scrollbar — cross-browser (Chrome, Safari, Firefox, Edge) */

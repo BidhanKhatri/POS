@@ -392,9 +392,8 @@ export default function EmployeeLayout() {
       <SessionMonitor />
       <BiometricPromptModal />
       {renderLogoutModal()}
-      <div style={{
+      <div className="pos-min-vh-fill" style={{
         display: 'flex',
-        minHeight: '100dvh',
         background: '#F5F3F1',
         fontFamily: "'Plus Jakarta Sans', sans-serif",
       }}>
@@ -548,10 +547,9 @@ export default function EmployeeLayout() {
         </aside>
 
         {/* ── Main content ── */}
-        <main style={{
+        <main className="pos-min-vh-fill" style={{
           flex: 1,
           marginLeft: SIDEBAR_W,
-          minHeight: '100dvh',
           overflowY: 'auto',
         }}>
           <Outlet />
@@ -568,10 +566,10 @@ export default function EmployeeLayout() {
     <BiometricPromptModal />
     {renderLogoutModal()}
     <div
+      className="pos-min-vh-fill"
       style={{
         display: 'flex',
         flexDirection: 'column',
-        minHeight: '100dvh',
         background: '#F5F3F1',
         fontFamily: "'Plus Jakarta Sans', sans-serif",
       }}

@@ -27,7 +27,14 @@
          script needed. Kept visually consistent with SplashScreen.jsx so
          the handoff from static -> React-rendered splash is seamless. -->
     <style>
-      html, body { background: #F5F3F1; margin: 0; }
+      /* height:100% (not just background) — without it, background-color
+         only paints html/body's own content box. If the app's rendered
+         content ever ends up shorter than the true screen (e.g. a webview
+         with weaker `dvh` support, common specifically in installed-PWA
+         contexts), the remainder of the screen shows the browser's own
+         default white canvas instead of our background — exactly the
+         white gap this was causing at the bottom of the screen. */
+      html, body { background: #F5F3F1; margin: 0; height: 100%; }
       #boot-splash {
         position: fixed; inset: 0; z-index: 99999;
         display: flex; flex-direction: column; align-items: center; justify-content: center;
