@@ -123,7 +123,6 @@ function AuthGate() {
   const localUser        = useAuthStore((s) => s.user);
   const refreshToken     = useAuthStore((s) => s.refreshToken);
   const isLocked         = useAuthStore((s) => s.isLocked);
-  const lastLockDate     = useAuthStore((s) => s.lastLockDate);
   const isSessionExpired = useAuthStore((s) => s.isSessionExpired);
   const logout           = useAuthStore((s) => s.logout);
   const lock             = useAuthStore((s) => s.lock);
@@ -139,13 +138,14 @@ function AuthGate() {
     if (sessionExpired) {
       logout();
     } else if (hasTrustedSession && !isLocked) {
-      // Re-show the lock screen on app start / refresh only once per day —
-      // not on every single refresh. Idle-triggered locking (15 min) is
-      // handled separately and continuously by SessionMonitor.
-      const today = new Date().toDateString();
-      if (lastLockDate !== today) {
-        lock();
-      }
+      // Always require the PIN again on a fresh app boot/reload — i.e.
+      // whenever the app was fully closed (process killed, not just
+      // backgrounded) and relaunched. Backgrounding without a full reload
+      // is covered separately and continuously by SessionMonitor's
+      // visibilitychange handler (lock() fires the instant the app is
+      // hidden, so it's already locked by the time the user returns,
+      // whether or not that return happens to also reload the page).
+      lock();
     }
     // Guest path has no async data — dismiss splash immediately
     if (!localUser && !hasTrustedSession) stopLoading();

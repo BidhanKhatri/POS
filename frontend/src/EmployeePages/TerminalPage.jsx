@@ -841,8 +841,15 @@ export default function TerminalPage() {
 
     return (
       <div style={{
+        // top:0 + explicit height (JS-verified --app-100vh, see main.jsx)
+        // instead of bottom:0 — bottom:0 implicitly relies on the browser's
+        // internal fixed-positioning viewport height being correct at
+        // paint time, which is what was leaving a blank gap below the
+        // bottom nav (this overlay's box falling short of it) on some PWA
+        // launches.
         position: 'fixed',
-        top: 0, bottom: 0, right: 0,
+        top: 0, right: 0,
+        height: 'var(--app-100vh, 100dvh)',
         left: isDesktop ? 232 : 0,
         zIndex: 500,
         backdropFilter: 'blur(10px)',

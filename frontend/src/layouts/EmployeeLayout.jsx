@@ -637,7 +637,18 @@ export default function EmployeeLayout() {
         className="pos-safe-bottom-nav"
         style={{
           position: 'fixed',
-          bottom: 0, left: 0, right: 0,
+          // Anchored from the always-reliable `top: 0` edge instead of
+          // `bottom: 0` — bottom:0 depends on the browser's internal fixed-
+          // positioning viewport height being correct at paint time, which
+          // is exactly the value that was going stale on some PWA cold
+          // launches (leaving a blank gap below the nav). `top: 0` has no
+          // such ambiguity, so combining it with our own JS-verified
+          // --app-100vh height sidesteps the bug entirely instead of
+          // hoping the browser's bottom-edge resolution is correct.
+          // Must mirror the standalone-mode height override below (70px +
+          // safe-area) exactly, or this and the real height diverge.
+          top: 'calc(var(--app-100vh, 100dvh) - 70px - env(safe-area-inset-bottom, 0px))',
+          left: 0, right: 0,
           height: 70,
           background: '#ffffff',
           borderTop: '1px solid #DDD2CC',

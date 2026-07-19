@@ -40,10 +40,24 @@ export default function SessionMonitor() {
     resetIdleTimer();
     ACTIVITY_EVENTS.forEach(e => window.addEventListener(e, resetIdleTimer, { passive: true }));
 
+    // ── 4. Lock immediately when the app is closed/backgrounded ────────────
+    // A PWA that's backgrounded (app-switched away from, tab hidden, screen
+    // locked) is usually just suspended in memory, not reloaded — so it
+    // would never hit AuthGate's boot-time lock check when the user
+    // returns. Locking the instant it goes hidden means it's already
+    // locked by the time they come back, whether that return resumes the
+    // same process or triggers a fresh reload (process was actually
+    // killed) — either way, "closed and reopened" always shows the PIN.
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') lock();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
     return () => {
       clearTimeout(idleTimer.current);
       clearInterval(sessionRef.current);
       ACTIVITY_EVENTS.forEach(e => window.removeEventListener(e, resetIdleTimer));
+      document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 

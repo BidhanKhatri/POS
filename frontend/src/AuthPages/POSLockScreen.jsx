@@ -398,8 +398,12 @@ export default function POSLockScreen() {
   if (isDesktop) {
     return (
       <div style={{
-        position: 'fixed', inset: 0, zIndex: 9999,
-        display: 'flex', height: '100dvh', overflow: 'hidden',
+        // top:0 + explicit height (JS-verified --app-100vh, see main.jsx)
+        // instead of inset:0 — inset:0 implicitly relies on the browser's
+        // internal fixed-positioning bottom-edge resolution, which is what
+        // was leaving a blank gap below the screen on some PWA launches.
+        position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9999,
+        display: 'flex', height: 'var(--app-100vh, 100dvh)', overflow: 'hidden',
         fontFamily: FONT, background: '#F5F3F1',
       }}>
         {/* Left panel */}
@@ -524,7 +528,10 @@ export default function POSLockScreen() {
 
   return (
     <div style={{
-      position: 'fixed', inset: 0, zIndex: 9999,
+      // top:0 + explicit height (JS-verified --app-100vh, see main.jsx)
+      // instead of inset:0 — see the desktop layout above for why.
+      position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9999,
+      height: 'var(--app-100vh, 100dvh)',
       background: '#F5F3F1', fontFamily: FONT, overflowY: 'auto',
     }}>
       <div style={{
