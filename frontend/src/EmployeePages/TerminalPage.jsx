@@ -850,7 +850,10 @@ export default function TerminalPage() {
         background: 'rgba(245, 243, 241, 0.72)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         paddingTop: isDesktop ? 0 : 57,
-        paddingBottom: isDesktop ? 0 : 70,
+        // Nav is taller than 70px once env(safe-area-inset-bottom) is added
+        // in standalone PWA mode — match it exactly instead of a flat 70px
+        // so the card never sits too close to (or under) the real nav.
+        paddingBottom: isDesktop ? 0 : 'calc(70px + env(safe-area-inset-bottom, 0px))',
         paddingLeft: 20, paddingRight: 20,
         fontFamily: FONT,
       }}>
