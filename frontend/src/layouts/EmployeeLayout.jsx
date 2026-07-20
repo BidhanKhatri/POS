@@ -21,6 +21,7 @@ import { useLoading } from '../context/LoadingContext';
 import SessionMonitor from '../components/SessionLock/SessionMonitor';
 import BiometricPromptModal from '../components/BiometricSetup/BiometricPromptModal';
 import WorkTimer from '../components/WorkTimer';
+import { localYMD } from '../utils/timezone';
 
 // ── Mobile bottom nav (primary 3 tabs) ────────────────────────────────────────
 const NAV_ITEMS = [
@@ -191,8 +192,14 @@ export default function EmployeeLayout() {
   };
 
   // ── Header shift badge ────────────────────────────────────────────────────────
-  const todayYMD     = new Date().toISOString().slice(0, 10);
-  const yesterdayYMD = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  // Local calendar date, NOT toISOString()'s UTC date — using UTC here made
+  // "today" wrong for any employee timezone offset enough to already be a
+  // different calendar day in UTC (e.g. still "yesterday" in UTC just after
+  // local midnight ahead of UTC, or already "tomorrow" in UTC while still
+  // evening behind UTC), which meant a correctly-scheduled shift for the
+  // employee's real local day could go undetected.
+  const todayYMD     = localYMD();
+  const yesterdayYMD = localYMD(new Date(Date.now() - 86400000));
 
   const { data: _activeShiftData } = useQuery({
     queryKey: ['emp-layout-active-shift'],
@@ -286,12 +293,9 @@ export default function EmployeeLayout() {
       </button>
     );
 
-    if (_hdrShift) return (
-      <div style={pillStyle({ background: 'rgba(46,125,79,0.22)', color: '#81C784', border: '1px solid rgba(46,125,79,0.38)', cursor: 'default' })}>
-        <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#66BB6A', flexShrink: 0 }} />
-        Clocked In
-      </div>
-    );
+    // Clocked in — WorkTimer (rendered alongside) takes over as the sole
+    // indicator here instead of a static "Clocked In" text pill.
+    if (_hdrShift) return null;
 
     if (_schedState === 'IN_WINDOW') return (
       <button onClick={() => navigate('/employee/shift')} style={pillStyle({ background: 'rgba(46,125,79,0.22)', color: '#81C784', border: '1px solid rgba(46,125,79,0.40)', cursor: 'pointer' })}>
@@ -312,11 +316,9 @@ export default function EmployeeLayout() {
       </div>
     );
 
-    return (
-      <div style={pillStyle({ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.38)', border: '1px solid rgba(255,255,255,0.12)', cursor: 'default' })}>
-        No Shift
-      </div>
-    );
+    // No shift scheduled today — nothing to show; the header stays quiet
+    // until the employee has a shift to act on.
+    return null;
   })();
 
   // ── Helpers shared between both layouts ──────────────────────────────────────

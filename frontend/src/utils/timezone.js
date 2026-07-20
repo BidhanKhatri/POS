@@ -44,3 +44,18 @@ export function ymdHmToUtc(ymd, hhmm, timeZone) {
   const [hour, minute] = hhmm.split(':').map(Number);
   return zonedTimeToUtc(year, month, day, hour, minute, timeZone);
 }
+
+// The device's own local calendar date as YYYY-MM-DD — deliberately NOT
+// `date.toISOString().slice(0, 10)`, which is UTC-based and can report the
+// wrong calendar day for whoever's actually looking at the screen (e.g.
+// still showing "yesterday" in UTC just after local midnight in a
+// timezone ahead of UTC, or already "tomorrow" in UTC while it's still
+// evening in a timezone behind UTC). Schedules are keyed by the employee's
+// own local day, so "today" for a schedule lookup must be their local
+// day too, not UTC's.
+export function localYMD(date = new Date()) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}

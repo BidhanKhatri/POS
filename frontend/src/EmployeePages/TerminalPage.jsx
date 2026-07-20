@@ -18,6 +18,7 @@ import { useShiftGate } from '../context/ShiftGateContext';
 import { EVENTS } from '../socket/events';
 
 import { API_URL as API } from '../config/api';
+import { localYMD } from '../utils/timezone';
 
 const NUM_KEY =
   'flex items-center justify-center select-none cursor-pointer rounded-xl ' +
@@ -158,8 +159,8 @@ export default function TerminalPage() {
   /* ── Today's schedule check — lock terminal if no shift scheduled ── */
   useEffect(() => {
     if (user?.role !== 'Employee') { setSchedLoading(false); return; }
-    const today     = new Date().toISOString().slice(0, 10);
-    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    const today     = localYMD();
+    const yesterday = localYMD(new Date(Date.now() - 86400000));
     setSchedLoading(true);
     // Fetch yesterday + today to detect overnight shifts spanning midnight
     fetch(`${API}/api/staffing/my-schedule?startDate=${yesterday}&endDate=${today}`, {
@@ -179,8 +180,8 @@ export default function TerminalPage() {
   const todayScheduleState = (() => {
     if (!todayShifts) return 'NO_SHIFT';
     const now         = new Date();
-    const todayStr    = now.toISOString().slice(0, 10);
-    const yestStr     = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    const todayStr    = localYMD(now);
+    const yestStr     = localYMD(new Date(now.getTime() - 86400000));
     const todayList   = todayShifts.filter(s => s.date === todayStr);
     const yestList    = todayShifts.filter(s => s.date === yestStr);
 
@@ -938,9 +939,14 @@ export default function TerminalPage() {
 
                 <button
                   onClick={() => {
-                    const today = new Date().toISOString().slice(0, 10);
+                    // Same window as the initial check above (yesterday +
+                    // today, both in the employee's own local calendar day)
+                    // so an overnight shift spanning midnight is still
+                    // detected on manual retry, not just on first load.
+                    const today     = localYMD();
+                    const yesterday = localYMD(new Date(Date.now() - 86400000));
                     setSchedLoading(true);
-                    fetch(`${API}/api/staffing/my-schedule?startDate=${today}&endDate=${today}`, {
+                    fetch(`${API}/api/staffing/my-schedule?startDate=${yesterday}&endDate=${today}`, {
                       headers: { Authorization: `Bearer ${token}` },
                     })
                       .then(r => r.json())

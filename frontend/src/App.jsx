@@ -178,19 +178,71 @@ function AuthGate() {
   return <GuestRoutes />;
 }
 
+// Safety net for uncaught render errors that leave the app root blank
+// (chunk-load failures are handled separately in main.jsx via
+// `vite:preloadError`, since those happen outside React's render call
+// stack and an error boundary can't catch them). This catches everything
+// else — a genuine bug thrown during render — and shows a themed message
+// with a manual reload instead of a silent white screen.
+class AppErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error, info) {
+    console.error('[AppErrorBoundary]', error, info);
+  }
+
+  render() {
+    if (!this.state.hasError) return this.props.children;
+    return (
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 10000,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        gap: 16, padding: 24, textAlign: 'center',
+        background: '#F5F3F1', fontFamily: "'Plus Jakarta Sans', sans-serif",
+      }}>
+        <h1 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#2B1D1A' }}>
+          Something went wrong
+        </h1>
+        <p style={{ margin: 0, fontSize: 13, color: '#6B5B57', maxWidth: 360 }}>
+          The app hit an unexpected error. Reloading usually fixes it.
+        </p>
+        <button
+          onClick={() => window.location.reload()}
+          style={{
+            minHeight: 44, padding: '0 24px', borderRadius: 8,
+            background: '#3E2723', color: '#fff', border: 'none',
+            fontSize: 14, fontWeight: 700, cursor: 'pointer',
+          }}
+        >
+          Reload
+        </button>
+      </div>
+    );
+  }
+}
+
 function App() {
   return (
-    <SocketProvider>
-      <ShiftGateProvider>
-        <SplashScreen />
-        <OfflineScreen />
-        <BrowserRouter>
-          <Suspense fallback={null}>
-            <AuthGate />
-          </Suspense>
-        </BrowserRouter>
-      </ShiftGateProvider>
-    </SocketProvider>
+    <AppErrorBoundary>
+      <SocketProvider>
+        <ShiftGateProvider>
+          <SplashScreen />
+          <OfflineScreen />
+          <BrowserRouter>
+            <Suspense fallback={null}>
+              <AuthGate />
+            </Suspense>
+          </BrowserRouter>
+        </ShiftGateProvider>
+      </SocketProvider>
+    </AppErrorBoundary>
   );
 }
 

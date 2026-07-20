@@ -261,9 +261,9 @@ export default function POSLockScreen() {
           />
         ))}
       </div>
-      {(error || bioError) && (
+      {error && (
         <p style={{ margin: '8px 0 0', textAlign: 'center', fontSize: 11, fontWeight: 600, color: '#B71C1C', letterSpacing: '0.02em' }}>
-          {error || bioError}
+          {error}
         </p>
       )}
     </div>
@@ -336,56 +336,68 @@ export default function POSLockScreen() {
     );
   };
 
-  const ActionArea = () => (
-    <div className="flex flex-col gap-3 w-full">
-      {supported && hasBiometric && (
-        <div className="flex flex-col gap-1 w-full">
-          <button
-            onClick={handleBiometric}
-            disabled={authenticating || loading}
-            className="w-full flex items-center justify-center gap-2 rounded transition-all"
-            style={{
-              minHeight: 44,
-              border: '1px solid #DDD2CC',
-              background: authenticating ? '#F5F0EC' : '#ffffff',
-              color: authenticating ? '#A09490' : '#3E2723',
-              fontFamily: FONT, fontSize: 13, fontWeight: 600, letterSpacing: '0.1em',
-              cursor: (authenticating || loading) ? 'not-allowed' : 'pointer',
-              opacity: loading ? 0.4 : 1,
-              boxShadow: '0 2px 0 #c4b8b2',
-            }}
-          >
-            <FingerprintIcon sx={{ fontSize: 20, color: authenticating ? '#A09490' : '#3E2723' }} />
-            {authenticating ? 'WAITING FOR BIOMETRIC…' : 'USE BIOMETRIC LOGIN'}
-          </button>
-        </div>
-      )}
-
-      <div style={{ textAlign: 'center', paddingTop: 2 }}>
+  // Compact, tap-to-unlock biometric option — small icon button + label in a
+  // single row (not a big stacked icon+caption) so it costs minimal vertical
+  // space, placed at the bottom of the card below "Switch Account". Not
+  // auto-triggered on mount: WebAuthn's navigator.credentials.get() needs a
+  // fresh user gesture in most browsers, so firing it automatically on load
+  // would just throw NotAllowedError instead of actually being quicker.
+  const BiometricUnlock = () => {
+    if (!(supported && hasBiometric)) return null;
+    const busy = authenticating || loading;
+    return (
+      <div className="flex flex-col items-center w-full" style={{ gap: 4 }}>
         <button
-          onClick={handleSwitchAccount}
+          onClick={handleBiometric}
+          disabled={busy}
+          className="flex items-center justify-center select-none rounded-full active:translate-y-[1px] transition-all duration-150"
           style={{
-            background: 'none', border: 'none', cursor: 'pointer',
-            fontSize: 12, fontWeight: 500, color: '#A09490',
-            padding: 0, fontFamily: FONT, transition: 'color 0.15s',
-            WebkitTapHighlightColor: 'transparent',
+            gap: 6, padding: '5px 12px',
+            background: busy ? '#F5F0EC' : 'rgba(62,39,35,0.06)',
+            border: `1px solid ${busy ? '#DDD2CC' : 'rgba(62,39,35,0.18)'}`,
+            cursor: busy ? 'not-allowed' : 'pointer',
           }}
-          onMouseEnter={e => { e.currentTarget.style.color = '#3E2723'; }}
-          onMouseLeave={e => { e.currentTarget.style.color = '#A09490'; }}
         >
-          Switch Account
+          <FingerprintIcon sx={{ fontSize: 15, color: busy ? '#A09490' : '#3E2723' }} />
+          <span style={{ fontSize: 11, fontWeight: 700, color: busy ? '#A09490' : '#3E2723', letterSpacing: '0.03em', fontFamily: FONT }}>
+            {authenticating ? 'Waiting for biometric…' : 'Unlock with biometrics'}
+          </span>
         </button>
+        {bioError && (
+          <p style={{ margin: 0, fontSize: 10.5, fontWeight: 600, color: '#B71C1C', textAlign: 'center', fontFamily: FONT }}>
+            {bioError}
+          </p>
+        )}
       </div>
+    );
+  };
+
+  const ActionArea = () => (
+    <div className="flex flex-col items-center w-full" style={{ gap: 8 }}>
+      <button
+        onClick={handleSwitchAccount}
+        style={{
+          background: 'none', border: 'none', cursor: 'pointer',
+          fontSize: 12, fontWeight: 500, color: '#A09490',
+          padding: 0, fontFamily: FONT, transition: 'color 0.15s',
+          WebkitTapHighlightColor: 'transparent',
+        }}
+        onMouseEnter={e => { e.currentTarget.style.color = '#3E2723'; }}
+        onMouseLeave={e => { e.currentTarget.style.color = '#A09490'; }}
+      >
+        Switch Account
+      </button>
+      <BiometricUnlock />
     </div>
   );
 
   // ── keypad card (shared by mobile + desktop right panel) ───────────────────
 
-  const KeypadCard = ({ keyH, padding }) => (
+  const KeypadCard = ({ keyH, padding, gap = 16 }) => (
     <div style={{
       background: '#FFFFFF', border: '1px solid #DDD2CC',
       borderRadius: 12, padding,
-      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24,
+      display: 'flex', flexDirection: 'column', alignItems: 'center', gap,
     }}>
       <PinDots />
       <NumGrid keyH={keyH} />
@@ -537,41 +549,41 @@ export default function POSLockScreen() {
       <div style={{
         display: 'flex', minHeight: '100%', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center',
-        padding: '24px 16px',
+        padding: '14px 16px',
       }}>
-        <div style={{ width: '100%', maxWidth: 500, display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div style={{ width: '100%', maxWidth: 500, display: 'flex', flexDirection: 'column', gap: 12 }}>
 
           {/* User identity card */}
           <div style={{
             background: '#FFFFFF',
             border: '1px solid #DDD2CC', borderRadius: 12,
-            padding: '18px 20px',
-            display: 'flex', alignItems: 'center', gap: 14,
+            padding: '12px 16px',
+            display: 'flex', alignItems: 'center', gap: 12,
           }}>
             <div style={{
-              width: 52, height: 52, borderRadius: 13, flexShrink: 0,
+              width: 42, height: 42, borderRadius: 11, flexShrink: 0,
               background: 'rgba(62,39,35,0.08)', border: '1.5px solid rgba(62,39,35,0.18)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               overflow: 'hidden',
             }}>
               {display?.imageUrl
                 ? <img src={display.imageUrl} alt={display.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                : <span style={{ fontSize: 20, fontWeight: 900, color: '#3E2723', fontFamily: FONT }}>{initials}</span>
+                : <span style={{ fontSize: 16, fontWeight: 900, color: '#3E2723', fontFamily: FONT }}>{initials}</span>
               }
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#2B1D1A', letterSpacing: '-0.3px', fontFamily: FONT, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: '#2B1D1A', letterSpacing: '-0.3px', fontFamily: FONT, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {display?.name || 'Employee'}
               </p>
-              <p style={{ margin: '3px 0 0', fontSize: 11, fontWeight: 600, color: '#8A7B77', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: FONT }}>
+              <p style={{ margin: '2px 0 0', fontSize: 10.5, fontWeight: 600, color: '#8A7B77', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: FONT }}>
                 {role}{display?.employeeCode ? ` · ${display.employeeCode}` : ''}
               </p>
             </div>
-            <LockOutlinedIcon sx={{ fontSize: 18, color: '#A09490', flexShrink: 0 }} />
+            <LockOutlinedIcon sx={{ fontSize: 16, color: '#A09490', flexShrink: 0 }} />
           </div>
 
           {/* Keypad card */}
-          <KeypadCard keyH={72} padding="24px 24px 28px" />
+          <KeypadCard keyH={56} padding="16px 16px 18px" gap={14} />
 
         </div>
       </div>

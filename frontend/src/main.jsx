@@ -49,6 +49,36 @@ if ('serviceWorker' in navigator) {
   setInterval(checkForUpdate, 60 * 60 * 1000) // hourly safety net while the app stays open
 }
 
+// Route-level code splitting (App.jsx) means every page is a separate
+// hashed chunk fetched on first navigation to it. If a deploy happens
+// between when this tab loaded index.html and when the user first
+// navigates to a not-yet-loaded route, that chunk's old filename no
+// longer exists on the server — the request 404s (often as an HTML error/
+// SPA-fallback page), the browser throws "'text/html' is not a valid
+// JavaScript MIME type" trying to execute it as a module, and because this
+// happens in the dynamic-import machinery (not inside a component's
+// render call), a React error boundary can't catch it — the Suspense
+// fallback is `null`, so the result is a blank white screen. Vite fires
+// `vite:preloadError` specifically for this — the standard recovery is a
+// one-time reload to fetch the current index.html + matching chunks.
+// `reg.update()` first gives the service worker its best chance of having
+// already picked up the latest deploy before that reload happens; the
+// sessionStorage guard prevents a reload loop if the deploy is genuinely
+// broken. Cleared on a normal successful load so a *future* deploy can
+// still trigger one more recovery reload.
+const CHUNK_RELOAD_GUARD_KEY = 'pos-chunk-reload-once';
+window.addEventListener('vite:preloadError', () => {
+  if (sessionStorage.getItem(CHUNK_RELOAD_GUARD_KEY)) return;
+  sessionStorage.setItem(CHUNK_RELOAD_GUARD_KEY, '1');
+  const reload = () => window.location.reload();
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistration().then((reg) => reg?.update()).finally(reload);
+  } else {
+    reload();
+  }
+});
+window.addEventListener('load', () => sessionStorage.removeItem(CHUNK_RELOAD_GUARD_KEY));
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
