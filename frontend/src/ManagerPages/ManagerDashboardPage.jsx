@@ -1180,7 +1180,7 @@ export default function ManagerDashboardPage() {
                 action="Scheduling"
                 onAction={() => navigate('/manager/scheduling')}
               />
-              <div style={{ padding: '4px 16px 12px' }}>
+              <div style={{ padding: '4px 16px 12px', maxHeight: 100, overflowY: 'auto' }}>
                 <ActiveShifts shifts={data?.activeShifts} loading={loading} />
               </div>
             </Card>
@@ -1192,7 +1192,7 @@ export default function ManagerDashboardPage() {
                   title="Missed Checkouts"
                   subtitle={`${data?.missedCheckouts?.length ?? 0} still clocked in past scheduled end`}
                 />
-                <div style={{ padding: '4px 16px 12px' }}>
+                <div style={{ padding: '4px 16px 12px', maxHeight: 100, overflowY: 'auto' }}>
                   <MissedCheckouts shifts={data?.missedCheckouts} loading={loading} onForceCheckout={setForceCheckoutTarget} />
                 </div>
               </Card>
@@ -1366,7 +1366,7 @@ export default function ManagerDashboardPage() {
           action="Schedule"
           onAction={() => navigate('/manager/scheduling')}
         />
-        <div style={{ padding: '4px 14px 12px' }}>
+        <div style={{ padding: '4px 14px 12px', maxHeight: 100, overflowY: 'auto' }}>
           <ActiveShifts shifts={data?.activeShifts} loading={loading} />
         </div>
       </Card>
@@ -1378,7 +1378,7 @@ export default function ManagerDashboardPage() {
             title="Missed Checkouts"
             subtitle={`${data?.missedCheckouts?.length ?? 0} past scheduled end`}
           />
-          <div style={{ padding: '4px 14px 12px' }}>
+          <div style={{ padding: '4px 14px 12px', maxHeight: 100, overflowY: 'auto' }}>
             <MissedCheckouts shifts={data?.missedCheckouts} loading={loading} onForceCheckout={setForceCheckoutTarget} />
           </div>
         </Card>

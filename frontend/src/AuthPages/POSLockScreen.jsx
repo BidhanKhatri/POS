@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import FingerprintIcon       from '@mui/icons-material/Fingerprint';
 import BackspaceOutlinedIcon from '@mui/icons-material/BackspaceOutlined';
 import LockOutlinedIcon      from '@mui/icons-material/LockOutlined';
@@ -60,6 +60,7 @@ async function callVerifyPin(accessToken, pin) {
 
 export default function POSLockScreen() {
   const navigate   = useNavigate();
+  const location   = useLocation();
   const isDesktop  = useMediaQuery('(min-width:1024px)');
   const { startLoading, stopLoading } = useLoading();
   const [storeLogo] = useState(() => localStorage.getItem('pos-store-logo-url'));
@@ -86,16 +87,29 @@ export default function POSLockScreen() {
   const display   = user || trustedUser;
   const initials  = (display?.name || 'U').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
   const role      = display?.role || 'Employee';
-  const homeRoute = (role === 'Manager' || role === 'Admin') ? '/manager/dashboard' : '/employee/terminal';
 
   // Always compute the post-unlock redirect from a specific, freshly-verified
-  // user object rather than the `display`/`homeRoute` above — those can be
+  // user object rather than the `display` above — that can be
   // sourced from a stale `trustedUser` left on this device by a different
   // role's earlier login (this component only re-renders after submitPin's
   // async work settles, so a stale closure would otherwise win the race).
   const routeFor = (u) => {
     const r = u?.role || 'Employee';
     return (r === 'Manager' || r === 'Admin') ? '/manager/dashboard' : '/employee/terminal';
+  };
+
+  // Preserve whatever route the user was on when the terminal locked
+  // (idle timeout, app backgrounded, etc.) instead of always bouncing to
+  // the role's home route — but only if that route still belongs to the
+  // freshly-verified user's role area, so a stale trustedUser from a
+  // different role's earlier login on this device can't leak into it.
+  const preserveRoute = (u) => {
+    const r = u?.role || 'Employee';
+    const isManagerArea = r === 'Manager' || r === 'Admin';
+    const currentPath = `${location.pathname}${location.search}`;
+    if (isManagerArea && location.pathname.startsWith('/manager')) return currentPath;
+    if (!isManagerArea && location.pathname.startsWith('/employee')) return currentPath;
+    return routeFor(u);
   };
 
   useEffect(() => { stopLoading(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -171,7 +185,7 @@ export default function POSLockScreen() {
         if (refreshed) {
           applyRefresh(refreshed.user, refreshed.token, refreshed.refreshToken);
           const retry = await callVerifyPin(refreshed.token, enteredPin);
-          if (retry.data.success) { unlock(); startLoading(); navigate(routeFor(refreshed.user), { replace: true }); return; }
+          if (retry.data.success) { unlock(); startLoading(); navigate(preserveRoute(refreshed.user), { replace: true }); return; }
           handlePinFailure();
           return;
         }
@@ -189,7 +203,7 @@ export default function POSLockScreen() {
         // reflect a stale trustedUser left over from a different role's
         // login on this device (e.g. Manager) when this session's `user`
         // was null until the refresh/verify above just repopulated it.
-        navigate(routeFor(useAuthStore.getState().user), { replace: true });
+        navigate(preserveRoute(useAuthStore.getState().user), { replace: true });
       } else {
         handlePinFailure();
       }
@@ -221,7 +235,7 @@ export default function POSLockScreen() {
       const { token: bioToken, refreshToken: bioRefresh, ...userFields } = data;
       setTrustedSession(userFields, bioToken, bioRefresh ?? refreshToken);
       startLoading();
-      navigate(homeRoute, { replace: true });
+      navigate(preserveRoute(userFields), { replace: true });
     } catch (err) {
       setBioError(err.message || 'Biometric failed. Enter your PIN instead.');
     }

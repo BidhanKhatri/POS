@@ -190,11 +190,13 @@ function SyncDataTab({ token }) {
         body: JSON.stringify({ syncStaffingBetit: !syncEnabled }),
       });
       const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Sync toggle failed.');
       setSyncEnabled(data.syncStaffingBetit);
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
       qc.invalidateQueries({ queryKey: ['settings-sync'] });
-    } catch {
+    } catch (err) {
+      toast.error(`Sync failed: ${err.message}`, { duration: 5000 });
     } finally {
       setSyncToggling(false);
     }

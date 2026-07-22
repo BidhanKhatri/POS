@@ -12,6 +12,7 @@ export default function SessionMonitor() {
 
   const idleTimer  = useRef(null);
   const sessionRef = useRef(null);
+  const hiddenAt   = useRef(null);
 
   const resetIdleTimer = () => {
     clearTimeout(idleTimer.current);
@@ -40,16 +41,24 @@ export default function SessionMonitor() {
     resetIdleTimer();
     ACTIVITY_EVENTS.forEach(e => window.addEventListener(e, resetIdleTimer, { passive: true }));
 
-    // ── 4. Lock immediately when the app is closed/backgrounded ────────────
-    // A PWA that's backgrounded (app-switched away from, tab hidden, screen
-    // locked) is usually just suspended in memory, not reloaded — so it
-    // would never hit AuthGate's boot-time lock check when the user
-    // returns. Locking the instant it goes hidden means it's already
-    // locked by the time they come back, whether that return resumes the
-    // same process or triggers a fresh reload (process was actually
-    // killed) — either way, "closed and reopened" always shows the PIN.
+    // ── 4. Lock only once the 15-minute idle threshold is actually crossed ──
+    // A backgrounded PWA gets its timers throttled/suspended by the OS, so
+    // the setTimeout-based idle timer above can't be trusted to fire while
+    // hidden. Instead, stamp the moment it goes hidden and — on return —
+    // lock only if 15 minutes have genuinely elapsed since then. A quick
+    // app-switch or screen glance no longer forces the PIN screen; only a
+    // real idle gap (or the process having been killed and reopened after
+    // that gap) does.
     const onVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') lock();
+      if (document.visibilityState === 'hidden') {
+        hiddenAt.current = Date.now();
+      } else if (document.visibilityState === 'visible') {
+        if (hiddenAt.current && Date.now() - hiddenAt.current >= IDLE_TIMEOUT_MS) {
+          lock();
+        }
+        hiddenAt.current = null;
+        resetIdleTimer();
+      }
     };
     document.addEventListener('visibilitychange', onVisibilityChange);
 

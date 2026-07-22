@@ -163,19 +163,23 @@ function ShiftStatusSection({ activeShifts, missedCheckouts, loading, onForceChe
           <p style={{ fontSize: 11, color: C.textDim, margin: 0, padding: '4px 0' }}>Loading…</p>
         ) : !activeShifts?.length ? (
           <p style={{ fontSize: 11, color: C.textDim, margin: 0, padding: '4px 0' }}>No active shifts right now</p>
-        ) : activeShifts.map((s, i) => (
-          <div key={s._id} style={{ ...rowStyle, borderBottom: i === activeShifts.length - 1 ? 'none' : rowStyle.borderBottom }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-              <div style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0, background: 'rgba(46,125,79,0.10)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <AccessTimeOutlinedIcon sx={{ fontSize: 14, color: C.success }} />
+        ) : (
+          <div style={{ maxHeight: 100, overflowY: 'auto' }}>
+            {activeShifts.map((s, i) => (
+              <div key={s._id} style={{ ...rowStyle, borderBottom: i === activeShifts.length - 1 ? 'none' : rowStyle.borderBottom }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0, background: 'rgba(46,125,79,0.10)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <AccessTimeOutlinedIcon sx={{ fontSize: 14, color: C.success }} />
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: C.textPri, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.employee?.name ?? 'Unknown'}</p>
+                    <p style={{ margin: '1px 0 0', fontSize: 10, color: C.textDim }}>Clocked in {fmtTime(s.clockInTime)} · {elapsed(s.clockInTime)} ago</p>
+                  </div>
+                </div>
               </div>
-              <div style={{ minWidth: 0 }}>
-                <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: C.textPri, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.employee?.name ?? 'Unknown'}</p>
-                <p style={{ margin: '1px 0 0', fontSize: 10, color: C.textDim }}>Clocked in {fmtTime(s.clockInTime)} · {elapsed(s.clockInTime)} ago</p>
-              </div>
-            </div>
+            ))}
           </div>
-        ))}
+        )}
       </CornerCard>
 
       {/* Missed checkouts */}
@@ -186,25 +190,29 @@ function ShiftStatusSection({ activeShifts, missedCheckouts, loading, onForceChe
           <p style={{ fontSize: 11, color: C.textDim, margin: 0, padding: '4px 0' }}>Loading…</p>
         ) : !missedCheckouts?.length ? (
           <p style={{ fontSize: 11, color: C.textDim, margin: 0, padding: '4px 0' }}>No missed checkouts</p>
-        ) : missedCheckouts.map((s, i) => (
-          <div key={s._id} style={{ ...rowStyle, borderBottom: i === missedCheckouts.length - 1 ? 'none' : rowStyle.borderBottom }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-              <div style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0, background: 'rgba(183,28,28,0.10)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <LockClockOutlinedIcon sx={{ fontSize: 14, color: C.error }} />
+        ) : (
+          <div style={{ maxHeight: 100, overflowY: 'auto' }}>
+            {missedCheckouts.map((s, i) => (
+              <div key={s._id} style={{ ...rowStyle, borderBottom: i === missedCheckouts.length - 1 ? 'none' : rowStyle.borderBottom }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0, background: 'rgba(183,28,28,0.10)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <LockClockOutlinedIcon sx={{ fontSize: 14, color: C.error }} />
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: C.textPri, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.employee?.name ?? 'Unknown'}</p>
+                    <p style={{ margin: '1px 0 0', fontSize: 10, color: C.error, fontWeight: 600 }}>Sched. end {fmtTime(s.scheduledEnd)} · {fmtOvertime(s.overtimeMinutes)} over</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => onForceCheckout(s)}
+                  style={{ flexShrink: 0, padding: '6px 11px', borderRadius: 8, border: `1px solid ${C.error}`, background: 'transparent', color: C.error, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", whiteSpace: 'nowrap' }}
+                >
+                  Force Checkout
+                </button>
               </div>
-              <div style={{ minWidth: 0 }}>
-                <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: C.textPri, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.employee?.name ?? 'Unknown'}</p>
-                <p style={{ margin: '1px 0 0', fontSize: 10, color: C.error, fontWeight: 600 }}>Sched. end {fmtTime(s.scheduledEnd)} · {fmtOvertime(s.overtimeMinutes)} over</p>
-              </div>
-            </div>
-            <button
-              onClick={() => onForceCheckout(s)}
-              style={{ flexShrink: 0, padding: '6px 11px', borderRadius: 8, border: `1px solid ${C.error}`, background: 'transparent', color: C.error, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", whiteSpace: 'nowrap' }}
-            >
-              Force Checkout
-            </button>
+            ))}
           </div>
-        ))}
+        )}
       </CornerCard>
     </div>
   );
