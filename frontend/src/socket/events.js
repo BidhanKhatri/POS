@@ -8,6 +8,8 @@ export const EVENTS = {
   SHIFT_ENDED:              'shift:ended',
   MISSED_CHECKOUT_DETECTED: 'shift:missedcheckout',
   FORCE_CHECKOUT:           'shift:forcecheckout',
+  EMS_CLOCK_IN:             'ems:clockin',
+  EMS_CLOCK_OUT:            'ems:clockout',
   INVENTORY_LOWSTOCK: 'inventory:lowstock',
   BARCODE_STOCK_SYNC: 'barcode:stocksync',
   NOTIFICATION:       'notification',

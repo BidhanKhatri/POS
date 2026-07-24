@@ -55,6 +55,10 @@ const shiftSchema = new mongoose.Schema({
   scheduleSource: { type: String, enum: ['EMS', 'POS', 'MANUAL'], default: 'MANUAL' },
   scheduledStart: { type: String, default: null },  // HH:mm — copied from schedule
   scheduledEnd:   { type: String, default: null },  // HH:mm
+  scheduledStartUtc:{ type: Date, default: null },  // Absolute UTC start time — lets the
+                                                     // terminal hold the sales lock until the
+                                                     // real scheduled start even if attendance
+                                                     // (EMS clock-in) happened a few minutes early
   scheduledEndUtc:{ type: Date, default: null },    // Absolute UTC end time
   scheduledDate:  { type: String, default: null },  // YYYY-MM-DD
 

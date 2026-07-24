@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useMediaQuery } from '@mui/material';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSocketEvent } from '../context/SocketContext';
+import { EVENTS } from '../socket/events';
 import PointOfSaleIcon               from '@mui/icons-material/PointOfSale';
 import AccessTimeOutlinedIcon        from '@mui/icons-material/AccessTimeOutlined';
 import GridViewOutlinedIcon          from '@mui/icons-material/GridViewOutlined';
@@ -97,6 +99,7 @@ export default function EmployeeLayout() {
   const drawerRef = useRef(null);
   const isDesktop = useMediaQuery('(min-width:1024px)');
   const { stopLoading } = useLoading();
+  const qc = useQueryClient();
 
   const { data: logoData } = useQuery({
     queryKey: ['settings-logo'],
@@ -216,6 +219,17 @@ export default function EmployeeLayout() {
     staleTime: 5 * 60_000,
     refetchInterval: 60_000,
     enabled: !!token,
+  });
+
+  // EMS attendance sync — invalidate instantly instead of waiting up to the
+  // 30s/60s refetchInterval above.
+  useSocketEvent(EVENTS.EMS_CLOCK_IN, () => {
+    qc.invalidateQueries({ queryKey: ['emp-layout-active-shift'] });
+    qc.invalidateQueries({ queryKey: ['emp-layout-today-sched'] });
+  });
+  useSocketEvent(EVENTS.EMS_CLOCK_OUT, () => {
+    qc.invalidateQueries({ queryKey: ['emp-layout-active-shift'] });
+    qc.invalidateQueries({ queryKey: ['emp-layout-today-sched'] });
   });
 
   const _hdrShift          = _activeShiftData?.data ?? null;

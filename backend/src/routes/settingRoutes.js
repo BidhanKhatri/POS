@@ -5,7 +5,7 @@ import { imageUpload } from '../middleware/uploadMiddleware.js';
 import { uploadBuffer, deleteFile } from '../services/imagekitService.js';
 import { isValidTimeZone, computeNextRunUtc } from '../utils/timezone.js';
 import { runDailyReport } from '../cron/dailyReport.cron.js';
-import { fetchGroups, bustCache } from '../services/staffingService.js';
+import { pingEms } from '../services/staffingService.js';
 
 const router = express.Router();
 
@@ -50,8 +50,7 @@ router.patch('/sync-staffing', protect, managerOrAdmin, async (req, res, next) =
     // flipping the flag, otherwise POS reports "synced" while EMS is down.
     if (val) {
       try {
-        bustCache('ems:groups:all');
-        await fetchGroups();
+        await pingEms();
       } catch (emsErr) {
         return res.status(502).json({ message: `Could not reach Staffing Betit (EMS): ${emsErr.message}` });
       }

@@ -107,6 +107,36 @@ async function emsRequest(path, params = {}) {
 // ─── public API ──────────────────────────────────────────────────────────────
 
 /**
+ * Reachability probe — used before enabling sync so POS never reports
+ * "synced" while EMS is actually down.
+ *
+ * Deliberately does NOT reuse emsRequest(): that helper throws on any
+ * non-2xx status, which would misreport "EMS unreachable" for something
+ * like a 404 on a specific route. Here we only care whether the EMS
+ * process answered at all — any HTTP response (even an error one) proves
+ * the server is up. Only a network-level failure (connection refused,
+ * DNS failure, timeout) means EMS is actually unreachable.
+ */
+export async function pingEms() {
+  const token = process.env.STAFFING_API_TOKEN;
+  if (!token) {
+    throw new Error('STAFFING_API_URL and STAFFING_API_TOKEN must be set in environment');
+  }
+
+  const url = buildEmsUrl('/integrations/employee', { email: 'pos-sync-healthcheck@invalid.local' });
+
+  try {
+    await fetch(url.toString(), {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(8000),
+    });
+  } catch (err) {
+    throw new Error(err.name === 'TimeoutError' || err.name === 'AbortError' ? 'EMS did not respond in time' : err.message);
+  }
+}
+
+/**
  * Verify that an email address belongs to an active EMS employee.
  * Called during POS signup when syncStaffingBetit is enabled.
  *

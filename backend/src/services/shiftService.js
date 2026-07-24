@@ -11,6 +11,7 @@ const openShift = async (employeeId, {
   scheduleSource = 'MANUAL',
   scheduledStart = null,
   scheduledEnd   = null,
+  scheduledStartUtc = null,
   scheduledEndUtc= null,
   scheduledDate  = null,
 } = {}) => {
@@ -25,6 +26,7 @@ const openShift = async (employeeId, {
     scheduleSource,
     scheduledStart,
     scheduledEnd,
+    scheduledStartUtc,
     scheduledEndUtc,
     scheduledDate,
   });

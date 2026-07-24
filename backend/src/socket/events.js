@@ -14,6 +14,10 @@ export const EVENTS = {
   MISSED_CHECKOUT_DETECTED: 'shift:missedcheckout', // → managers room — dashboard refresh
   FORCE_CHECKOUT:           'shift:forcecheckout',  // → employee:{id} room — manager forced their checkout
 
+  // EMS attendance sync
+  EMS_CLOCK_IN:  'ems:clockin',  // → employee:{id} room — auto unlock + enable sales
+  EMS_CLOCK_OUT: 'ems:clockout', // → employee:{id} room — auto lock + disable sales
+
   // Inventory
   INVENTORY_LOWSTOCK: 'inventory:lowstock', // → managers room
   BARCODE_STOCK_SYNC: 'barcode:stocksync',  // → store room

@@ -74,7 +74,11 @@ const limiter = rateLimit({
 app.use('/api', limiter);
 
 // ── Body Parser ────────────────────────────────────────────────────────────────
-app.use(express.json());
+// `verify` stashes the raw request bytes on req.rawBody — needed by
+// emsWebhookAuth to compute/compare the HMAC signature over the exact bytes
+// EMS signed (JSON.stringify of the parsed body is not guaranteed to match
+// byte-for-byte). No effect on any other route.
+app.use(express.json({ verify: (req, _res, buf) => { req.rawBody = buf; } }));
 app.use(express.urlencoded({ extended: true }));
 
 // ── API Routes ─────────────────────────────────────────────────────────────────

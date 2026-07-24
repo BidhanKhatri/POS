@@ -20,6 +20,7 @@ import groupRoutes    from './groupRoutes.js';
 import profileRoutes  from './profileRoutes.js';
 import uploadRoutes   from './uploadRoutes.js';
 import databaseManagementRoutes from './databaseManagementRoutes.js';
+import emsWebhookRoutes from './emsWebhookRoutes.js';
 
 router.use('/auth', authRoutes);
 router.use('/auth/webauthn', webauthnRoutes);
@@ -40,5 +41,6 @@ router.use('/groups',    groupRoutes);
 router.use('/profile',   profileRoutes);
 router.use('/upload',    uploadRoutes);
 router.use('/database-management', databaseManagementRoutes);
+router.use('/integrations/ems', emsWebhookRoutes);
 
 export default router;

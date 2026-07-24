@@ -34,6 +34,18 @@ export function ShiftGateProvider({ children }) {
       : DEFAULT_LOCK_REASON);
   });
 
+  // EMS attendance sync — EMS is the source of truth, so a clock-in there
+  // must clear any prior lock (shift-ended/forced) instantly, and a clock-out
+  // there must lock the terminal exactly like a manager-forced checkout does.
+  useSocketEvent(isEmployee ? EVENTS.EMS_CLOCK_IN : null, () => {
+    setForceLocked(false);
+  });
+
+  useSocketEvent(isEmployee ? EVENTS.EMS_CLOCK_OUT : null, () => {
+    setForceLocked(true);
+    setLockReason('Clocked out via EMS attendance.');
+  });
+
   return (
     <ShiftGateContext.Provider value={{ forceLocked, lockReason }}>
       {children}

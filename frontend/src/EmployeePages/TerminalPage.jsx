@@ -109,6 +109,12 @@ export default function TerminalPage() {
   const mNumpadWrapRef  = useRef(null);
   const [fillHeights, setFillHeights] = useState({ product: PRODUCT_BASE_HEIGHT, numpad: NUMPAD_BASE_HEIGHT, extraGap: 0 });
 
+  const showToast = (message) => {
+    clearTimeout(toastTimer.current);
+    setToast({ message, key: Date.now() });
+    toastTimer.current = setTimeout(() => setToast(null), 2500);
+  };
+
   /* ── Pre-select product from barcode scanner ── */
   useEffect(() => {
     const bp = location.state?.barcodeProduct;
@@ -146,7 +152,7 @@ export default function TerminalPage() {
   }, [token]);
 
   /* ── Active shift check — employees must be clocked in ── */
-  useEffect(() => {
+  const refetchGateShift = useCallback(() => {
     if (user?.role !== 'Employee') { setGateLoading(false); return; }
     setGateLoading(true);
     fetch(`${API}/api/shifts/active`, { headers: { Authorization: `Bearer ${token}` } })
@@ -154,10 +160,12 @@ export default function TerminalPage() {
       .then((d) => setGateShift(d.data ?? null))
       .catch(() => setGateShift(null))
       .finally(() => setGateLoading(false));
-  }, [token, user?.role]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [token, user?.role]);
+
+  useEffect(() => { refetchGateShift(); }, [refetchGateShift]);
 
   /* ── Today's schedule check — lock terminal if no shift scheduled ── */
-  useEffect(() => {
+  const refetchSchedule = useCallback(() => {
     if (user?.role !== 'Employee') { setSchedLoading(false); return; }
     const today     = localYMD();
     const yesterday = localYMD(new Date(Date.now() - 86400000));
@@ -174,7 +182,39 @@ export default function TerminalPage() {
       })
       .catch(() => setTodayShifts([]))
       .finally(() => setSchedLoading(false));
-  }, [token, user?.role]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [token, user?.role]);
+
+  useEffect(() => { refetchSchedule(); }, [refetchSchedule]);
+
+  // EMS attendance sync — refresh both gate checks the instant EMS clocks
+  // this employee in/out, and again on socket reconnect so any event missed
+  // during a drop is reconciled instead of silently lost. showToast is
+  // defined further down in this component, but that's safe here — these
+  // callbacks aren't invoked until the socket event actually fires (well
+  // after this render has finished executing), and useSocketEvent keeps its
+  // handler in a ref refreshed every render, so it always calls the current
+  // render's showToast, never a stale one.
+  useSocketEvent(EVENTS.EMS_CLOCK_IN, () => {
+    refetchGateShift();
+    refetchSchedule();
+    showToast('Sales terminal unlocked — clocked in via EMS attendance');
+  });
+  useSocketEvent(EVENTS.EMS_CLOCK_OUT, () => {
+    refetchGateShift();
+    refetchSchedule();
+    showToast('Sales terminal locked — clocked out via EMS attendance');
+  });
+  useSocketEvent(EVENTS.CONNECT, () => { refetchGateShift(); refetchSchedule(); });
+
+  // Ticks once a second so the "shift starts in Xm Ys" countdown (below) stays
+  // live and the terminal unlocks itself the instant the scheduled start
+  // passes — no user action, no socket event, no refetch needed for that.
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  useEffect(() => {
+    if (user?.role !== 'Employee') return;
+    const id = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [user?.role]);
 
   /* ── Derive today's schedule state for gate ── */
   const todayScheduleState = (() => {
@@ -211,9 +251,26 @@ export default function TerminalPage() {
     return 'PAST';
   })();
 
-  const noScheduleToday = todayScheduleState === 'NO_SHIFT';
+  // Only gates when NOT already clocked in — an EMS-driven auto clock-in
+  // (e.g. a late-arrival attendance approved after the fact) can open a real
+  // Shift without a matching same-day schedule entry ever showing up from
+  // /api/staffing/my-schedule. An open Shift is the actual source of truth
+  // for "can this employee sell", so it must always win over a stale/missing
+  // schedule read — otherwise the terminal stays locked forever after a
+  // valid EMS clock-in just because the schedule fetch says NO_SHIFT.
+  const noScheduleToday = todayScheduleState === 'NO_SHIFT' && !gateShift;
   // Shift ended and not clocked in — terminal is also inaccessible
   const shiftEnded = todayScheduleState === 'PAST' && !gateShift;
+
+  // EMS attendance rules can require checking in a few minutes before the
+  // scheduled start (e.g. "clock in up to 5 min early"). That's fine for
+  // attendance/payroll — the Shift is genuinely open — but the sales
+  // terminal itself must not unlock until the real scheduled start. Holds
+  // the lock (with a live countdown, see renderGateOverlay) until then, and
+  // releases it automatically via the 1s tick above, no refetch required.
+  const shiftStartsAt = gateShift?.scheduledStartUtc ? new Date(gateShift.scheduledStartUtc).getTime() : null;
+  const shiftNotStartedYet = !!gateShift && shiftStartsAt !== null && shiftStartsAt > nowTick;
+  const msUntilShiftStart = shiftNotStartedYet ? shiftStartsAt - nowTick : 0;
 
   // Stale shift = clocked in on a previous calendar day AND past scheduled end.
   // Active overnight shifts (e.g. 10 PM – 2 AM) are NOT stale — we check
@@ -241,7 +298,7 @@ export default function TerminalPage() {
 
   /* ── Lock background scroll when gate overlay is active ── */
   const gateActive = user?.role === 'Employee' &&
-    (gateLoading || schedLoading || noScheduleToday || shiftEnded || isStaleShift || !gateShift || forceLocked);
+    (gateLoading || schedLoading || noScheduleToday || shiftEnded || isStaleShift || !gateShift || forceLocked || shiftNotStartedYet);
 
   useEffect(() => {
     const main = document.querySelector('main');
@@ -277,12 +334,6 @@ export default function TerminalPage() {
       osc.stop(ctx.currentTime + durationMs / 1000);
     } catch { /* audio not supported */ }
   }, []);
-
-  const showToast = (message) => {
-    clearTimeout(toastTimer.current);
-    setToast({ message, key: Date.now() });
-    toastTimer.current = setTimeout(() => setToast(null), 2500);
-  };
 
   useEffect(() => () => clearTimeout(toastTimer.current), []);
 
@@ -892,6 +943,34 @@ export default function TerminalPage() {
               </h2>
               <p style={{ margin: '0 0 28px', fontSize: 14, fontWeight: 500, color: C.textSec, lineHeight: 1.55 }}>
                 {lockReason}
+              </p>
+            </div>
+          ) : shiftNotStartedYet ? (
+            /* ── Checked in via EMS ahead of the scheduled start — sales stay
+               locked until the real start time, counting down live ── */
+            <div>
+              <div style={{
+                width: 60, height: 60, borderRadius: 16,
+                background: 'rgba(21,101,192,0.10)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                margin: '0 auto 18px',
+              }}>
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="9" stroke="#1565C0" strokeWidth="2"/>
+                  <path d="M12 7v5l3.5 2" stroke="#1565C0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </div>
+
+              <h2 style={{ margin: '0 0 8px', fontSize: 21, fontWeight: 800, color: C.textPri, letterSpacing: '-0.3px' }}>
+                Shift starts in {(() => {
+                  const totalSec = Math.max(0, Math.ceil(msUntilShiftStart / 1000));
+                  const m = Math.floor(totalSec / 60);
+                  const s = totalSec % 60;
+                  return m > 0 ? `${m}m ${s}s` : `${s}s`;
+                })()}
+              </h2>
+              <p style={{ margin: 0, fontSize: 14, fontWeight: 500, color: C.textSec, lineHeight: 1.55 }}>
+                You're checked in — the sales terminal unlocks automatically at your scheduled start time.
               </p>
             </div>
           ) : noScheduleToday ? (

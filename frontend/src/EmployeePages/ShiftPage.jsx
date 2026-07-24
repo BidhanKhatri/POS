@@ -18,6 +18,8 @@ import CheckCircleOutlineOutlinedIcon from '@mui/icons-material/CheckCircleOutli
 import BlockOutlinedIcon            from '@mui/icons-material/BlockOutlined';
 import PointOfSaleIcon              from '@mui/icons-material/PointOfSale';
 import useAuthStore from '../store/useAuthStore';
+import { useSocketEvent } from '../context/SocketContext';
+import { EVENTS } from '../socket/events';
 
 import { API_URL as API } from '../config/api';
 const FONT = "'Plus Jakarta Sans', sans-serif";
@@ -244,6 +246,13 @@ export default function ShiftPage() {
 
   useEffect(() => { loadSchedule(); }, [loadSchedule]);
   useEffect(() => { loadActiveShift(); }, [loadActiveShift]);
+
+  // EMS attendance sync — Clock In/Out buttons and the shift timer flip
+  // automatically when EMS drives the change, and reconcile on reconnect in
+  // case an event was missed while the socket was disconnected.
+  useSocketEvent(EVENTS.EMS_CLOCK_IN,  refresh);
+  useSocketEvent(EVENTS.EMS_CLOCK_OUT, refresh);
+  useSocketEvent(EVENTS.CONNECT,      refresh);
 
   // Tick every 30 seconds to update countdown / state transitions
   useEffect(() => {
